@@ -1,13 +1,22 @@
 {
-  "name": "nova-project-(ridwan)",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "nova-kasir",
+  "version": "0.1.0",
+  "private": true,
+  "description": "KASIR NOVA - Aplikasi POS multi-outlet (Admin Platform, Owner, Kasir)",
+  "workspaces": [
+    "server",
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev:server": "npm run dev --workspace server",
+    "test:server": "npm run test --workspace server",
+    "db:migrate": "npm run db:migrate --workspace server",
+    "db:seed": "npm run db:seed --workspace server"
   },
-  "keywords": [],
+  "engines": {
+    "node": ">=20"
+  },
   "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  "license": "UNLICENSED"
 }
