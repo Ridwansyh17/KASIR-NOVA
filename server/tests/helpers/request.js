@@ -58,6 +58,8 @@ export const request = {
     req(path, { ...opts, method: 'POST', body: JSON.stringify(data ?? {}) }),
   put: (path, data, opts) =>
     req(path, { ...opts, method: 'PUT', body: JSON.stringify(data ?? {}) }),
+  patch: (path, data, opts) =>
+    req(path, { ...opts, method: 'PATCH', body: JSON.stringify(data ?? {}) }),
   del: (path, opts) => req(path, { ...opts, method: 'DELETE' }),
   stop,
 };

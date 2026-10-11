@@ -55,12 +55,33 @@
 2. **Rotasi refresh memakai `SELECT ... FOR UPDATE`** agar balapan (race)
    dua permintaan refresh bersamaan tidak menghasilkan dua token valid.
 
-## Fase 2 — Platform Admin (estimasi 3 hari)
+## Fase 2 — Platform Admin (estimasi 3 hari) ✅ SELESAI
 - Modul `platform-admin`: CRUD owner, suspend/aktivasi.
 - Panel `apps/admin` (HTML/CSS/JS) — daftar owner, detail, status.
 - Audit log mulai aktif (buku tamu semua aksi admin).
 - **Selesai jika:** admin bisa membuat owner baru; owner terdaftar bisa login
   di `/owner`; admin tidak bisa masuk lewat pendaftaran publik.
+
+> **Hasil aktual:** 7 endpoint `/api/platform/owners*` (daftar/buat/detail/
+> ubah/status/reset-password/soft-delete); panel `apps/admin` (login terkunci
+> `platform_admin`, daftar + cari + filter + paginasi, buat/ubah/suspend/
+> reset/hapus) disajikan di `/admin` saat dev. Migrasi `0002` menambah index
+> unik `lower(email)` (anti akun duplikat beda kapital) + kolom `deleted_at`.
+> Setiap mutasi menulis `audit_logs` di transaksi yang sama. Suspend/reset/
+> hapus **mencabut semua sesi owner** di server. **43/43 tes lulus** (15 baru
+> platform-admin). Kontrak API: `docs/09-api-platform-admin.md`.
+
+### Catatan deviasi dari rencana (dengan alasan)
+1. **"Owner terdaftar bisa login di `/owner`"** diverifikasi lewat modul auth
+   (login owner → `200`), karena `apps/owner` baru dibangun di Fase 3. Kriteria
+   otorisasi (admin hanya via seeding, tanpa pendaftaran publik) sudah diuji.
+2. **Hapus owner = SOFT delete** (`deleted_at` + suspend), bukan hapus fisik.
+   Hard delete akan membuat FK bisnis/transaksi (fase berikutnya) menjadi yatim
+   atau terhapus berantai. Ini keputusan teknis yang menjaga integritas data.
+3. **Email unik case-insensitive** ditambahkan pada migrasi ini karena login
+   membandingkan `lower(email)` — tanpa index ini, dua akun bisa terlihat sama.
+4. Panel admin disajikan Express pada dev; **produksi tetap Firebase Hosting**
+   (backend tidak melayani file statis saat `NODE_ENV=production`).
 
 ## Fase 3 — Owner & Multi-Bisnis (estimasi 4 hari)
 - Modul `owner` + `business`: owner membuat beberapa bisnis.

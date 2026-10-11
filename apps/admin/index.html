@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>KASIR NOVA — Admin Platform</title>
+    <link rel="stylesheet" href="./styles/styles.css" />
+  </head>
+  <body>
+    <!-- ================= LOGIN ================= -->
+    <section id="login-view" class="auth hidden">
+      <form id="login-form" class="card auth-card" novalidate>
+        <h1 class="brand-title">KASIR NOVA</h1>
+        <p class="muted">Panel Admin Platform</p>
+
+        <label class="field">
+          <span>Email</span>
+          <input id="login-email" type="email" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <button type="submit" class="btn primary block">Masuk</button>
+        <p id="login-error" class="error hidden"></p>
+      </form>
+    </section>
+
+    <!-- ================= APP ================= -->
+    <div id="app-view" class="hidden">
+      <header class="topbar">
+        <div class="brand">KASIR NOVA <span class="muted">/ Admin Platform</span></div>
+        <div class="user">
+          <span id="current-user" class="muted"></span>
+          <button id="logout-btn" class="btn">Keluar</button>
+        </div>
+      </header>
+
+      <main class="container">
+        <div class="toolbar">
+          <h2>Daftar Owner</h2>
+          <div class="toolbar-actions">
+            <input id="search" type="search" placeholder="Cari nama / email…" />
+            <select id="status-filter">
+              <option value="">Semua status</option>
+              <option value="active">Aktif</option>
+              <option value="suspended">Nonaktif</option>
+            </select>
+            <button id="refresh-btn" class="btn">Muat ulang</button>
+            <button id="new-owner-btn" class="btn primary">+ Owner Baru</button>
+          </div>
+        </div>
+
+        <div id="alert" class="alert hidden"></div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Email</th>
+                <th>Telepon</th>
+                <th>Status</th>
+                <th>Dibuat</th>
+                <th class="right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="owners-body"></tbody>
+          </table>
+          <p id="empty-state" class="empty hidden">Belum ada owner.</p>
+        </div>
+
+        <div class="pager">
+          <button id="prev-btn" class="btn">‹ Sebelumnya</button>
+          <span id="page-info" class="muted"></span>
+          <button id="next-btn" class="btn">Berikutnya ›</button>
+        </div>
+      </main>
+    </div>
+
+    <!-- ================= MODAL ================= -->
+    <div id="modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="modal-title">Owner Baru</h3>
+        <form id="owner-form" novalidate>
+          <input type="hidden" id="owner-id" />
+          <label class="field">
+            <span>Nama lengkap</span>
+            <input id="owner-name" type="text" required />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input id="owner-email" type="email" required />
+          </label>
+          <label class="field">
+            <span>Telepon (opsional)</span>
+            <input id="owner-phone" type="text" placeholder="+62812…" />
+          </label>
+          <label class="field" id="password-field">
+            <span>Password awal</span>
+            <input id="owner-password" type="password" autocomplete="new-password" />
+          </label>
+
+          <p id="form-error" class="error hidden"></p>
+
+          <div class="modal-actions">
+            <button type="button" id="modal-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
