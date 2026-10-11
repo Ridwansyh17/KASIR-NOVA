@@ -8,6 +8,14 @@
  *   PATCH  /api/platform/owners/:id/status   suspend/aktivasi
  *   POST   /api/platform/owners/:id/password reset password
  *   DELETE /api/platform/owners/:id          soft delete
+ *   GET    /api/platform/plans               daftar paket langganan
+ *   POST   /api/platform/plans               buat paket langganan
+ *   GET/PATCH /api/platform/plans/:id        detail/ubah paket langganan
+ *   GET    /api/platform/businesses          daftar semua bisnis
+ *   GET    /api/platform/businesses/:id      detail bisnis
+ *   GET    /api/platform/businesses/:id/subscription       lihat langganan
+ *   POST   /api/platform/businesses/:id/subscription       pasang paket
+ *   PATCH  /api/platform/businesses/:id/subscription/status ubah status langganan
  */
 import { Router } from 'express';
 import * as controller from './controller.js';
@@ -21,11 +29,16 @@ import {
   listOwnersQuerySchema,
   idParamSchema,
 } from './schema.js';
+import plansRouter from '../plans/routes.js';
+import businessRouter from './business-routes.js';
 
 const router = Router();
 
 // Gerbang tunggal: hanya Admin Platform.
 router.use(requireAuth, requireRole('platform_admin'));
+
+router.use('/plans', plansRouter);
+router.use('/businesses', businessRouter);
 
 router.get('/owners', ...validate({ query: listOwnersQuerySchema }), controller.listOwners);
 router.post('/owners', ...validate({ body: createOwnerSchema }), controller.createOwner);

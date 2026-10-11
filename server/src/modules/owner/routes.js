@@ -6,6 +6,8 @@
  *   GET    /api/owner/businesses/:businessId      detail (tenant-checked)
  *   PATCH  /api/owner/businesses/:businessId      ubah bisnis
  *   PATCH  /api/owner/businesses/:businessId/status  aktif/nonaktif
+ *   GET    /api/owner/businesses/:businessId/subscription  lihat langganan
+ *   ...    /api/owner/businesses/:businessId/outlets       kelola outlet
  *
  * Middleware tenant memverifikasi kepemilikan business_id (anti-IDOR).
  */
@@ -14,6 +16,7 @@ import * as controller from './controller.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireBusinessAccess } from '../../middleware/tenant.js';
 import { validate } from '../../middleware/validate.js';
+import outletRoutes from '../outlet/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -52,5 +55,15 @@ router.patch(
   requireBusinessAccess(),
   controller.setStatus
 );
+
+router.get(
+  '/businesses/:businessId/subscription',
+  ...validate({ params: businessParamSchema }),
+  requireBusinessAccess(),
+  controller.getSubscription
+);
+
+// Kelola outlet (sub-router dengan mergeParams agar :businessId tersedia).
+router.use('/businesses/:businessId/outlets', outletRoutes);
 
 export default router;

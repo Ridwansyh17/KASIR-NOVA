@@ -2,6 +2,7 @@
  * Controller modul owner (bisnis) — tipis.
  */
 import * as service from './service.js';
+import { getSubscriptionView } from '../subscription/service.js';
 
 export const listBusinesses = async (req, res, next) => {
   try {
@@ -60,6 +61,16 @@ export const setStatus = async (req, res, next) => {
       req.ip
     );
     res.json({ business });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getSubscription = async (req, res, next) => {
+  try {
+    // Kepemilikan bisnis sudah diverifikasi middleware tenant.
+    const view = await getSubscriptionView(req.params.businessId);
+    res.json(view);
   } catch (err) {
     next(err);
   }

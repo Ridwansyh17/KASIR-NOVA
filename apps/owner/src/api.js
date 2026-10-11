@@ -141,4 +141,25 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+
+  subscription: (businessId) =>
+    request(`/api/owner/businesses/${businessId}/subscription`),
+
+  outlets: {
+    list: (businessId) => request(`/api/owner/businesses/${businessId}/outlets`),
+    create: (businessId, data) =>
+      request(`/api/owner/businesses/${businessId}/outlets`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (businessId, outletId, data) =>
+      request(`/api/owner/businesses/${businessId}/outlets/${outletId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    remove: (businessId, outletId) =>
+      request(`/api/owner/businesses/${businessId}/outlets/${outletId}`, {
+        method: 'DELETE',
+      }),
+  },
 };

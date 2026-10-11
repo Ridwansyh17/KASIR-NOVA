@@ -311,6 +311,82 @@ select:focus {
   margin-top: 16px;
 }
 
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 22px 0;
+  max-width: 1080px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.tab {
+  font: inherit;
+  cursor: pointer;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.tab:hover {
+  background: #f2f4fa;
+}
+
+.tab.active {
+  background: #fff;
+  border-color: var(--border);
+  border-bottom-color: #fff;
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 -2px 8px rgba(20, 30, 60, 0.04);
+}
+
+.tab-view {
+  animation: fadein 0.15s ease;
+}
+
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.checks {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 560px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Modal ---------- */
 .modal {
   position: fixed;

@@ -44,6 +44,14 @@ body {
   font-size: 13px;
 }
 
+.small {
+  font-size: 13px;
+}
+
+.center {
+  text-align: center;
+}
+
 /* ---------- Login ---------- */
 .auth {
   min-height: 100vh;
@@ -318,6 +326,37 @@ select:focus {
 
 .empty p {
   margin: 0;
+}
+
+/* ---------- Outlet ---------- */
+.outlet-list {
+  display: grid;
+  gap: 12px;
+}
+
+.outlet-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+  background: #fbfcff;
+}
+
+.outlet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.outlet-head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.outlet-meta {
+  font-size: 12px;
 }
 
 /* ---------- Modal ---------- */

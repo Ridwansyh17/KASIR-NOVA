@@ -38,49 +38,126 @@
         </div>
       </header>
 
+      <nav class="tabs">
+        <button class="tab active" data-tab="owners">Owner</button>
+        <button class="tab" data-tab="plans">Paket</button>
+        <button class="tab" data-tab="businesses">Bisnis &amp; Langganan</button>
+      </nav>
+
       <main class="container">
-        <div class="toolbar">
-          <h2>Daftar Owner</h2>
-          <div class="toolbar-actions">
-            <input id="search" type="search" placeholder="Cari nama / email…" />
-            <select id="status-filter">
-              <option value="">Semua status</option>
-              <option value="active">Aktif</option>
-              <option value="suspended">Nonaktif</option>
-            </select>
-            <button id="refresh-btn" class="btn">Muat ulang</button>
-            <button id="new-owner-btn" class="btn primary">+ Owner Baru</button>
+        <!-- ================= TAB OWNER ================= -->
+        <section id="view-owners" class="tab-view">
+          <div class="toolbar">
+            <h2>Daftar Owner</h2>
+            <div class="toolbar-actions">
+              <input id="search" type="search" placeholder="Cari nama / email…" />
+              <select id="status-filter">
+                <option value="">Semua status</option>
+                <option value="active">Aktif</option>
+                <option value="suspended">Nonaktif</option>
+              </select>
+              <button id="refresh-btn" class="btn">Muat ulang</button>
+              <button id="new-owner-btn" class="btn primary">+ Owner Baru</button>
+            </div>
           </div>
-        </div>
 
-        <div id="alert" class="alert hidden"></div>
+          <div id="alert-owners" class="alert hidden"></div>
 
-        <div class="table-wrap">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Nama</th>
-                <th>Email</th>
-                <th>Telepon</th>
-                <th>Status</th>
-                <th>Dibuat</th>
-                <th class="right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody id="owners-body"></tbody>
-          </table>
-          <p id="empty-state" class="empty hidden">Belum ada owner.</p>
-        </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>Email</th>
+                  <th>Telepon</th>
+                  <th>Status</th>
+                  <th>Dibuat</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="owners-body"></tbody>
+            </table>
+            <p id="empty-state" class="empty hidden">Belum ada owner.</p>
+          </div>
 
-        <div class="pager">
-          <button id="prev-btn" class="btn">‹ Sebelumnya</button>
-          <span id="page-info" class="muted"></span>
-          <button id="next-btn" class="btn">Berikutnya ›</button>
-        </div>
+          <div class="pager">
+            <button id="prev-btn" class="btn">‹ Sebelumnya</button>
+            <span id="page-info" class="muted"></span>
+            <button id="next-btn" class="btn">Berikutnya ›</button>
+          </div>
+        </section>
+
+        <!-- ================= TAB PAKET ================= -->
+        <section id="view-plans" class="tab-view hidden">
+          <div class="toolbar">
+            <h2>Paket Langganan</h2>
+            <div class="toolbar-actions">
+              <button id="refresh-plans-btn" class="btn">Muat ulang</button>
+              <button id="new-plan-btn" class="btn primary">+ Paket Baru</button>
+            </div>
+          </div>
+
+          <div id="alert-plans" class="alert hidden"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>Max Outlet</th>
+                  <th>Max Kasir</th>
+                  <th>Harga</th>
+                  <th>Durasi (hari)</th>
+                  <th>Default</th>
+                  <th>Aktif</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="plans-body"></tbody>
+            </table>
+            <p id="plans-empty" class="empty hidden">Belum ada paket.</p>
+          </div>
+        </section>
+
+        <!-- ================= TAB BISNIS & LANGGANAN ================= -->
+        <section id="view-businesses" class="tab-view hidden">
+          <div class="toolbar">
+            <h2>Bisnis & Langganan</h2>
+            <div class="toolbar-actions">
+              <input id="biz-search" type="search" placeholder="Cari nama bisnis / email owner…" />
+              <button id="refresh-biz-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div id="alert-biz" class="alert hidden"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Bisnis</th>
+                  <th>Owner</th>
+                  <th>Paket</th>
+                  <th>Langganan</th>
+                  <th>Status</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="biz-body"></tbody>
+            </table>
+            <p id="biz-empty" class="empty hidden">Belum ada bisnis.</p>
+          </div>
+
+          <div class="pager">
+            <button id="biz-prev-btn" class="btn">‹ Sebelumnya</button>
+            <span id="biz-page-info" class="muted"></span>
+            <button id="biz-next-btn" class="btn">Berikutnya ›</button>
+          </div>
+        </section>
       </main>
     </div>
 
-    <!-- ================= MODAL ================= -->
+    <!-- ================= MODAL OWNER ================= -->
     <div id="modal" class="modal hidden">
       <div class="modal-card card">
         <h3 id="modal-title">Owner Baru</h3>
@@ -110,6 +187,81 @@
             <button type="submit" class="btn primary">Simpan</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL PAKET ================= -->
+    <div id="plan-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="plan-modal-title">Paket Baru</h3>
+        <form id="plan-form" novalidate>
+          <input type="hidden" id="plan-id" />
+
+          <label class="field">
+            <span>Nama paket</span>
+            <input id="plan-name" type="text" required />
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span>Max outlet</span>
+              <input id="plan-max-outlets" type="number" min="0" required />
+            </label>
+            <label class="field">
+              <span>Max kasir</span>
+              <input id="plan-max-cashiers" type="number" min="0" required />
+            </label>
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span>Harga (sen)</span>
+              <input id="plan-price" type="number" min="0" required placeholder="0" />
+            </label>
+            <label class="field">
+              <span>Durasi (hari)</span>
+              <input id="plan-duration" type="number" min="1" required />
+            </label>
+          </div>
+          <div class="checks">
+            <label class="check"><input id="plan-default" type="checkbox" /> Paket default (untuk bisnis baru)</label>
+            <label class="check"><input id="plan-active" type="checkbox" checked /> Aktif</label>
+          </div>
+
+          <p id="plan-form-error" class="error hidden"></p>
+
+          <div class="modal-actions">
+            <button type="button" id="plan-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL LANGGANAN BISNIS ================= -->
+    <div id="sub-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="sub-modal-title">Langganan Bisnis</h3>
+        <p id="sub-current" class="muted"></p>
+
+        <label class="field">
+          <span>Ganti paket</span>
+          <select id="sub-plan-select"></select>
+        </label>
+        <label class="field">
+          <span>Status langganan</span>
+          <select id="sub-status-select">
+            <option value="active">active</option>
+            <option value="past_due">past_due</option>
+            <option value="expired">expired</option>
+          </select>
+        </label>
+
+        <p id="sub-form-error" class="error hidden"></p>
+
+        <div class="modal-actions">
+          <button type="button" id="sub-cancel" class="btn">Tutup</button>
+          <button type="button" id="sub-assign" class="btn primary">Pasang Paket Ini</button>
+          <button type="button" id="sub-set-status" class="btn">Terapkan Status</button>
+        </div>
       </div>
     </div>
 

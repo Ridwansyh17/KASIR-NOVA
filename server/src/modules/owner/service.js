@@ -7,6 +7,7 @@
 import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
+import { createDefaultSubscription } from '../subscription/service.js';
 
 const BUSINESS_COLUMNS = `id, owner_id, name, business_type, currency, timezone, status, created_at, updated_at`;
 
@@ -40,6 +41,10 @@ export const createBusiness = async ({
       [ownerId, name, businessType ?? null, currency ?? null, timezone ?? null]
     );
     const business = rows[0];
+
+    // Keputusan pemilik (OPSI A): bisnis baru otomatis diberi langganan
+    // plan default, dalam transaksi yang sama dengan pembuatan bisnis.
+    await createDefaultSubscription(client, business.id);
 
     await writeAudit({
       client,

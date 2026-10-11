@@ -150,4 +150,33 @@ export const api = {
     }),
 
   deleteOwner: (id) => request(`/api/platform/owners/${id}`, { method: 'DELETE' }),
+
+  // Paket langganan
+  listPlans: () => request('/api/platform/plans'),
+  createPlan: (data) => request('/api/platform/plans', { method: 'POST', body: JSON.stringify(data) }),
+  updatePlan: (id, data) =>
+    request(`/api/platform/plans/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+  // Bisnis & langganan
+  listBusinesses({ search = '', status = '', page = 1, limit = 20 } = {}) {
+    const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) q.set('search', search);
+    if (status) q.set('status', status);
+    return request(`/api/platform/businesses?${q.toString()}`);
+  },
+
+  getBusinessSubscription: (businessId) =>
+    request(`/api/platform/businesses/${businessId}/subscription`),
+
+  assignSubscription: (businessId, planId) =>
+    request(`/api/platform/businesses/${businessId}/subscription`, {
+      method: 'POST',
+      body: JSON.stringify({ planId }),
+    }),
+
+  setSubscriptionStatus: (businessId, status) =>
+    request(`/api/platform/businesses/${businessId}/subscription/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };

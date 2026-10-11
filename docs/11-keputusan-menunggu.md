@@ -24,6 +24,8 @@ yang ditahan adalah mulai implementasi **Fase 4**.
 
 ## KEPUTUSAN MENUNGGU #1 — Gerbang pembuatan Outlet (menahan Fase 4)
 
+**✅ DIPUTUSKAN 11 Okt 2026 — OPSI A (Plan default otomatis).**
+
 **Konteks.** Fase 4 (Outlet & Batas Langganan) mensyaratkan: *membuat outlet
 melebihi batas plan **ditolak** server*. Karena bisnis baru dibuat tanpa
 langganan (keputusan #1), perlu diputuskan bagaimana perlakuan bisnis yang

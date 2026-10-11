@@ -77,14 +77,50 @@
           </div>
         </section>
 
+        <!-- Langganan bisnis aktif -->
+        <section id="subscription-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Langganan</h3>
+              <p class="muted">Status & batas paket bisnis aktif</p>
+            </div>
+            <span id="sub-badge" class="badge">—</span>
+          </div>
+
+          <dl class="meta">
+            <div><dt>Paket</dt><dd id="sub-plan">—</dd></div>
+            <div><dt>Batas outlet</dt><dd id="sub-max-outlets">—</dd></div>
+            <div><dt>Batas kasir</dt><dd id="sub-max-cashiers">—</dd></div>
+            <div><dt>Harga</dt><dd id="sub-price">—</dd></div>
+            <div><dt>Berlaku sampai</dt><dd id="sub-expires">—</dd></div>
+          </dl>
+          <p id="sub-empty" class="muted hidden">Bisnis ini belum memiliki langganan.</p>
+        </section>
+
+        <!-- Outlet bisnis aktif -->
+        <section id="outlet-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Outlet</h3>
+              <p class="muted">Titik penjualan milik bisnis aktif</p>
+            </div>
+            <button id="new-outlet-btn" class="btn primary">+ Outlet</button>
+          </div>
+
+          <div class="outlet-list" id="outlet-list"></div>
+          <p id="outlet-empty" class="empty hidden">Belum ada outlet. Tambahkan outlet pertama Anda.</p>
+        </section>
+
         <div id="empty-state" class="card empty hidden">
           <p>Anda belum memiliki bisnis.</p>
           <button id="empty-new-btn" class="btn primary">+ Buat Bisnis Pertama</button>
         </div>
+
+        <p id="waiting-state" class="muted center hidden">Pilih bisnis untuk melihat detailnya.</p>
       </main>
     </div>
 
-    <!-- ================= MODAL ================= -->
+    <!-- ================= MODAL BISNIS ================= -->
     <div id="modal" class="modal hidden">
       <div class="modal-card card">
         <h3 id="modal-title">Bisnis Baru</h3>
@@ -112,6 +148,40 @@
 
           <div class="modal-actions">
             <button type="button" id="modal-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL OUTLET ================= -->
+    <div id="outlet-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="outlet-modal-title">Outlet Baru</h3>
+        <form id="outlet-form" novalidate>
+          <input type="hidden" id="outlet-id" />
+
+          <label class="field">
+            <span>Nama outlet</span>
+            <input id="outlet-name" type="text" required />
+          </label>
+          <label class="field">
+            <span>Alamat (opsional)</span>
+            <input id="outlet-address" type="text" />
+          </label>
+          <label class="field">
+            <span>Telepon (opsional)</span>
+            <input id="outlet-phone" type="text" />
+          </label>
+          <label class="field">
+            <span>Pajak % (opsional, 0–100)</span>
+            <input id="outlet-tax" type="number" min="0" max="100" step="0.01" placeholder="0" />
+          </label>
+
+          <p id="outlet-form-error" class="error hidden"></p>
+
+          <div class="modal-actions">
+            <button type="button" id="outlet-cancel" class="btn">Batal</button>
             <button type="submit" class="btn primary">Simpan</button>
           </div>
         </form>

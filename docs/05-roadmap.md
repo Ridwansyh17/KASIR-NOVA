@@ -116,16 +116,61 @@
 2. **"Ganti konteks aktif"** adalah urusan frontend murni: id bisnis aktif
    disimpan di `localStorage`; server tetap memverifikasi kepemilikan tiap
    request sehingga berpindah konteks tidak pernah menjadi celah isolasi.
-3. **Admin belum punya daftar semua bisnis** (`GET /api/platform/businesses`).
-   Matriks mengizinkan admin melihat semua bisnis, tapi UI/endpoint-nya
-   dijadwalkan bersama pengawasan platform (Fase 9/11) untuk menjaga lingkup
-   fase. Isolasi tenant sudah diuji di sisi modul `owner`.
+3. **Admin belum punya daftar semua bisnis** (`GET /api/platform/businesses`)
+   sampai **Fase 4**, ketika endpoint tersebut dibuat karena Fase 4
+   membutuhkan admin mencari bisnis untuk memasang langganan (lihat Fase 4).
+   Isolasi tenant sudah diuji di sisi modul `owner`.
 
-## Fase 4 — Outlet & Batas Langganan (estimasi 3 hari)
+## Fase 4 — Outlet & Batas Langganan (estimasi 3 hari) ✅ SELESAI
 - Modul `outlet` + `subscription`: buat outlet, cek `max_outlets`.
 - Status langganan dibaca untuk gerbang pembuatan outlet.
 - **Selesai jika:** membuat outlet melebihi batas plan **ditolak** server;
   status langganan satu bisnis tidak mempengaruhi bisnis lain.
+
+> **Keputusan pemilik proyek (11 Okt 2026, Opsi A):** setiap bisnis BARU
+> otomatis mendapat langganan plan default **"Gratis"** (max outlet 1, max
+> kasir 1, harga 0, durasi 30 hari) di dalam transaksi pembuatan bisnis yang
+> sama. Arsip: `docs/11-keputusan-menunggu.md`.
+
+> **Hasil aktual:** migrasi `0004` membuat `subscription_plans` (kuota
+> outlet/kasir, harga dalam sen, durasi hari, flag `is_default`/`is_active`,
+> paling banyak satu default lewat index unik parsial — plan "Gratis" disemai
+> sebagai data referensi operasional), `subscriptions` (satu `active` per bisnis
+> lewat index unik parsial; riwayat non-aktif tetap tersimpan), dan `outlets`
+> (tenant `business_id`, `tax_rate NUMERIC(5,2)`, soft delete).
+>
+> Backend modul `outlet` (list/buat/detail/ubah/hapus) di bawah
+> `/api/owner/businesses/:businessId/outlets` + Owner melihat langganan
+> bisnisnya. Gerbang pembuatan outlet = transaksi yang mengunci baris bisnis
+> `FOR UPDATE` + `enforceOutletQuota` (bisnis aktif; langganan ada, aktif, dan
+> belum kedaluwarsa; jumlah outlet aktif < `max_outlets`) → **409** bila
+> menolak. Admin: CRUD paket (`/api/platform/plans`), daftar semua bisnis
+> (`/api/platform/businesses`), pasang/ubah status langganan bisnis
+> (`/api/platform/businesses/:id/subscription*`). Setiap mutasi menulis audit
+> log di transaksi yang sama.
+>
+> Panel: `apps/owner` + seksi **Langganan** (paket, batas, harga, berlaku
+> sampai) dan CRUD **Outlet**; `apps/admin` + tab **Paket** (CRUD
+> kuota/harga/default) dan tab **Bisnis & Langganan** (cari bisnis, pasang
+> paket, ubah status). **76/76 tes lulus** (20 baru; termasuk uji negatif:
+> outlet ke-2 paket Gratis = 409, langganan bisnis A kedaluwarsa tidak
+> memblokir bisnis B, anti-IDOR outlet lintas tenant = 404, hanya satu paket
+> default). Kontrak API: `docs/12-api-outlet-subscription.md`.
+
+### Catatan deviasi dari rencana (dengan alasan)
+1. **Gerbang langganan sudah aktif untuk pembuatan outlet di fase ini**
+   (roadmap menaruh pembatasan akses penuh di Fase 10). Batas yang aktif di
+   sini: kuota pembuatan outlet (`max_outlets`). Fase 10 akan memperluas
+   gerbang ke transaksi/akses lain sesuai keputusan Fase 4.
+2. **Admin kini punya `GET /api/platform/businesses`** (semula dijadwalkan
+   Fase 9/11) karena Fase 4 membutuhkan admin mencari bisnis untuk memasang
+   langganan. Catatan Fase 3 yang menunda endpoint ini diperbarui di bawah.
+3. **Hapus outlet = soft delete** tanpa pemeriksaan "tidak ada transaksi
+   aktif" — tabel `transactions` belum ada (Fase 7); pemeriksaan itu
+   ditambahkan saat tabel transaksi dibuat.
+4. **`setSubscriptionStatus` bekerja pada langganan TERBARU** (bukan hanya
+   yang `active`), agar Admin bisa mengembalikan langganan `expired` ke
+   `active` tanpa membuat baris baru.
 
 ## Fase 5 — Manajemen Kasir (estimasi 2–3 hari)
 - Modul `cashier`: Owner membuat kasir, **terkunci 1 outlet**.

@@ -1,14 +1,24 @@
 /**
  * Logika UI panel Admin Platform (Vanilla JS modular).
  *
- * Alur: login (peran terkunci platform_admin) -> daftar owner (cari/filter/
- * paginasi) -> buat/ubah/status/reset password/hapus. Semua otorisasi tetap
- * ditegakkan server; UI ini hanya alat bantu.
+ * Tab Owner  : kelola akun owner (buat/ubah/status/reset/hapus).
+ * Tab Paket  : kelola paket langganan (kuota outlet/kasir, harga, default).
+ * Tab Bisnis : lihat semua bisnis + kelola langganannya (pasang paket/status).
+ *
+ * Semua otorisasi tetap ditegakkan server; UI ini hanya alat bantu.
  */
 import { api, login, logout, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { page: 1, limit: 10, total: 0, search: '', status: '', owners: [] };
+
+const state = {
+  // owners
+  page: 1, limit: 10, total: 0, search: '', status: '', owners: [],
+  // plans
+  plans: [],
+  // businesses
+  bizPage: 1, bizLimit: 20, bizTotal: 0, bizSearch: '', businesses: [],
+};
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
@@ -25,6 +35,8 @@ const fmtDate = (iso) => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('id-ID');
 };
 
+const fmtIDR = (sen) => `Rp ${((Number(sen) ?? 0) / 100).toLocaleString('id-ID')}`;
+
 const describeError = (err) => {
   if (err instanceof ApiError && err.details?.fields?.length) {
     return err.details.fields.map((f) => `${f.path ? f.path + ': ' : ''}${f.message}`).join('; ');
@@ -32,8 +44,9 @@ const describeError = (err) => {
   return err?.message ?? 'Terjadi kesalahan';
 };
 
-const alertBox = (message, type = 'info') => {
-  const el = $('alert');
+const alertBox = (alertId, message, type = 'info') => {
+  const el = $(alertId);
+  if (!el) return;
   el.textContent = message;
   el.className = `alert ${type}`;
   show(el);
@@ -55,7 +68,19 @@ const guard = async (fn) => {
   }
 };
 
-// ---------------------------------------------------------------- Login ----
+// ------------------------------------------------------------- Tabs ----------
+document.querySelectorAll('.tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tab-view').forEach((v) => hide(v));
+    show($(`view-${tab.dataset.tab}`));
+    if (tab.dataset.tab === 'plans') loadPlans();
+    if (tab.dataset.tab === 'businesses') loadBusinesses();
+  });
+});
+
+// ---------------------------------------------------------------- Login ------
 $('login-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('login-error'));
@@ -83,12 +108,12 @@ $('logout-btn').addEventListener('click', async () => {
   show($('login-view'));
 });
 
-// -------------------------------------------------------------- Owners -----
 const fetchCurrentUser = async () => {
   const { user } = await guard(() => api.me());
   $('current-user').textContent = user ? `${user.fullName} (${user.email})` : '';
 };
 
+// =============================================================== TAB OWNER ===
 const renderOwners = (items) => {
   const tbody = $('owners-body');
   tbody.innerHTML = '';
@@ -148,7 +173,6 @@ const loadOwners = async () => {
   $('next-btn').disabled = state.page >= pages;
 };
 
-// Delegasi aksi pada tabel
 $('owners-body').addEventListener('click', async (event) => {
   const btn = event.target.closest('button[data-action]');
   if (!btn) return;
@@ -163,10 +187,10 @@ $('owners-body').addEventListener('click', async (event) => {
     if (!confirm(`Ubah status ${owner.email} menjadi "${next}"?`)) return;
     try {
       await guard(() => api.setStatus(id, next));
-      alertBox('Status berhasil diubah.', 'ok');
+      alertBox('alert-owners', 'Status berhasil diubah.', 'ok');
       await loadOwners();
     } catch (err) {
-      alertBox(describeError(err), 'error');
+      alertBox('alert-owners', describeError(err), 'error');
     }
     return;
   }
@@ -176,9 +200,9 @@ $('owners-body').addEventListener('click', async (event) => {
     if (!pw) return;
     try {
       await guard(() => api.resetPassword(id, pw));
-      alertBox('Password berhasil direset. Semua sesi owner dicabut.', 'ok');
+      alertBox('alert-owners', 'Password berhasil direset. Semua sesi owner dicabut.', 'ok');
     } catch (err) {
-      alertBox(describeError(err), 'error');
+      alertBox('alert-owners', describeError(err), 'error');
     }
     return;
   }
@@ -187,15 +211,14 @@ $('owners-body').addEventListener('click', async (event) => {
     if (!confirm(`Hapus (nonaktifkan) owner ${owner.email}?`)) return;
     try {
       await guard(() => api.deleteOwner(id));
-      alertBox('Owner dihapus.', 'ok');
+      alertBox('alert-owners', 'Owner dihapus.', 'ok');
       await loadOwners();
     } catch (err) {
-      alertBox(describeError(err), 'error');
+      alertBox('alert-owners', describeError(err), 'error');
     }
   }
 });
 
-// ---------------------------------------------------- Toolbar & paging -----
 let searchTimer = null;
 $('search').addEventListener('input', (event) => {
   state.search = event.target.value.trim();
@@ -223,7 +246,6 @@ $('next-btn').addEventListener('click', () => {
 });
 $('new-owner-btn').addEventListener('click', () => openCreateModal());
 
-// -------------------------------------------------------------- Modal ------
 const openCreateModal = () => {
   $('modal-title').textContent = 'Owner Baru';
   $('owner-form').reset();
@@ -266,13 +288,13 @@ $('owner-form').addEventListener('submit', async (event) => {
       const patch = { fullName, email };
       if (phone) patch.phone = phone;
       await guard(() => api.updateOwner(id, patch));
-      alertBox('Owner diperbarui.', 'ok');
+      alertBox('alert-owners', 'Owner diperbarui.', 'ok');
     } else {
       const password = $('owner-password').value;
       const payload = { fullName, email, password };
       if (phone) payload.phone = phone;
       await guard(() => api.createOwner(payload));
-      alertBox('Owner baru berhasil dibuat.', 'ok');
+      alertBox('alert-owners', 'Owner baru berhasil dibuat.', 'ok');
     }
     closeModal();
     await loadOwners();
@@ -283,7 +305,260 @@ $('owner-form').addEventListener('submit', async (event) => {
   }
 });
 
-// ------------------------------------------------------------- Bootstrap ---
+// =============================================================== TAB PAKET ===
+const renderPlans = (items) => {
+  const tbody = $('plans-body');
+  tbody.innerHTML = '';
+  hide($('plans-empty'));
+  if (!items.length) {
+    show($('plans-empty'));
+    return;
+  }
+  for (const p of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td>${p.max_outlets}</td>
+      <td>${p.max_cashiers}</td>
+      <td>${escapeHtml(fmtIDR(p.price))}</td>
+      <td>${p.duration_days}</td>
+      <td>${p.is_default ? '<span class="badge ok">default</span>' : '—'}</td>
+      <td>${p.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge off">nonaktif</span>'}</td>
+      <td class="right actions">
+        <button class="btn small" data-action="edit" data-id="${p.id}">Ubah</button>
+        <button class="btn small" data-action="toggle" data-id="${p.id}">${p.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadPlans = async () => {
+  const body = await guard(() => api.listPlans());
+  if (!body) return;
+  state.plans = body.items;
+  renderPlans(body.items);
+};
+
+$('refresh-plans-btn').addEventListener('click', () => loadPlans());
+$('new-plan-btn').addEventListener('click', () => {
+  $('plan-modal-title').textContent = 'Paket Baru';
+  $('plan-form').reset();
+  $('plan-id').value = '';
+  $('plan-active').checked = true;
+  hide($('plan-form-error'));
+  show($('plan-modal'));
+});
+
+$('plans-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+  const { action, id } = btn.dataset;
+  const plan = state.plans.find((p) => p.id === id);
+  if (!plan) return;
+
+  if (action === 'edit') {
+    $('plan-modal-title').textContent = 'Ubah Paket';
+    $('plan-id').value = plan.id;
+    $('plan-name').value = plan.name ?? '';
+    $('plan-max-outlets').value = plan.max_outlets ?? 1;
+    $('plan-max-cashiers').value = plan.max_cashiers ?? 1;
+    $('plan-price').value = plan.price ?? 0;
+    $('plan-duration').value = plan.duration_days ?? 30;
+    $('plan-default').checked = Boolean(plan.is_default);
+    $('plan-active').checked = Boolean(plan.is_active);
+    hide($('plan-form-error'));
+    show($('plan-modal'));
+    return;
+  }
+
+  if (action === 'toggle') {
+    const next = !plan.is_active;
+    try {
+      await guard(() => api.updatePlan(id, { isActive: next }));
+      alertBox('alert-plans', `Paket ${plan.name} ${next ? 'diaktifkan' : 'dinonaktifkan'}.`, 'ok');
+      await loadPlans();
+    } catch (err) {
+      alertBox('alert-plans', describeError(err), 'error');
+    }
+  }
+});
+
+$('plan-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('plan-form-error'));
+  const id = $('plan-id').value;
+  const payload = {
+    name: $('plan-name').value.trim(),
+    maxOutlets: Number($('plan-max-outlets').value),
+    maxCashiers: Number($('plan-max-cashiers').value),
+    price: Number($('plan-price').value),
+    durationDays: Number($('plan-duration').value),
+    isDefault: $('plan-default').checked,
+    isActive: $('plan-active').checked,
+  };
+  try {
+    if (id) {
+      await guard(() => api.updatePlan(id, payload));
+      alertBox('alert-plans', 'Paket diperbarui.', 'ok');
+    } else {
+      await guard(() => api.createPlan(payload));
+      alertBox('alert-plans', 'Paket baru berhasil dibuat.', 'ok');
+    }
+    hide($('plan-modal'));
+    await loadPlans();
+  } catch (err) {
+    const el = $('plan-form-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+
+$('plan-cancel').addEventListener('click', () => hide($('plan-modal')));
+$('plan-modal').addEventListener('click', (event) => {
+  if (event.target === $('plan-modal')) hide($('plan-modal'));
+});
+
+// ================================================== TAB BISNIS & LANGGANAN ===
+const renderBusinesses = (items) => {
+  const tbody = $('biz-body');
+  tbody.innerHTML = '';
+  hide($('biz-empty'));
+  if (!items.length) {
+    show($('biz-empty'));
+    return;
+  }
+  for (const b of items) {
+    const tr = document.createElement('tr');
+    const subBadge = b.subscription_status
+      ? `<span class="badge ${b.subscription_status === 'active' ? 'ok' : 'off'}">${escapeHtml(b.subscription_status)}</span>`
+      : '<span class="badge off">belum ada</span>';
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(b.name)}</strong><div class="muted small">${escapeHtml(b.business_type || '—')}</div></td>
+      <td>${escapeHtml(b.owner_name)}<div class="muted small">${escapeHtml(b.owner_email)}</div></td>
+      <td>${escapeHtml(b.plan_name || '—')}</td>
+      <td>${subBadge}</td>
+      <td>${b.status === 'active' ? '<span class="badge ok">aktif</span>' : '<span class="badge off">nonaktif</span>'}</td>
+      <td class="right actions">
+        <button class="btn small" data-action="sub" data-id="${b.id}">Langganan</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadBusinesses = async () => {
+  const body = await guard(() =>
+    api.listBusinesses({ search: state.bizSearch, page: state.bizPage, limit: state.bizLimit })
+  );
+  if (!body) return;
+
+  state.businesses = body.items;
+  state.bizTotal = body.total;
+  renderBusinesses(body.items);
+
+  const pages = Math.max(1, Math.ceil(body.total / state.bizLimit));
+  if (state.bizPage > pages) {
+    state.bizPage = pages;
+    return loadBusinesses();
+  }
+  $('biz-page-info').textContent = `Halaman ${state.bizPage} / ${pages} • ${body.total} bisnis`;
+  $('biz-prev-btn').disabled = state.bizPage <= 1;
+  $('biz-next-btn').disabled = state.bizPage >= pages;
+};
+
+let bizTimer = null;
+$('biz-search').addEventListener('input', (event) => {
+  state.bizSearch = event.target.value.trim();
+  state.bizPage = 1;
+  clearTimeout(bizTimer);
+  bizTimer = setTimeout(loadBusinesses, 300);
+});
+$('refresh-biz-btn').addEventListener('click', () => loadBusinesses());
+$('biz-prev-btn').addEventListener('click', () => {
+  if (state.bizPage > 1) {
+    state.bizPage -= 1;
+    loadBusinesses();
+  }
+});
+$('biz-next-btn').addEventListener('click', () => {
+  state.bizPage += 1;
+  loadBusinesses();
+});
+
+let currentSubBusinessId = null;
+
+const openSubModal = async (businessId) => {
+  currentSubBusinessId = businessId;
+  hide($('sub-form-error'));
+  show($('sub-modal'));
+
+  // Isi pilihan paket (semua paket aktif).
+  const plansBody = await guard(() => api.listPlans());
+  const select = $('sub-plan-select');
+  select.innerHTML = '';
+  const store = state.businesses.find((b) => b.id === businessId);
+  const currentPlanName = store?.plan_name ?? '';
+  for (const p of (plansBody?.items ?? [])) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.name} (${p.max_outlets} outlet, ${p.max_cashiers} kasir)${p.is_default ? ' — default' : ''}`;
+    select.appendChild(opt);
+  }
+  if (plansBody?.items?.length) select.selectedIndex = 0;
+
+  // Info langganan saat ini.
+  try {
+    const viewBody = await guard(() => api.getBusinessSubscription(businessId));
+    $('sub-current').textContent = `Saat ini: ${viewBody?.plan?.name ?? '—'} — status ${viewBody?.subscription?.status ?? '—'} · sampai ${fmtDate(viewBody?.subscription?.expires_at)}`;
+    $('sub-status-select').value = viewBody?.subscription?.status ?? 'active';
+  } catch (err) {
+    if (err.status === 404) {
+      $('sub-current').textContent = 'Bisnis belum memiliki langganan.';
+    } else {
+      $('sub-current').textContent = describeError(err);
+    }
+  }
+};
+
+$('biz-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn || btn.dataset.action !== 'sub') return;
+  await openSubModal(btn.dataset.id);
+});
+
+$('sub-assign').addEventListener('click', async () => {
+  const planId = $('sub-plan-select').value;
+  try {
+    await guard(() => api.assignSubscription(currentSubBusinessId, planId));
+    alertBox('alert-biz', 'Paket langganan berhasil dipasang.', 'ok');
+    hide($('sub-modal'));
+    await loadBusinesses();
+  } catch (err) {
+    const el = $('sub-form-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+
+$('sub-set-status').addEventListener('click', async () => {
+  const status = $('sub-status-select').value;
+  try {
+    await guard(() => api.setSubscriptionStatus(currentSubBusinessId, status));
+    alertBox('alert-biz', `Status langganan diubah menjadi ${status}.`, 'ok');
+    hide($('sub-modal'));
+    await loadBusinesses();
+  } catch (err) {
+    const el = $('sub-form-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+
+$('sub-cancel').addEventListener('click', () => hide($('sub-modal')));
+$('sub-modal').addEventListener('click', (event) => {
+  if (event.target === $('sub-modal')) hide($('sub-modal'));
+});
+
+// ------------------------------------------------------------- Bootstrap -----
 const boot = async () => {
   if (tokenStore.access || tokenStore.refresh) {
     try {
