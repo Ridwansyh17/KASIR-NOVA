@@ -353,18 +353,18 @@
 - Tes unit + integrasi + otorisasi (kasus negatif tiap matriks) + e2e.
 - Skrip backup/restore PostgreSQL terjadwal (`pg_dump`/`pg_restore`).
 - Endpoint health check + dasbor monitoring minimal.
-- Persiapan **Firebase Hosting** (3 site: admin, owner, kasir) — scaffold
-  `firebase.json`/`.firebaserc.example` + `NOVA_API_BASE` per app; **tanpa
-  deploy** (butuh persetujuan). **APK/Capacitor dibatalkan** atas keputusan
-  pemilik.
+- Persiapan **Firebase Hosting** (site `kasir-nova`, subpath `/admin` `/owner`
+  `/kasir`) — scaffold `firebase.json` + `scripts/build-hosting.mjs` +
+  `NOVA_API_BASE` per app; **sudah di-deploy** 11 Okt 2026 dan terverifikasi
+  end-to-end (3 app 200, CORS 204, login + audit via tunnel cloudflared).
+  **APK/Capacitor dibatalkan** atas keputusan pemilik.
 - **Selesai jika:** seluruh suite lulus, backup teruji bisa direstore, dan
-  ketiga app dapat disajikan lewat Firebase Hosting serta terhubung ke backend
-  (diuji dengan emulator).
+  ketiga app dapat disajikan lewat Firebase Hosting serta terhubung ke backend.
 
 > **Keputusan 11 Okt 2026:** distribusi klien = **web via Firebase Hosting**,
-> **bukan APK**. Backend Node+PostgreSQL di-host terpisah (belum ditetapkan);
-> frontend dibuat fleksibel via `NOVA_API_BASE` + CORS.
-> Runbook: `docs/20-deploy-firebase-hosting.md`.
+> **bukan APK**. Backend Node+PostgreSQL di-host terpisah (belum ditetapkan;
+> sementara diuji via tunnel cloudflared). Runbook:
+> `docs/20-deploy-firebase-hosting.md`.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —

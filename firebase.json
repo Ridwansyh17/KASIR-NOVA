@@ -1,49 +1,32 @@
 {
-  "hosting": [
-    {
-      "target": "admin",
-      "public": "apps/admin",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "headers": [
-        {
-          "source": "**",
-          "headers": [
-            { "key": "X-Content-Type-Options", "value": "nosniff" },
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "Referrer-Policy", "value": "no-referrer" }
-          ]
-        }
-      ]
-    },
-    {
-      "target": "owner",
-      "public": "apps/owner",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "headers": [
-        {
-          "source": "**",
-          "headers": [
-            { "key": "X-Content-Type-Options", "value": "nosniff" },
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "Referrer-Policy", "value": "no-referrer" }
-          ]
-        }
-      ]
-    },
-    {
-      "target": "kasir",
-      "public": "apps/kasir",
-      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-      "headers": [
-        {
-          "source": "**",
-          "headers": [
-            { "key": "X-Content-Type-Options", "value": "nosniff" },
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "Referrer-Policy", "value": "no-referrer" }
-          ]
-        }
-      ]
-    }
-  ]
+  "hosting": {
+    "public": "dist/hosting",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "redirects": [
+      { "source": "/", "destination": "/kasir", "type": 301 }
+    ],
+    "rewrites": [
+      { "source": "/admin/**", "destination": "/admin/index.html" },
+      { "source": "/owner/**", "destination": "/owner/index.html" },
+      { "source": "/kasir/**", "destination": "/kasir/index.html" }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "X-Frame-Options", "value": "DENY" },
+          { "key": "Referrer-Policy", "value": "no-referrer" }
+        ]
+      },
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      },
+      {
+        "source": "**/index.html",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
+  }
 }

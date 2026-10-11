@@ -1,124 +1,101 @@
-# KASIR NOVA — Deploy Firebase Hosting (3 site: admin, owner, kasir)
+# KASIR NOVA — Deploy Firebase Hosting (1 site: kasir-nova)
 
-> **Status:** persiapan (scaffold). **Belum ada deploy** — deploy butuh
-> persetujuan pemilik (lihat `docs/06-keamanan-dan-infrastruktur.md` §D).
+> **Status: SUDAH TER-DEPLOY** (11 Okt 2026) ke
+> `https://kasir-nova.web.app` — project `kasir-nova`, site default.
 >
-> Keputusan pemilik (11 Okt 2026): distribusi **web via Firebase Hosting**,
-> **bukan APK/Capacitor**. Satu project Firebase, **tiga site** terpisah.
+> Keputusan pemilik: distribusi **web via Firebase Hosting**, **bukan APK**.
 
-## 1. Ringkasan arsitektur
+## 1. Arsitektur final
 
 ```
-Firebase Hosting (statis)             Backend (host terpisah, menyusul)
-┌──────────────────────────┐          ┌───────────────────────────────┐
-│ site "admin" → apps/admin│  fetch   │ Node.js (Express) + PostgreSQL│
-│ site "owner" → apps/owner│ ───────► │ /api/**  (HTTPS + CORS)       │
-│ site "kasir" → apps/kasir│          └───────────────────────────────┘
-└──────────────────────────┘
+https://kasir-nova.web.app  (Firebase Hosting — statis)
+   /kasir/**   → apps/kasir   (POS)
+   /admin/**   → apps/admin   (Panel Admin Platform)
+   /owner/**   → apps/owner   (Panel Owner)
+   /           → 301 /kasir
+        │  fetch window.NOVA_API_BASE (HTTPS + CORS)
+        ▼
+   Backend Node.js + PostgreSQL (host tetap menyusul;
+   saat ini diuji via tunnel cloudflared ke localhost:4000)
 ```
 
-- Firebase Hosting **hanya** menyajikan berkas statis; API & DB **tidak** di sini.
-- Frontend menghubungi API melalui **`NOVA_API_BASE`** (`apps/<app>/config.js`).
-  - **Dev**: kosong (`''`) → origin sama; Express menyajikan app + `/api`.
-  - **Produksi**: URL backend HTTPS, mis. `https://api.nova.example`.
-- Karena beda origin, backend **wajib** mengizinkan origin site Firebase di
-  `CORS_ORIGIN` (lihat `server/.env.example`).
+- **1 site, 3 subpath** (site default `kasir-nova`; hemat kuota deploy harian).
+- Firebase Hosting **hanya** menyajikan statis; API & DB **tidak** di sini.
+- Frontend menghubungi backend via `NOVA_API_BASE`; backend mengizinkan origin
+  site di `CORS_ORIGIN`.
 
-## 2. Prasyarat
-
-- Node.js (sudah ada) & Firebase CLI: `npm i -g firebase-tools` (atau `npx firebase-tools`).
-- Akun Google + project Firebase (Blaze/Spark). **Pembuatan project menyentuh
-  billing → butuh persetujuan.**
-- Backend sudah punya URL HTTPS publik (menyusul).
-
-## 3. Berkas yang disiapkan repo
+## 2. Berkas pendukung deploy
 
 | Berkas | Isi |
 |---|---|
-| `firebase.json` | 3 target hosting: `admin`, `owner`, `kasir` + header keamanan |
-| `.firebaserc.example` | contoh pemetaan project & target (disalin ke `.firebaserc`) |
-| `apps/<app>/config.js` | `window.NOVA_API_BASE` (bukan rahasia, ikut ter-deploy) |
+| `firebase.json` | public `dist/hosting` + rewrite per subpath + header keamanan + cache |
+| `scripts/build-hosting.mjs` | salin 3 app ke `dist/hosting` & suntik `NOVA_API_BASE` produksi |
+| `apps/<app>/config.js` | default dev (`NOVA_API_BASE` kosong = origin sama) |
+| `.firebaserc` | lokal (di-`.gitignore`), berisi `kasir-nova` |
 
-`.firebaserc` **tidak** di-commit (di `.gitignore`); salin dari contoh.
+`dist/hosting` **tidak** di-commit (output build).
 
-## 4. Langkah setup (sekali per project)
+## 3. Build + deploy
 
 ```powershell
-# 1) Login
-npx firebase-tools login
+# A) Bangun aset dengan URL backend (wajib HTTPS)
+node scripts/build-hosting.mjs https://<URL-BACKEND>
 
-# 2) Buat 3 site hosting (id harus unik global; boleh pakai sufiks)
-npx firebase-tools hosting:sites:create nova-admin
-npx firebase-tools hosting:sites:create nova-owner
-npx firebase-tools hosting:sites:create nova-kasir
-
-# 3) Siapkan .firebaserc lalu isi PROJECT_ID (ganti GANTI_DENGAN_PROJECT_ID)
-Copy-Item .firebaserc.example .firebaserc
-
-# 4) Ikat target ke site (nama target: admin/owner/kasir)
-npx firebase-tools target:apply hosting admin nova-admin
-npx firebase-tools target:apply hosting owner nova-owner
-npx firebase-tools target:apply hosting kasir nova-kasir
+# B) Deploy (butuh login: firebase login sekali)
+firebase use kasir-nova
+firebase deploy --only hosting
 ```
 
-## 5. Arahkan frontend ke API backend
+Header keamanan otomatis dipasang: `X-Content-Type-Options`, `X-Frame-Options:
+DENY`, `Referrer-Policy: no-referrer`; cache 1 jam untuk JS/CSS, `no-cache`
+untuk `index.html`.
 
-Untuk tiap app, set basis URL backend di `apps/<app>/config.js` **sebelum build/deploy**:
+## 4. Tunnel backend untuk uji (cloudflared)
 
-```js
-window.NOVA_API_BASE = 'https://api.nova.example'; // URL HTTPS backend
+Backend lokal diterbitkan sementara tanpa server:
+
+```powershell
+cloudflared tunnel --url http://localhost:4000 --no-autoupdate
+# ambil URL https://<nama>.trycloudflare.com, tambahkan ke CORS_ORIGIN, lalu
+# build ulang dengan URL itu.
 ```
 
-Lalu di `server/.env` produksi tambahkan origin Firebase ke CORS:
+Catatan: URL `trycloudflare` **berubah setiap restart** — cocok untuk uji,
+bukan produksi.
+
+## 5. CORS backend
+
+Tambahkan origin Firebase ke `server/.env`:
 
 ```ini
-CORS_ORIGIN=https://nova-admin.web.app,https://nova-owner.web.app,https://nova-kasir.web.app
+CORS_ORIGIN=http://localhost:5173,http://localhost:5174,http://localhost:5175,https://kasir-nova.web.app
 ```
 
-> Catatan: backend juga perlu HTTPS (mixed-content diblokir browser) dan
-> `NODE_ENV=production` (agar Express berhenti menyajikan berkas statis).
+Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
+`Access-Control-Allow-Origin` = origin site.
 
-## 6. Uji lokal sebelum deploy
+## 6. Batasan Firebase Hosting (Spark)
 
-```powershell
-# Menyajikan tiap site lokal (tanpa menyentuh cloud)
-npx firebase-tools emulators:start --only hosting
-# atau preview cepat satu app:
-npx firebase-tools hosting:serve --only hosting:admin
-```
+| Batas | Spark (gratis) |
+|---|---|
+| Storage | 10 GB |
+| Transfer/bulan | 360 MB |
+| Requests | 10.000/hari |
+| **Deploy/hari per site** | **10** |
 
-Uji alur: login → CRUD → pastikan request menuju `NOVA_API_BASE` yang benar
-(tab Network di DevTools) dan tidak ada error CORS.
+3 app kita total < 1 MB — sangat cukup. Yang perlu dijaga hanya
+**10 deploy/hari** saat eksperimen.
 
-## 7. Deploy (BUTUH PERSETUJUAN)
+## 7. Yang sudah diverifikasi (11 Okt 2026)
 
-```powershell
-# semua site
-npx firebase-tools deploy --only hosting
+- `/kasir`, `/admin`, `/owner` → 200 + judul benar.
+- Preflight CORS dari `https://kasir-nova.web.app` → **204**.
+- Login admin via tunnel → 200 (`role=platform_admin`).
+- Baca audit log via tunnel → 200 (`total=146`).
 
-# per site
-npx firebase-tools deploy --only hosting:admin
-npx firebase-tools deploy --only hosting:owner
-npx firebase-tools deploy --only hosting:kasir
-```
+## 8. Yang masih menyusul
 
-Rollback: Firebase Console → Hosting → *Release history* → **Rollback**, atau
-`npx firebase-tools hosting:rollback`.
-
-## 8. Checklist sebelum produksi
-
-- [ ] `NOVA_API_BASE` tiap app = URL backend HTTPS produksi.
-- [ ] `CORS_ORIGIN` backend memuat **ketiga** origin site.
-- [ ] `NODE_ENV=production` di backend (statis Express mati).
-- [ ] HTTPS aktif di backend; tanpa data sensitif di log.
-- [ ] Login kasir (PIN), owner, admin berfungsi lintas-origin.
-- [ ] Tidak ada rahasia di `apps/**` (hanya `NOVA_API_BASE`, bukan kunci).
-- [ ] Uji `firebase emulators:start` bersih sebelum deploy.
-
-## 9. Hal yang belum diputuskan
-
-- **Host backend** (Cloud Run + Cloud SQL vs VPS) — pemilik belum menetapkan;
-  desain ini sengaja **fleksibel** (API base URL + CORS), jadi tidak perlu rework.
-- Bila kelak backend di **Cloud Run**, bisa ditambahkan rewrite
-  `/api/** -> Cloud Run` di `firebase.json` agar same-origin (opsional).
-- CSP ketat untuk site statis (belum, karena `connect-src` bergantung URL API).
+- **Host backend tetap** (Cloud Run / VPS) — URL `trycloudflare` sementara;
+  setelah tetap, build ulang bagian A dengan URL itu.
+- **Secrets produksi** (JWT & DB) — saat ini masih pakai nilai `dev_`.
+- CSP ketat untuk site statis (bergantung URL backend final).
