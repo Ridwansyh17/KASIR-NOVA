@@ -20,6 +20,7 @@ import { validate } from '../../middleware/validate.js';
 import outletRoutes from '../outlet/routes.js';
 import cashierRoutes from '../cashier/routes.js';
 import { categoryRoutes, productRoutes } from '../product/routes.js';
+import { transactionRoutes } from '../transaction/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -75,5 +76,8 @@ router.use('/businesses/:businessId/cashiers', cashierRoutes);
 // Kelola produk & kategori (harga sen; stok per outlet).
 router.use('/businesses/:businessId/categories', categoryRoutes);
 router.use('/businesses/:businessId/products', productRoutes);
+
+// Transaksi penjualan: riwayat/detail + void (kembalikan stok).
+router.use('/businesses/:businessId/transactions', transactionRoutes);
 
 export default router;

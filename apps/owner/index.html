@@ -141,6 +141,27 @@
           <p id="product-empty" class="empty hidden">Belum ada produk. Tambahkan produk pertama Anda.</p>
         </section>
 
+        <!-- Transaksi penjualan bisnis aktif -->
+        <section id="tx-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Transaksi Penjualan</h3>
+              <p class="muted">Riwayat penjualan & pembatalan (void) bisnis aktif</p>
+            </div>
+            <div class="detail-actions">
+              <select id="tx-status-filter">
+                <option value="">Semua status</option>
+                <option value="completed">Selesai</option>
+                <option value="voided">Dibatalkan</option>
+              </select>
+              <button id="tx-refresh-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div class="tx-list" id="tx-list"></div>
+          <p id="tx-empty" class="empty hidden">Belum ada transaksi di bisnis ini.</p>
+        </section>
+
         <div id="empty-state" class="card empty hidden">
           <p>Anda belum memiliki bisnis.</p>
           <button id="empty-new-btn" class="btn primary">+ Buat Bisnis Pertama</button>
@@ -206,6 +227,10 @@
           <label class="field">
             <span>Pajak % (opsional, 0–100)</span>
             <input id="outlet-tax" type="number" min="0" max="100" step="0.01" placeholder="0" />
+          </label>
+          <label class="field checkbox">
+            <input id="outlet-tax-inclusive" type="checkbox" />
+            <span>Pajak sudah termasuk harga (inklusif)</span>
           </label>
 
           <p id="outlet-form-error" class="error hidden"></p>
@@ -296,6 +321,19 @@
         <p id="stock-form-error" class="error hidden"></p>
         <div class="modal-actions">
           <button type="button" id="stock-cancel" class="btn">Tutup</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL DETAIL TRANSAKSI ================= -->
+    <div id="tx-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="tx-modal-title">Detail Transaksi</h3>
+        <div id="tx-detail"></div>
+        <p id="tx-form-error" class="error hidden"></p>
+        <div class="modal-actions">
+          <button type="button" id="tx-void-btn" class="btn danger hidden">Batalkan (void)</button>
+          <button type="button" id="tx-cancel" class="btn">Tutup</button>
         </div>
       </div>
     </div>

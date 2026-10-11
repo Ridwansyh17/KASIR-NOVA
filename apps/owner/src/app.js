@@ -191,7 +191,7 @@ const renderOutletList = (items) => {
         <span class="badge ${o.status === 'active' ? 'ok' : 'off'}">${escapeHtml(o.status)}</span>
       </div>
       <div class="outlet-meta muted small">
-        Pajak ${Number(o.tax_rate)}% • dibuat ${escapeHtml(fmtDate(o.created_at))}
+        Pajak ${Number(o.tax_rate)}%${o.tax_inclusive ? ' (sudah termasuk harga)' : ''} • dibuat ${escapeHtml(fmtDate(o.created_at))}
       </div>
       <div class="detail-actions">
         <button class="btn small" data-action="edit" data-id="${o.id}">Ubah</button>
@@ -237,6 +237,7 @@ const loadBusinesses = async () => {
     hide($('subscription-section'));
     hide($('outlet-section'));
     hide($('product-section'));
+    hide($('tx-section'));
     show($('waiting-state'));
   } else {
     hide($('waiting-state'));
@@ -254,6 +255,7 @@ const refreshContext = async () => {
   renderSubscription(sub ?? null);
   await loadOutlets();
   await loadProducts();
+  await loadTransactions();
 };
 
 $('business-select').addEventListener('change', async (event) => {
@@ -362,6 +364,7 @@ const openOutletEdit = (o) => {
   $('outlet-address').value = o.address ?? '';
   $('outlet-phone').value = o.phone ?? '';
   $('outlet-tax').value = o.tax_rate ?? '';
+  $('outlet-tax-inclusive').checked = !!o.tax_inclusive;
   hide($('outlet-form-error'));
   show($('outlet-modal'));
 };
@@ -422,6 +425,7 @@ $('outlet-form').addEventListener('submit', async (event) => {
   };
   const tax = $('outlet-tax').value.trim();
   if (tax !== '') payload.taxRate = Number(tax);
+  payload.taxInclusive = $('outlet-tax-inclusive').checked;
 
   try {
     if (id) {
@@ -751,6 +755,153 @@ const closeStockModal = () => hide($('stock-modal'));
 $('stock-cancel').addEventListener('click', closeStockModal);
 $('stock-modal').addEventListener('click', (event) => {
   if (event.target === $('stock-modal')) closeStockModal();
+});
+
+// ----------------------------------------------------- Transaksi --------------
+const renderTxList = (items) => {
+  const list = $('tx-list');
+  list.innerHTML = '';
+  hide($('tx-empty'));
+
+  if (!items.length) {
+    show($('tx-empty'));
+    return;
+  }
+
+  for (const t of items) {
+    const row = document.createElement('div');
+    row.className = 'tx-row';
+    row.innerHTML = `
+      <div>
+        <div class="mono">${escapeHtml(t.invoice_no)}</div>
+        <span class="muted small">
+          ${escapeHtml(t.outlet_name)} • ${escapeHtml(fmtDate(t.created_at))} • ${escapeHtml(fmtIDR(t.total))}
+        </span>
+      </div>
+      <div class="right">
+        <span class="badge ${t.status === 'completed' ? 'ok' : 'off'}">${escapeHtml(t.status)}</span>
+        <button type="button" class="btn small" data-action="tx-detail" data-id="${t.id}">Detail</button>
+      </div>`;
+    list.appendChild(row);
+  }
+};
+
+const loadTransactions = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('tx-section'));
+    return;
+  }
+  show($('tx-section'));
+  const body = await guard(() =>
+    api.transactions.list(b.id, { status: $('tx-status-filter').value })
+  );
+  if (!body) return;
+  renderTxList(body.items);
+};
+
+let activeTx = null;
+
+const buildTxDetail = (t) => {
+  const methodLabel = { cash: 'Tunai', card: 'Kartu', qr: 'QRIS', wallet: 'E-Wallet' };
+  const rows = t.items
+    .map(
+      (it) => `
+      <div class="tx-row">
+        <div>
+          <strong>${escapeHtml(it.product_name)}</strong>
+          <span class="muted small">${escapeHtml(fmtIDR(it.unit_price))} × ${it.qty}</span>
+        </div>
+        <span class="right mono">${escapeHtml(fmtIDR(it.line_total))}</span>
+      </div>`
+    )
+    .join('');
+
+  const pays = t.payments
+    .map(
+      (p) => `
+      <div class="tx-row">
+        <div>
+          <strong>${escapeHtml(methodLabel[p.method] ?? p.method)}</strong>
+          ${p.reference ? `<span class="muted small">${escapeHtml(p.reference)}</span>` : ''}
+        </div>
+        <span class="right mono">${escapeHtml(fmtIDR(p.amount))}</span>
+      </div>`
+    )
+    .join('');
+
+  return `
+    <div class="detail-head" style="margin-bottom:12px">
+      <div>
+        <p class="mono">${escapeHtml(t.invoice_no)}</p>
+        <p class="muted small">${escapeHtml(t.outlet_name)} • kasir ${escapeHtml(t.cashier_name ?? '—')}</p>
+        <p class="muted small">${escapeHtml(fmtDate(t.created_at))}</p>
+      </div>
+      <span class="badge ${t.status === 'completed' ? 'ok' : 'off'}">${escapeHtml(t.status)}</span>
+    </div>
+    <h4>Item</h4>
+    <div class="tx-list">${rows}</div>
+    <h4>Pembayaran</h4>
+    <div class="tx-list">${pays}</div>
+    <dl class="meta">
+      <div><dt>Subtotal</dt><dd>${escapeHtml(fmtIDR(t.subtotal))}</dd></div>
+      <div><dt>Diskon</dt><dd>${escapeHtml(fmtIDR(t.discount_total))}</dd></div>
+      <div><dt>Pajak (${Number(t.tax_rate)}%)</dt><dd>${escapeHtml(fmtIDR(t.tax_total))}</dd></div>
+      <div><dt>Total</dt><dd class="strong">${escapeHtml(fmtIDR(t.total))}</dd></div>
+      <div><dt>Dibayar</dt><dd>${escapeHtml(fmtIDR(t.paid_amount))}</dd></div>
+      <div><dt>Kembalian</dt><dd>${escapeHtml(fmtIDR(t.change_amount))}</dd></div>
+    </dl>`;
+};
+
+const closeTxModal = () => {
+  hide($('tx-modal'));
+  activeTx = null;
+};
+
+const openTxDetail = async (id) => {
+  const b = activeBusiness();
+  if (!b) return;
+  hide($('tx-form-error'));
+  try {
+    const { transaction } = await guard(() => api.transactions.get(b.id, id));
+    activeTx = transaction;
+    $('tx-modal-title').textContent = 'Detail Transaksi';
+    $('tx-detail').innerHTML = buildTxDetail(transaction);
+    $('tx-void-btn').classList.toggle('hidden', transaction.status !== 'completed');
+    show($('tx-modal'));
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  }
+};
+
+$('tx-list').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action="tx-detail"]');
+  if (btn) openTxDetail(btn.dataset.id);
+});
+
+$('tx-refresh-btn').addEventListener('click', loadTransactions);
+$('tx-status-filter').addEventListener('change', loadTransactions);
+
+$('tx-void-btn').addEventListener('click', async () => {
+  const b = activeBusiness();
+  if (!b || !activeTx) return;
+  if (!confirm(`Batalkan transaksi ${activeTx.invoice_no}? Stok akan dikembalikan otomatis.`)) return;
+  hide($('tx-form-error'));
+  try {
+    await guard(() => api.transactions.void(b.id, activeTx.id));
+    alertBox(`Transaksi ${activeTx.invoice_no} dibatalkan; stok dikembalikan.`, 'ok');
+    closeTxModal();
+    await loadTransactions();
+  } catch (err) {
+    const el = $('tx-form-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+
+$('tx-cancel').addEventListener('click', closeTxModal);
+$('tx-modal').addEventListener('click', (event) => {
+  if (event.target === $('tx-modal')) closeTxModal();
 });
 
 // ------------------------------------------------------------- Bootstrap -----

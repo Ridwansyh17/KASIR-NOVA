@@ -5,6 +5,7 @@
  */
 import { Router } from 'express';
 import * as controller from './business-controller.js';
+import * as txController from '../transaction/controller.js';
 import { requireBusinessAccess } from '../../middleware/tenant.js';
 import { validate } from '../../middleware/validate.js';
 import {
@@ -13,6 +14,10 @@ import {
   subscriptionStatusSchema,
   listBusinessesQuerySchema,
 } from './business-schema.js';
+import {
+  transactionListQuerySchema,
+  transactionParamSchema,
+} from '../transaction/schema.js';
 
 const router = Router({ mergeParams: true });
 
@@ -44,6 +49,21 @@ router.patch(
   ...validate({ params: businessParamSchema, body: subscriptionStatusSchema }),
   requireBusinessAccess(),
   controller.setSubscriptionStatus
+);
+
+// Transaksi lintas platform (baca saja, sesuai matriks hak akses).
+router.get(
+  '/:businessId/transactions',
+  ...validate({ params: businessParamSchema, query: transactionListQuerySchema }),
+  requireBusinessAccess(),
+  txController.list
+);
+
+router.get(
+  '/:businessId/transactions/:transactionId',
+  ...validate({ params: transactionParamSchema }),
+  requireBusinessAccess(),
+  txController.detail
 );
 
 export default router;

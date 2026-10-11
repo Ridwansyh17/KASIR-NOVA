@@ -78,6 +78,11 @@
 | Mengubah konfigurasi pajak | ❌ | ✅ | ❌ |
 | Mencetak struk | ❌ | ➖ | ✅ |
 
+> Fase 7 (implementasi `docs/15-api-transaksi.md`): Admin melihat detail
+> transaksi = **baca saja**; void = Owner, stok otomatis dikembalikan;
+> diskon per transaksi (persen/nominal) oleh kasir tanpa batas nominal;
+> pajak dikonfigurasi per outlet (eksklusif/inklusif). Struk menyusul Fase 8.
+
 ## 8. Laporan
 
 | Operasi | A | O | K |

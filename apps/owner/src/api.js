@@ -147,6 +147,8 @@ export const api = {
 
   outlets: {
     list: (businessId) => request(`/api/owner/businesses/${businessId}/outlets`),
+    get: (businessId, outletId) =>
+      request(`/api/owner/businesses/${businessId}/outlets/${outletId}`),
     create: (businessId, data) =>
       request(`/api/owner/businesses/${businessId}/outlets`, {
         method: 'POST',
@@ -160,6 +162,26 @@ export const api = {
     remove: (businessId, outletId) =>
       request(`/api/owner/businesses/${businessId}/outlets/${outletId}`, {
         method: 'DELETE',
+      }),
+  },
+
+  transactions: {
+    list: (businessId, params = {}) => {
+      const qs = new URLSearchParams();
+      if (params.status) qs.set('status', params.status);
+      if (params.outletId) qs.set('outletId', params.outletId);
+      if (params.cashierId) qs.set('cashierId', params.cashierId);
+      if (params.dateFrom) qs.set('dateFrom', params.dateFrom);
+      if (params.dateTo) qs.set('dateTo', params.dateTo);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      return request(`/api/owner/businesses/${businessId}/transactions${suffix}`);
+    },
+    get: (businessId, transactionId) =>
+      request(`/api/owner/businesses/${businessId}/transactions/${transactionId}`),
+    void: (businessId, transactionId) =>
+      request(`/api/owner/businesses/${businessId}/transactions/${transactionId}/void`, {
+        method: 'POST',
+        body: '{}',
       }),
   },
 

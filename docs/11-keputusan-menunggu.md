@@ -51,6 +51,24 @@ langganan (keputusan #1), perlu diputuskan bagaimana perlakuan bisnis yang
 
 ---
 
+## KEPUTUSAN MENUNGGU #2 — Detail transaksi penjualan (menahan Fase 7)
+
+**✅ DIPUTUSKAN 11 Okt 2026** (dijawab via tool pertanyaan). Tidak ada lagi
+item yang menahan Fase 7.
+
+| Aspek | Keputusan |
+|---|---|
+| **Pajak** | Konfigurasi **per outlet**: `tax_rate` (sudah ada) + flag `tax_inclusive` (baru). Eksklusif = pajak ditambahkan; inklusif = harga sudah termasuk pajak (porsi pajak dipisahkan di hitungan). Snapshot tarif disimpan di transaksi. |
+| **Diskon** | **Per transaksi** (bukan per item): **persen** (maks 100) atau **nominal** (sen). Diterapkan **sebelum pajak**. Kasir **tanpa batas nominal** (kontrol aturan diskon utuh oleh Owner/rencana lanjutan). |
+| **Void** | Hanya oleh **Owner**. Otomatis **mengembalikan stok** ke outlet. Status `voided`, dicatat `voided_by`/`voided_at` + audit. |
+| **Pembayaran** | **Tunai** (boleh lebih → kembalian) + **kartu/QR/wallet dicatat manual** (tanpa gateway pembayaran). **Satu pembayaran per transaksi**; split pembayaran = fase lanjut. |
+
+Catatan implementasi: semua nominal disimpan dalam **sen (BIGINT)**; server
+menghitung ulang harga/total dari katalog (harga tidak bisa di-override kasir);
+anti-duplikasi dengan `client_ref` unik per outlet.
+
+---
+
 ## Cara melanjutkan
 
 Bila pemilik proyek menjawab Keputusan #1 (mis. "pilih A"), Fase 4 dapat

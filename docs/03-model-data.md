@@ -61,6 +61,7 @@ refresh_tokens (sesi, per peran)
 | business_id | UUID FK → businesses | **indeks**, ON DELETE CASCADE |
 | name, address, phone | TEXT | |
 | tax_rate | NUMERIC(5,2) | default 0, dapat dikonfigurasi |
+| tax_inclusive | BOOLEAN | default FALSE; TRUE = harga sudah termasuk pajak (Fase 7) |
 | status | TEXT | `account_status` (`active`/`suspended`), default `active` |
 | deleted_at | TIMESTAMPTZ | soft delete (Fase 4) |
 
@@ -119,20 +120,45 @@ refresh_tokens (sesi, per peran)
 
 ### `transactions`
 | id | UUID PK | |
-| business_id, outlet_id, cashier_id | UUID FK | konteks tenant + petugas |
+| business_id, outlet_id, cashier_id | UUID FK | konteks tenant + petugas (kasir/outlet CASCADE; cashier SET NULL) |
 | invoice_no | TEXT | UNIQUE per outlet, mis. `INV-20261010-0001` |
-| subtotal, discount_total, tax_total, total | BIGINT (sen) | |
+| status | `transaction_status` ENUM | `completed`/`voided`/`refunded` |
+| subtotal, discount_total, tax_total, total | BIGINT (sen, CHECK ≥ 0) | |
+| discount_type, discount_value | TEXT + BIGINT | `percent` (basis point 1%=100) / `amount` (sen) |
+| tax_rate, tax_inclusive | NUMERIC(5,2) + BOOLEAN | snapshot pajak outlet saat transaksi |
 | paid_amount, change_amount | BIGINT (sen) | |
-| status | TEXT | `completed`/`voided`/`refunded` |
-| created_at | TIMESTAMPTZ | **indeks** untuk laporan |
+| note | TEXT | |
+| client_ref | UUID | UNIQUE parsial per outlet → anti-duplikasi request |
+| voided_at, voided_by | TIMESTAMPTZ + UUID FK → owners (SET NULL) | diisi saat void |
+| created_at, updated_at | TIMESTAMPTZ | **indeks** `(business_id, created_at DESC)` untuk laporan |
+
+> Dihasilkan oleh migrasi `0007`. **Satu transaksi DB** mencatat kepala +
+> item + pembayaran + pengurangan stok (`UPDATE product_stocks ... WHERE
+> quantity >= qty`) sehingga penjualan konkuren tidak pernah membuat stok
+> negatif. Void (Owner) mengembalikan stok. Penomoran invoice atomik lewat
+> `outlet_invoice_counters` per (outlet, hari) dengan zona waktu bisnis.
 
 ### `transaction_items`
-| id, transaction_id FK, product_id FK, qty BIGINT, unit_price BIGINT (sen), tax_amount, discount_amount, line_total |
+| id | UUID PK | |
+| transaction_id | UUID FK → transactions, CASCADE | |
+| product_id | UUID FK → products, SET NULL | snapshot dipertahankan walau produk dihapus |
+| product_name | TEXT | snapshot nama produk |
+| sku, unit_price | TEXT + BIGINT (sen) | snapshot |
+| qty | INT (CHECK > 0) | |
+| discount_amount, tax_amount | BIGINT (sen) | alokasi proporsional (jumlah = nilai transaksi) |
+| line_total | BIGINT (sen) | harga×qty − diskon + pajak (atau tanpa pajak bila inklusif) |
+| created_at | TIMESTAMPTZ | |
 
 ### `payments`
-| id, transaction_id FK, method (`cash`/`card`/`qr`/`wallet`), amount, reference, provider, status |
+| id | UUID PK | |
+| transaction_id | UUID FK → transactions, CASCADE | |
+| method | TEXT | `cash`/`card`/`qr`/`wallet` (CHECK) |
+| amount | BIGINT (sen) | |
+| reference, provider | TEXT | referensi manual; `provider` siap gateway digital (modul ditangguhkan) |
+| status | TEXT | `paid`/`pending`/`failed`/`refunded` |
 
-> Field `provider` siap untuk gateway digital (modul ditangguhkan).
+> Satu transaksi = satu baris pembayaran pada Fase 7 (keputusan #2); tabel
+> mendukung beberapa baris untuk split pembayaran di fase lanjut.
 
 ### `subscriptions`
 | id, business_id, plan_id FK, status (`active`/`past_due`/`expired`), started_at, expires_at, auto_renew BOOL |

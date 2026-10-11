@@ -15,7 +15,7 @@ import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { enforceOutletQuota } from '../subscription/service.js';
 import { writeAudit } from '../audit/service.js';
 
-export const OUTLET_COLUMNS = `id, business_id, name, address, phone, tax_rate, status, created_at, updated_at`;
+export const OUTLET_COLUMNS = `id, business_id, name, address, phone, tax_rate, tax_inclusive, status, created_at, updated_at`;
 
 const auditShape = (o) =>
   o
@@ -25,6 +25,7 @@ const auditShape = (o) =>
         address: o.address,
         phone: o.phone,
         tax_rate: Number(o.tax_rate),
+        tax_inclusive: o.tax_inclusive,
       }
     : null;
 
@@ -56,12 +57,29 @@ export const createOutlet = async ({ businessId, data, actor, ip }) => {
     await enforceOutletQuota(client, businessId);
 
     const { rows } = await client.query(
-      `INSERT INTO outlets (business_id, name, address, phone, tax_rate, status)
-       VALUES ($1, $2, $3, $4, COALESCE($5, 0), 'active')
+      `INSERT INTO outlets (business_id, name, address, phone, tax_rate, tax_inclusive, status)
+       VALUES ($1, $2, $3, $4, COALESCE($5, 0), COALESCE($6, false), 'active')
        RETURNING ${OUTLET_COLUMNS}`,
-      [businessId, data.name, data.address ?? null, data.phone ?? null, data.taxRate ?? null]
+      [
+        businessId,
+        data.name,
+        data.address ?? null,
+        data.phone ?? null,
+        data.taxRate ?? null,
+        data.taxInclusive ?? null,
+      ]
     );
     const outlet = rows[0];
+
+    // Invarian stok: outlet baru mendapat baris stok 0 untuk setiap produk
+    // ber-`track_stock` milik bisnis (agar penjualan selalu bisa dikurangi).
+    await client.query(
+      `INSERT INTO product_stocks (product_id, outlet_id)
+       SELECT p.id, $2 FROM products p
+        WHERE p.business_id = $1 AND p.track_stock = true AND p.deleted_at IS NULL
+       ON CONFLICT (product_id, outlet_id) DO NOTHING`,
+      [businessId, outlet.id]
+    );
 
     await writeAudit({
       client,
@@ -120,6 +138,10 @@ export const updateOutlet = async (businessId, outletId, patch, actor, ip) => {
       fields.push(`tax_rate = $${i++}`);
       values.push(patch.taxRate);
     }
+    if (patch.taxInclusive !== undefined) {
+      fields.push(`tax_inclusive = $${i++}`);
+      values.push(patch.taxInclusive);
+    }
     if (fields.length === 0) return before;
 
     values.push(outletId);
@@ -146,10 +168,9 @@ export const updateOutlet = async (businessId, outletId, patch, actor, ip) => {
 };
 
 /**
- * Soft delete outlet. Catatan: saat tabel `transactions` ada (Fase 7), fungsi
- * ini wajib menolak penghapusan bila masih ada transaksi yang mereferensikan
- * outlet tersebut (matriks hak akses: "hapus outlet cek: tidak ada transaksi
- * aktif").
+ * Soft delete outlet. Menolak (409) bila masih ada transaksi penjualan aktif
+ * yang mereferensikan outlet — sesuai matriks hak akses ("hapus outlet cek:
+ * tidak ada transaksi aktif"). Riwayat transaksi tetap terjaga.
  */
 export const softDeleteOutlet = async (businessId, outletId, actor, ip) => {
   return withTransaction(async (client) => {
@@ -160,6 +181,17 @@ export const softDeleteOutlet = async (businessId, outletId, actor, ip) => {
     );
     const before = currentRows[0];
     if (!before) throw new NotFoundError('Outlet tidak ditemukan');
+
+    const activeTx = await client.query(
+      `SELECT count(*)::int AS n FROM transactions
+        WHERE outlet_id = $1 AND status = 'completed'`,
+      [outletId]
+    );
+    if (activeTx.rows[0].n > 0) {
+      throw new ConflictError(
+        `Outlet masih memiliki ${activeTx.rows[0].n} transaksi aktif; tidak dapat dihapus`
+      );
+    }
 
     const { rows } = await client.query(
       `UPDATE outlets SET deleted_at = now() WHERE id = $1 RETURNING ${OUTLET_COLUMNS}`,

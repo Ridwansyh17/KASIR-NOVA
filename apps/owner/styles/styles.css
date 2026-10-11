@@ -497,3 +497,33 @@ select:focus {
 .stock-row input {
   width: 110px;
 }
+
+/* ---------- Transaksi ---------- */
+.tx-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.modal-card h4 {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.strong {
+  font-weight: 700;
+}

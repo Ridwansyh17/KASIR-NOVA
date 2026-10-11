@@ -131,4 +131,18 @@ export const api = {
     const suffix = qs.toString() ? `?${qs.toString()}` : '';
     return request(`/api/cashier/products${suffix}`);
   },
+
+  createTransaction: (data) =>
+    request('/api/cashier/transactions', { method: 'POST', body: JSON.stringify(data) }),
+
+  transactions: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.page) qs.set('page', params.page);
+    if (params.limit) qs.set('limit', params.limit);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/api/cashier/transactions${suffix}`);
+  },
+
+  transaction: (id) => request(`/api/cashier/transactions/${id}`),
 };

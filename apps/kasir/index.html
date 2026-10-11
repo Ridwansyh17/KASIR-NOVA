@@ -38,9 +38,9 @@
         </div>
       </header>
 
-      <main class="container">
+      <main class="container wide">
         <div class="toolbar">
-          <h2>Selamat datang</h2>
+          <h2>Kasir</h2>
           <div class="toolbar-actions">
             <button id="refresh-btn" class="btn">Muat ulang</button>
           </div>
@@ -62,28 +62,98 @@
             <div><dt>Outlet</dt><dd id="profile-outlet">—</dd></div>
             <div><dt>Bisnis</dt><dd id="profile-business">—</dd></div>
             <div><dt>Mata uang</dt><dd id="profile-currency">—</dd></div>
+            <div><dt>Pajak outlet</dt><dd id="profile-tax">—</dd></div>
           </dl>
-
-          <p class="muted small">
-            Area transaksi penjualan akan tersedia pada fase berikutnya.
-          </p>
         </section>
 
-        <!-- Produk outlet (read-only) -->
+        <!-- ================= TITIK PENJUALAN ================= -->
         <section class="detail card">
           <div class="detail-head">
             <div>
-              <h3>Produk Outlet</h3>
-              <p class="muted">Katalog & stok outlet Anda (hanya lihat)</p>
+              <h3>Transaksi Baru</h3>
+              <p class="muted">Klik produk untuk menambah ke keranjang</p>
             </div>
           </div>
 
-          <div class="filter-bar">
-            <input id="product-search" type="search" placeholder="Cari nama / SKU…" />
-          </div>
+          <div class="pos">
+            <!-- Kiri: katalog produk outlet -->
+            <div class="pos-left">
+              <div class="filter-bar">
+                <input id="product-search" type="search" placeholder="Cari nama / SKU…" />
+              </div>
+              <div class="pos-products" id="pos-products"></div>
+              <p id="product-empty" class="empty hidden">Belum ada produk di outlet ini.</p>
+            </div>
 
-          <div class="product-list" id="product-list"></div>
-          <p id="product-empty" class="empty hidden">Belum ada produk di outlet ini.</p>
+            <!-- Kanan: keranjang & pembayaran -->
+            <div class="pos-right">
+              <h4>Keranjang</h4>
+              <div class="cart-list" id="cart-list"></div>
+              <p id="cart-empty" class="muted small hidden">Keranjang kosong. Klik produk di kiri.</p>
+
+              <div class="pos-fields">
+                <label class="field inline grow">
+                  <span>Diskon</span>
+                  <select id="discount-type">
+                    <option value="percent">Persen (%)</option>
+                    <option value="amount">Nominal (Rp)</option>
+                  </select>
+                </label>
+                <label class="field inline grow">
+                  <span>Nilai</span>
+                  <input id="discount-value" type="number" min="0" step="any" placeholder="0" />
+                </label>
+              </div>
+
+              <div class="pos-fields">
+                <label class="field inline grow">
+                  <span>Metode</span>
+                  <select id="payment-method">
+                    <option value="cash">Tunai</option>
+                    <option value="card">Kartu</option>
+                    <option value="qr">QRIS</option>
+                    <option value="wallet">E-Wallet</option>
+                  </select>
+                </label>
+                <label class="field inline grow">
+                  <span>Bayar (Rp)</span>
+                  <input id="payment-amount" type="number" min="0" step="1" placeholder="0" />
+                </label>
+              </div>
+
+              <label class="field">
+                <span>Catatan (opsional)</span>
+                <input id="sale-note" type="text" maxlength="255" placeholder="mis. pesanan dibungkus" />
+              </label>
+
+              <dl class="meta">
+                <div><dt>Subtotal</dt><dd id="calc-subtotal">Rp 0</dd></div>
+                <div><dt>Diskon</dt><dd id="calc-discount">Rp 0</dd></div>
+                <div><dt>Pajak</dt><dd id="calc-tax">Rp 0</dd></div>
+                <div><dt><strong>Total</strong></dt><dd id="calc-total" class="strong">Rp 0</dd></div>
+                <div><dt>Kembalian</dt><dd id="calc-change">Rp 0</dd></div>
+              </dl>
+
+              <button id="checkout-btn" class="btn primary block">Bayar</button>
+              <p id="checkout-error" class="error hidden"></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Hasil transaksi terakhir -->
+        <div id="receipt" class="card receipt hidden"></div>
+
+        <!-- Riwayat transaksi outlet (10 terakhir) -->
+        <section class="detail card">
+          <div class="detail-head">
+            <div>
+              <h3>Transaksi Terakhir</h3>
+              <p class="muted">10 penjualan terakhir di outlet Anda</p>
+            </div>
+            <button id="history-refresh-btn" class="btn">Muat ulang</button>
+          </div>
+          <div class="tx-list" id="history-list"></div>
+          <p id="history-empty" class="empty hidden">Belum ada transaksi.</p>
         </section>
       </main>
     </div>

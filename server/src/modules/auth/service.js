@@ -74,6 +74,7 @@ const findUserWithSecret = async (role, email) => {
 export const getCashierContext = async (cashierId) => {
   const { rows } = await query(
     `SELECT o.id AS outlet_id, o.name AS outlet_name,
+            o.tax_rate, o.tax_inclusive,
             b.id AS business_id, b.name AS business_name, b.currency
        FROM cashiers c
        JOIN outlets o ON o.id = c.outlet_id
@@ -83,7 +84,12 @@ export const getCashierContext = async (cashierId) => {
   );
   if (!rows[0]) return null;
   return {
-    outlet: { id: rows[0].outlet_id, name: rows[0].outlet_name },
+    outlet: {
+      id: rows[0].outlet_id,
+      name: rows[0].outlet_name,
+      tax_rate: Number(rows[0].tax_rate),
+      tax_inclusive: rows[0].tax_inclusive,
+    },
     business: { id: rows[0].business_id, name: rows[0].business_name, currency: rows[0].currency },
   };
 };

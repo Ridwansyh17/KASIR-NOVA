@@ -23,6 +23,7 @@ export const createOutletSchema = z.object({
   address: outletAddress.optional(),
   phone: outletPhone.optional(),
   taxRate: taxRate.optional(),
+  taxInclusive: z.boolean().optional(),
 });
 
 export const updateOutletSchema = z
@@ -31,6 +32,7 @@ export const updateOutletSchema = z
     address: outletAddress.optional(),
     phone: outletPhone.optional(),
     taxRate: taxRate.optional(),
+    taxInclusive: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Tidak ada field yang diubah',

@@ -220,12 +220,40 @@
 > token kasir di route owner = 403; owner di route kasir = 403; kasir hanya
 > melihat produk outletnya. Kontrak API: `docs/14-api-produk-stok.md`.
 
-## Fase 7 — Transaksi Penjualan (estimasi 5–7 hari) — inti
+## Fase 7 — Transaksi Penjualan (estimasi 5–7 hari) ✅ SELESAI
 - Modul `transaction`: keranjang, diskon, pajak per outlet, pembayaran tunai.
 - **DB transaction (BEGIN/COMMIT)** + row lock untuk pengurangan stok.
 - Pembatalan (void) oleh Owner; audit log transaksi.
 - **Selesai jika:** satu penjualan mengurangi stok, mencatat item, pajak, dan
   total secara atomik; penjualan konkuren tidak menyebabkan stok negatif.
+
+> **Keputusan pemilik proyek (11 Okt 2026):** pajak **per outlet**
+> (`tax_inclusive` + `tax_rate`); diskon **per transaksi** (persen/nominal)
+> sebelum pajak; void oleh Owner **mengembalikan stok**; pembayaran tunai +
+> kartu/QR/wallet **dicatat manual** (tanpa gateway, satu pembayaran per
+> transaksi). Arsip: `docs/11-keputusan-menunggu.md`.
+
+> **Hasil aktual:** migrasi `0007` menambah `outlets.tax_inclusive` dan
+> membuat `transactions`, `transaction_items`, `payments`,
+> `outlet_invoice_counters` (penomoran `INV-YYYYMMDD-NNNN` atomik per
+> outlet×hari, zona waktu bisnis). Nominal seluruhnya sen (BIGINT) dengan
+> snapshot nama/harga/tarif pajak; `client_ref` unik per outlet untuk
+> anti-duplikasi. Server **menghitung ulang** harga/total dari katalog.
+> Pengurangan stok memakai `UPDATE product_stocks SET quantity = quantity - qty
+> WHERE quantity >= qty` di dalam satu DB transaction — penjualan konkuren
+> tidak pernah membuat stok negatif (diuji paralel). Void mengembalikan stok +
+> menulis audit; outlet ber-transaksi aktif tidak bisa dihapus (409).
+>
+> Backend: modul `transaction` untuk Owner
+> (`/api/owner/businesses/:businessId/transactions` + `POST .../void`),
+> endpoint kasir di modul `cashier-area` (`POST/GET /api/cashier/transactions`,
+> outlet diturunkan dari akun — anti-IDOR), Admin dapat daftar/detail transaksi
+> (baca). Panel `apps/kasir` menjadi **Titik Penjualan** (katalog klik →
+> keranjang → diskon → pembayaran → struk ringkas + riwayat 10 terakhir);
+> panel `apps/owner` mendapat bagian **Transaksi Penjualan** (filter status,
+> detail item/pembayaran, tombol void) dan pengaturan `tax_inclusive` per
+> outlet. **126/126 tes lulus** (16 baru). Kontrak API:
+> `docs/15-api-transaksi.md`.
 
 ## Fase 8 — Struk & Riwayat (estimasi 3 hari)
 - Cetak struk (thermal/ukuran 58mm/80mm via CSS @page), nomor invoice per outlet.

@@ -497,3 +497,155 @@ select:focus {
 .stock-row input {
   width: 110px;
 }
+
+/* ---------- POS: katalog produk (klik untuk menambah) ---------- */
+.container.wide {
+  max-width: 1240px;
+}
+
+.pos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.pos-left,
+.pos-right {
+  min-width: 0;
+}
+
+.pos-products {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.pos-product {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  font: inherit;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fbfcff;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pos-product:hover:enabled {
+  border-color: var(--primary);
+  background: #f0faf6;
+}
+
+.pos-product.out {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pos-product-price {
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+/* ---------- Keranjang ---------- */
+.cart-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cart-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.cart-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cart-line {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cart-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.cart-controls .btn.small {
+  padding: 3px 9px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.pos-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pos-fields .field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.field.inline.grow {
+  flex: 1;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+/* ---------- Riwayat & catatan hasil ---------- */
+.tx-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.receipt {
+  padding: 22px;
+  margin-bottom: 18px;
+  border-left: 4px solid var(--primary);
+}
+
+.receipt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 860px) {
+  .pos {
+    grid-template-columns: 1fr;
+  }
+}
