@@ -46,16 +46,7 @@ export const createDefaultSubscription = async (client, businessId) => {
  * pesan penolakan akurat (belum ada / nonaktif / kedaluwarsa).
  */
 export const enforceOutletQuota = async (client, businessId) => {
-  const sub = await latestSubscription(client, businessId);
-  if (!sub) {
-    throw new ConflictError('Bisnis belum memiliki langganan');
-  }
-  if (sub.status !== 'active') {
-    throw new ConflictError('Langganan bisnis sedang tidak aktif');
-  }
-  if (sub.expires_at && sub.expires_at <= new Date()) {
-    throw new ConflictError('Langganan bisnis sudah kedaluwarsa');
-  }
+  const sub = await enforceSubscriptionActive(client, businessId);
 
   const { rows: countRows } = await client.query(
     `SELECT count(*)::int AS n FROM outlets
@@ -76,14 +67,7 @@ export const enforceOutletQuota = async (client, businessId) => {
  * yang sudah mengunci baris bisnis (FOR UPDATE).
  */
 export const enforceCashierQuota = async (client, businessId) => {
-  const sub = await latestSubscription(client, businessId);
-  if (!sub) throw new ConflictError('Bisnis belum memiliki langganan');
-  if (sub.status !== 'active') {
-    throw new ConflictError('Langganan bisnis sedang tidak aktif');
-  }
-  if (sub.expires_at && sub.expires_at <= new Date()) {
-    throw new ConflictError('Langganan bisnis sudah kedaluwarsa');
-  }
+  const sub = await enforceSubscriptionActive(client, businessId);
 
   const { rows: countRows } = await client.query(
     `SELECT count(*)::int AS n
@@ -111,6 +95,25 @@ const latestSubscription = async (client, businessId) => {
     [businessId]
   );
   return rows[0] ?? null;
+};
+
+/**
+ * Gerbang langganan (Fase 10): memastikan bisnis punya langganan yang
+ * berstatus `active` dan belum kedaluwarsa. Dipanggil DI DALAM transaksi
+ * (dengan kunci baris `businesses` FOR UPDATE) pada operasi yang menambah
+ * nilai (transaksi penjualan, produk, kategori). Operasi korektif seperti
+ * void TIDAK diblokir agar Owner tetap bisa membereskan data.
+ */
+export const enforceSubscriptionActive = async (client, businessId) => {
+  const sub = await latestSubscription(client, businessId);
+  if (!sub) throw new ConflictError('Bisnis belum memiliki langganan');
+  if (sub.status !== 'active') {
+    throw new ConflictError('Langganan bisnis sedang tidak aktif');
+  }
+  if (sub.expires_at && sub.expires_at <= new Date()) {
+    throw new ConflictError('Langganan bisnis sudah kedaluwarsa');
+  }
+  return sub;
 };
 
 /** Pemetaan langganan TERBARU + paketnya untuk dilihat Owner/Admin. */
@@ -251,6 +254,7 @@ export default {
   createDefaultSubscription,
   enforceOutletQuota,
   enforceCashierQuota,
+  enforceSubscriptionActive,
   getSubscriptionView,
   assignSubscription,
   setSubscriptionStatus,

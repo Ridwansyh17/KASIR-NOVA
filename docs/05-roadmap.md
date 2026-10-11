@@ -287,11 +287,23 @@
 > aksi **Laporan** di tabs Bisnis (modal baca-saja). **133/133 tes lulus**
 > (6 baru). Kontrak API: `docs/16-api-laporan.md`.
 
-## Fase 10 — Langganan & Pembatasan Akses (estimasi 3 hari)
+## Fase 10 — Langganan & Pembatasan Akses (estimasi 3 hari) ✅ SELESAI
 - Modul `subscription`: masa aktif, status pembayaran, gerbang fitur.
 - Akses diblokir saat kedaluwarsa (middleware level server).
 - **Selesai jika:** bisnis kedaluwarsa tidak bisa transaksi; bisnis aktif
   tetap normal.
+
+> **Hasil aktual:** gerbang langganan server `enforceSubscriptionActive`
+> (status `active` DAN belum `expires_at`) dipanggil **di dalam transaksi DB**
+> pada operasi yang menambah nilai: pembuatan transaksi penjualan (`createSale`,
+> kunci baris `businesses` ikut `FOR UPDATE`), pembuatan produk, pembuatan
+> kategori, dan tetap dipakai kuota outlet/kasir (dipakai ulang di
+> `enforceOutletQuota`/`enforceCashierQuota`). Void TIDAK diblokir agar Owner
+> bisa membereskan data. Idempotensi dijaga: permintaan ulang transaksi yang
+> sudah jadi tetap dikembalikan (200) meski langganan kedaluwarsa sesudahnya.
+> **138/138 tes lulus** (5 baru: aktif normal; kedaluwarsa blokir
+> transaksi/produk/kategori + void tetap jalan; `past_due` blokir; idempotensi
+> pasca-kedaluwarsa; aktif kembali → normal).
 
 ## Fase 11 — Audit Log & Manajemen Sesi (estimasi 2–3 hari)
 - Viewer audit log untuk Admin & Owner (scoped), pencabutan sesi bawahan.

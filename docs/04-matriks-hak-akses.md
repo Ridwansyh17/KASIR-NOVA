@@ -116,6 +116,12 @@
 | Mengubah plan | ✅ | ❌ | ❌ |
 | Akses fitur saat langganan kedaluwarsa | ❌ (diblokir server) | ❌ | ❌ |
 
+> Fase 10 (implementasi): gerbang `enforceSubscriptionActive` di **level
+> server**, di dalam transaksi DB — pembuatan transaksi penjualan (baris
+> `businesses` ikut `FOR UPDATE`), produk, kategori diblokir dengan 409 saat
+> status ≠ `active` atau melewati `expires_at`. Void tetap diizinkan untuk
+> membereskan data. Kuota outlet/kasir memakai gerbang yang sama.
+
 ## Aturan Penegakan
 
 1. **Server wajib** mengecek tabel ini untuk setiap endpoint — frontend

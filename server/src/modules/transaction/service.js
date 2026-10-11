@@ -18,6 +18,7 @@
 import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
+import { enforceSubscriptionActive } from '../subscription/service.js';
 
 export const TRANSACTION_COLUMNS = `id, business_id, outlet_id, cashier_id, invoice_no,
   status, subtotal, discount_type, discount_value, discount_total, tax_rate,
@@ -172,7 +173,7 @@ export const createSale = async ({ cashierId, data, ip }) => {
          JOIN outlets o ON o.id = c.outlet_id
          JOIN businesses b ON b.id = o.business_id
         WHERE c.id = $1 AND o.deleted_at IS NULL AND b.deleted_at IS NULL
-        FOR UPDATE OF o`,
+        FOR UPDATE OF o, b`,
       [cashierId]
     );
     const scope = scopeRows[0];
@@ -193,7 +194,12 @@ export const createSale = async ({ cashierId, data, ip }) => {
       }
     }
 
-    // 3. Ambil produk (harga dari katalog, bukan dari klien).
+    // 3. Gerbang langganan (Fase 10): bisnis kedaluwarsa/nonaktif tidak bisa
+    //    membuat transaksi BARU. Letak setelah idempotensi agar permintaan
+    //    ulang transaksi yang sudah jadi tetap dikembalikan (bukan diblokir).
+    await enforceSubscriptionActive(client, scope.business_id);
+
+    // 4. Ambil produk (harga dari katalog, bukan dari klien).
     const productIds = data.items.map((it) => it.productId);
     const dupes = productIds.filter((v, i) => productIds.indexOf(v) !== i);
     if (dupes.length) throw new ConflictError('Keranjang memuat produk duplikat');
@@ -231,7 +237,7 @@ export const createSale = async ({ cashierId, data, ip }) => {
       taxInclusive: scope.tax_inclusive,
     });
 
-    // 4. Validasi pembayaran (tunai boleh lebih -> kembalian; non-tunai pas).
+    // 5. Validasi pembayaran (tunai boleh lebih -> kembalian; non-tunai pas).
     const { method } = data.payment;
     const paid = data.payment.amount;
     let change = 0;
@@ -242,7 +248,7 @@ export const createSale = async ({ cashierId, data, ip }) => {
       throw new ConflictError('Jumlah pembayaran non-tunai harus sama dengan total');
     }
 
-    // 5. Nomor invoice atomik per (outlet, hari) — pakai zona waktu bisnis.
+    // 6. Nomor invoice atomik per (outlet, hari) — pakai zona waktu bisnis.
     const { rows: dayRows } = await client.query(
       `SELECT to_char((now() AT TIME ZONE $1::text)::date, 'YYYY-MM-DD') AS day_str,
               to_char((now() AT TIME ZONE $1::text)::date, 'YYYYMMDD')  AS ymd`,
@@ -260,7 +266,7 @@ export const createSale = async ({ cashierId, data, ip }) => {
     );
     const invoiceNo = `INV-${ymd}-${String(seqRows[0].last_seq).padStart(4, '0')}`;
 
-    // 6. Kepala transaksi.
+    // 7. Kepala transaksi.
     const { rows: txRows } = await client.query(
       `INSERT INTO transactions
          (business_id, outlet_id, cashier_id, invoice_no, status, subtotal,
@@ -289,7 +295,7 @@ export const createSale = async ({ cashierId, data, ip }) => {
     );
     const transaction = txRows[0];
 
-    // 7. Item + pengurangan stok (row lock via WHERE quantity >= qty).
+    // 8. Item + pengurangan stok (row lock via WHERE quantity >= qty).
     for (const line of totals.lines) {
       await client.query(
         `INSERT INTO transaction_items
@@ -322,14 +328,14 @@ export const createSale = async ({ cashierId, data, ip }) => {
       }
     }
 
-    // 8. Pembayaran.
+    // 9. Pembayaran.
     await client.query(
       `INSERT INTO payments (transaction_id, method, amount, reference, status)
        VALUES ($1, $2, $3, $4, 'paid')`,
       [transaction.id, method, paid, data.payment.reference ?? null]
     );
 
-    // 9. Audit.
+    // 10. Audit.
     await writeAudit({
       client,
       actorRole: 'cashier',

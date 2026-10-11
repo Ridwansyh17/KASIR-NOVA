@@ -16,6 +16,7 @@
 import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
+import { enforceSubscriptionActive } from '../subscription/service.js';
 
 export const PRODUCT_COLUMNS = `id, business_id, category_id, name, sku, barcode, price, track_stock, status, created_at, updated_at`;
 
@@ -71,6 +72,17 @@ export const listCategories = async (businessId) => {
 export const createCategory = async (businessId, data, actor, ip) => {
   try {
     return await withTransaction(async (client) => {
+      const biz = await client.query(
+        `SELECT id, status FROM businesses WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [businessId]
+      );
+      if (!biz.rows[0]) throw new NotFoundError('Bisnis tidak ditemukan');
+      if (biz.rows[0].status !== 'active') {
+        throw new ConflictError('Bisnis nonaktif; tidak dapat menambah kategori');
+      }
+      // Gerbang langganan (Fase 10): kategori hanya untuk bisnis berlangganan aktif.
+      await enforceSubscriptionActive(client, businessId);
+
       const { rows } = await client.query(
         `INSERT INTO product_categories (business_id, name) VALUES ($1, $2)
          RETURNING id, name, created_at`,
@@ -214,13 +226,15 @@ export const createProduct = async ({ businessId, data, actor, ip }) => {
   try {
     return await withTransaction(async (client) => {
       const biz = await client.query(
-        `SELECT id, status FROM businesses WHERE id = $1 AND deleted_at IS NULL`,
+        `SELECT id, status FROM businesses WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
         [businessId]
       );
       if (!biz.rows[0]) throw new NotFoundError('Bisnis tidak ditemukan');
       if (biz.rows[0].status !== 'active') {
         throw new ConflictError('Bisnis nonaktif; tidak dapat menambah produk');
       }
+      // Gerbang langganan (Fase 10): produk hanya untuk bisnis berlangganan aktif.
+      await enforceSubscriptionActive(client, businessId);
 
       if (data.categoryId) {
         const cat = await client.query(
