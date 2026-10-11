@@ -175,6 +175,29 @@ export const api = {
       }),
   },
 
+  cashiers: {
+    list: (businessId) => request(`/api/owner/businesses/${businessId}/cashiers`),
+    create: (businessId, data) =>
+      request(`/api/owner/businesses/${businessId}/cashiers`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    setPin: (businessId, cashierId, pin) =>
+      request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}/pin`, {
+        method: 'POST',
+        body: JSON.stringify({ pin }),
+      }),
+    removePin: (businessId, cashierId) =>
+      request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}/pin`, {
+        method: 'DELETE',
+      }),
+    unlock: (businessId, cashierId) =>
+      request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}/pin/unlock`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
+  },
+
   transactions: {
     list: (businessId, params = {}) => {
       const qs = new URLSearchParams();

@@ -6,7 +6,7 @@
  * Semua perhitungan total & pajak tetap dilakukan SERVER; perhitungan di sini
  * hanya perkiraan untuk tampilan. Verifikasi peran/status ditegakkan server.
  */
-import { api, login, logout, tokenStore, ApiError } from './api.js';
+import { api, login, logout, loginWithPin, listPinCashiers, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -18,6 +18,9 @@ const state = {
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
+
+// Binding perangkat -> outlet (untuk layar pemilih login PIN).
+const OUTLET_KEY = 'nova_kasir_outlet';
 
 const escapeHtml = (value) =>
   String(value ?? '').replace(
@@ -99,6 +102,8 @@ const fetchCurrentUser = () =>
     }
     state.user = user;
     state.context = context;
+    // Ikat perangkat ke outlet agar layar login PIN tahu daftar kasir yang mana.
+    if (context?.outlet?.id) localStorage.setItem(OUTLET_KEY, context.outlet.id);
     renderProfile();
   });
 
@@ -451,6 +456,48 @@ $('history-list').addEventListener('click', async (event) => {
 });
 
 // ---------------------------------------------------------------- Login -----
+/** Masuk ke aplikasi setelah sesi didapat (email/password atau PIN). */
+const enterApp = async () => {
+  await fetchCurrentUser();
+  hide($('login-view'));
+  show($('app-view'));
+  await loadProducts();
+  await loadHistory();
+};
+
+/** Muat kartu kasir ber-PIN untuk outlet yang terikat perangkat ini. */
+const loadPinCashiers = async () => {
+  const outletId = localStorage.getItem(OUTLET_KEY);
+  const select = $('pin-cashier-select');
+  const hint = $('pin-hint');
+  select.innerHTML = '';
+  hide($('pin-error'));
+  if (!outletId) {
+    hint.textContent =
+      'Perangkat belum terikat outlet. Login sekali dengan email/password agar PIN tersedia.';
+    show(hint);
+    return;
+  }
+  try {
+    const items = await listPinCashiers(outletId);
+    if (!items.length) {
+      hint.textContent = 'Belum ada kasir ber-PIN di outlet perangkat ini.';
+      show(hint);
+      return;
+    }
+    hide(hint);
+    for (const item of items) {
+      const opt = document.createElement('option');
+      opt.value = item.id;
+      opt.textContent = item.full_name;
+      select.appendChild(opt);
+    }
+  } catch (err) {
+    hint.textContent = describeError(err);
+    show(hint);
+  }
+};
+
 $('login-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('login-error'));
@@ -459,13 +506,50 @@ $('login-form').addEventListener('submit', async (event) => {
   try {
     await login($('login-email').value.trim(), $('login-password').value);
     $('login-password').value = '';
-    await fetchCurrentUser();
-    hide($('login-view'));
-    show($('app-view'));
-    await loadProducts();
-    await loadHistory();
+    await enterApp();
   } catch (err) {
     const el = $('login-error');
+    el.textContent = describeError(err);
+    show(el);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('show-pin').addEventListener('click', () => {
+  hide($('login-error'));
+  hide($('login-form'));
+  show($('pin-form'));
+  loadPinCashiers();
+  $('pin-code').focus();
+});
+
+$('show-email').addEventListener('click', () => {
+  hide($('pin-error'));
+  hide($('pin-form'));
+  show($('login-form'));
+  $('login-email').focus();
+});
+
+$('pin-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('pin-error'));
+  const button = event.submitter ?? $('pin-form').querySelector('button[type=submit]');
+  button.disabled = true;
+  const pin = $('pin-code').value.trim();
+  if (!/^\d{4}$/.test(pin)) {
+    const el = $('pin-error');
+    el.textContent = 'PIN harus 4 digit angka.';
+    show(el);
+    button.disabled = false;
+    return;
+  }
+  try {
+    await loginWithPin($('pin-cashier-select').value, pin);
+    $('pin-code').value = '';
+    await enterApp();
+  } catch (err) {
+    const el = $('pin-error');
     el.textContent = describeError(err);
     show(el);
   } finally {

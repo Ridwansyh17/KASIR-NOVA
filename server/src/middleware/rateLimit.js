@@ -26,4 +26,23 @@ export const loginLimiter = rateLimit({
   },
 });
 
-export default { loginLimiter };
+/**
+ * Limiter login PIN kasir: backstop IP (max 20/15 mnt). Pelindung utama tetap
+ * lockout per-kasir di server (5x salah -> 15 menit, 10x -> status locked).
+ * Batas IP sengaja lebih longgar agar tidak memperlambat percobaan yang
+ * sah saat beberapa kasir bergantian di perangkat yang sama.
+ */
+export const pinLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message:
+        'Terlalu banyak percobaan PIN dari IP ini. Coba lagi dalam 15 menit.',
+    },
+  },
+});
+
+export default { loginLimiter, pinLimiter };

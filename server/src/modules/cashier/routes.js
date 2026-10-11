@@ -16,6 +16,7 @@ import {
   businessParamSchema,
   cashierStatusSchema,
   resetPasswordSchema,
+  pinActionSchema,
 } from './schema.js';
 
 const router = Router({ mergeParams: true });
@@ -60,6 +61,27 @@ router.post(
   ...validate({ params: cashierParamSchema, body: resetPasswordSchema }),
   requireBusinessAccess(),
   controller.resetPassword
+);
+
+router.post(
+  '/:cashierId/pin',
+  ...validate({ params: cashierParamSchema, body: pinActionSchema }),
+  requireBusinessAccess(),
+  controller.setPin
+);
+
+router.delete(
+  '/:cashierId/pin',
+  ...validate({ params: cashierParamSchema }),
+  requireBusinessAccess(),
+  controller.removePin
+);
+
+router.post(
+  '/:cashierId/pin/unlock',
+  ...validate({ params: cashierParamSchema }),
+  requireBusinessAccess(),
+  controller.unlockPin
 );
 
 export default router;

@@ -610,3 +610,21 @@ select:focus {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ---------- Kasir: seksi & modal PIN (Fase 10b) ---------- */
+.btn.small {
+  padding: 4px 10px;
+  font-size: 0.85em;
+}
+
+.cashier-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+#cashier-create-form .detail-actions {
+  margin-top: 12px;
+  justify-content: flex-end;
+}

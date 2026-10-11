@@ -69,6 +69,20 @@ anti-duplikasi dengan `client_ref` unik per outlet.
 
 ---
 
+## KEPUTUSAN MENUNGGU #3 — PIN Login Kasir (dikerjakan sebelum Fase 11)
+
+**✅ DIPUTUSKAN 11 Okt 2026** (dijawab via tool pertanyaan) — dikerjakan sebagai
+**Fase 10b** dan sudah selesai.
+
+| Aspek | Keputusan |
+|---|---|
+| **Format PIN** | **4 digit** angka. |
+| **Keunikan PIN** | **Boleh sama** antar kasir — alur pilih kartu kasir di layar, lalu PIN hanya memverifikasi identitas yang dipilih. |
+| **Lockout** | **5× salah → kunci sementara 15 menit** (`pin_locked_until`); **10× salah → status `locked`** (perlu unlock Owner). |
+| **Status PIN vs password** | **PIN opsional** — password tetap ada; Owner pasang/hapus PIN per kasir. |
+
+---
+
 ## Cara melanjutkan
 
 Bila pemilik proyek menjawab Keputusan #1 (mis. "pilih A"), Fase 4 dapat

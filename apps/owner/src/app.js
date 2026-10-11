@@ -227,6 +227,193 @@ const loadOutlets = async () => {
   }
 };
 
+// ------------------------------------------------------------ Kasir ----------
+const renderCashierList = (items) => {
+  const tbody = $('cashier-list');
+  tbody.innerHTML = '';
+  $('cashier-empty').classList.toggle('hidden', items.length > 0);
+
+  for (const c of items) {
+    const hasPin = Boolean(c.pin_set_at);
+    const locked = c.status === 'locked';
+    const statusBadge = locked
+      ? '<span class="badge off">Terkunci</span>'
+      : c.status === 'active'
+        ? '<span class="badge ok">Aktif</span>'
+        : '<span class="badge off">Nonaktif</span>';
+    const pinBadge = hasPin
+      ? '<span class="badge ok">PIN aktif</span>'
+      : '<span class="muted">—</span>';
+    const name = encodeURIComponent(c.full_name);
+    const pinBtn = hasPin
+      ? `<button class="btn small" data-action="pin" data-id="${c.id}" data-name="${name}">Ganti PIN</button>`
+      : `<button class="btn small" data-action="pin" data-id="${c.id}" data-name="${name}">Pasang PIN</button>`;
+    const remove = hasPin
+      ? `<button class="btn small" data-action="remove-pin" data-id="${c.id}" data-name="${name}">Hapus PIN</button>`
+      : '';
+    const unlock = locked
+      ? `<button class="btn small" data-action="unlock" data-id="${c.id}" data-name="${name}">Buka Kunci</button>`
+      : '';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(c.full_name)}</td>
+      <td>${escapeHtml(c.email)}</td>
+      <td>${escapeHtml(c.outlet_name ?? '—')}</td>
+      <td>${statusBadge}</td>
+      <td>${pinBadge}</td>
+      <td class="right">${pinBtn} ${remove} ${unlock}</td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadCashiers = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('cashier-section'));
+    return;
+  }
+  const body = await guard(() => api.cashiers.list(b.id));
+  if (!body) return;
+  show($('cashier-section'));
+  renderCashierList(body.items ?? []);
+};
+
+/** Isi pilihan outlet pada formulir tambah kasir. */
+const fillCashierOutlets = async () => {
+  const b = activeBusiness();
+  if (!b) return;
+  const body = await guard(() => api.outlets.list(b.id));
+  const sel = $('cashier-outlet-select');
+  sel.innerHTML = '';
+  for (const o of body?.items ?? []) {
+    const opt = document.createElement('option');
+    opt.value = o.id;
+    opt.textContent = o.name;
+    sel.appendChild(opt);
+  }
+};
+
+const hideCashierForm = () => {
+  hide($('cashier-create-form'));
+  $('cashier-create-error').classList.add('hidden');
+  $('cashier-name').value = '';
+  $('cashier-email').value = '';
+  $('cashier-password').value = '';
+  $('cashier-pin').value = '';
+  $('cashier-outlet-select').innerHTML = '';
+};
+
+$('new-cashier-btn').addEventListener('click', async () => {
+  await fillCashierOutlets();
+  show($('cashier-create-form'));
+  $('cashier-name').focus();
+});
+
+$('cashier-create-cancel').addEventListener('click', hideCashierForm);
+
+$('cashier-create-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const err = $('cashier-create-error');
+  err.classList.add('hidden');
+  const b = activeBusiness();
+  if (!b) return;
+  const data = {
+    fullName: $('cashier-name').value.trim(),
+    email: $('cashier-email').value.trim(),
+    password: $('cashier-password').value,
+    outletId: $('cashier-outlet-select').value,
+  };
+  const pinRaw = $('cashier-pin').value.trim();
+  if (pinRaw) {
+    if (!/^\d{4}$/.test(pinRaw)) {
+      err.textContent = 'PIN harus 4 digit angka.';
+      err.classList.remove('hidden');
+      return;
+    }
+    data.pin = pinRaw;
+  }
+  try {
+    await guard(() => api.cashiers.create(b.id, data));
+    alertBox('Kasir berhasil ditambahkan.', 'ok');
+    hideCashierForm();
+    await loadCashiers();
+  } catch (e) {
+    err.textContent = describeError(e);
+    err.classList.remove('hidden');
+  }
+});
+
+// Aksi baris kasir: pasang/ganti PIN, hapus PIN, buka kunci.
+$('cashier-list').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+  const b = activeBusiness();
+  const cashierId = btn.dataset.id;
+  const name = btn.dataset.name ? decodeURIComponent(btn.dataset.name) : 'Kasir';
+  const action = btn.dataset.action;
+  if (!b) return;
+
+  if (action === 'pin') {
+    // Modal PIN
+    $('pin-modal-title').textContent = 'PIN Kasir';
+    $('pin-modal-cashier').textContent = `Set PIN 4 digit untuk ${name}.`;
+    $('pin-modal-input').value = '';
+    $('pin-modal-error').classList.add('hidden');
+    $('pin-modal').dataset.cashierId = cashierId;
+    show($('pin-modal'));
+    $('pin-modal-input').focus();
+    return;
+  }
+  if (action === 'remove-pin') {
+    if (!confirm(`Hapus PIN kasir "${name}"? Kasir kembali login pakai email/password.`)) return;
+    try {
+      await guard(() => api.cashiers.removePin(b.id, cashierId));
+      alertBox('PIN kasir dihapus.', 'ok');
+      await loadCashiers();
+    } catch (e) {
+      alertBox(describeError(e), 'error');
+    }
+    return;
+  }
+  if (action === 'unlock') {
+    try {
+      await guard(() => api.cashiers.unlock(b.id, cashierId));
+      alertBox(`Kunci kasir "${name}" dibuka.`, 'ok');
+      await loadCashiers();
+    } catch (e) {
+      alertBox(describeError(e), 'error');
+    }
+  }
+});
+
+$('pin-modal-cancel').addEventListener('click', () => hide($('pin-modal')));
+
+$('pin-modal-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const modal = $('pin-modal');
+  const errEl = $('pin-modal-error');
+  errEl.classList.add('hidden');
+  const b = activeBusiness();
+  const cashierId = modal.dataset.cashierId;
+  if (!b || !cashierId) return;
+  const pin = $('pin-modal-input').value.trim();
+  if (!/^\d{4}$/.test(pin)) {
+    errEl.textContent = 'PIN harus 4 digit angka.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    await guard(() => api.cashiers.setPin(b.id, cashierId, pin));
+    alertBox('PIN kasir disimpan.', 'ok');
+    hide(modal);
+    await loadCashiers();
+  } catch (e) {
+    errEl.textContent = describeError(e);
+    errEl.classList.remove('hidden');
+  }
+});
+
 // --------------------------------------------------------- Muat konteks ------
 const loadBusinesses = async () => {
   const body = await guard(() => api.listBusinesses());
@@ -250,6 +437,7 @@ const loadBusinesses = async () => {
     hide($('business-detail'));
     hide($('subscription-section'));
     hide($('outlet-section'));
+    hide($('cashier-section'));
     hide($('product-section'));
     hide($('tx-section'));
     hide($('report-section'));
@@ -269,6 +457,7 @@ const refreshContext = async () => {
   const sub = await guard(() => api.subscription(b.id));
   renderSubscription(sub ?? null);
   await loadOutlets();
+  await loadCashiers();
   await loadProducts();
   await loadTransactions();
   await loadReport();

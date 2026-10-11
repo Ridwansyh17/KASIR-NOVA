@@ -17,7 +17,7 @@ import { hashPassword, hashPin } from '../../utils/hash.js';
 import { enforceCashierQuota } from '../subscription/service.js';
 import { writeAudit } from '../audit/service.js';
 
-export const CASHIER_COLUMNS = `id, outlet_id, email, full_name, status, created_by, created_at, updated_at`;
+export const CASHIER_COLUMNS = `id, outlet_id, email, full_name, status, pin_set_at, created_by, created_at, updated_at`;
 
 const auditShape = (c, outletName) =>
   c
@@ -35,7 +35,7 @@ const auditShape = (c, outletName) =>
 export const listCashiers = async (businessId) => {
   const { rows } = await query(
     `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status,
-            c.created_by, c.created_at, c.updated_at, o.name AS outlet_name
+            c.pin_set_at, c.created_by, c.created_at, c.updated_at, o.name AS outlet_name
        FROM cashiers c
        JOIN outlets o ON o.id = c.outlet_id
       WHERE o.business_id = $1
@@ -135,8 +135,14 @@ export const updateCashier = async (businessId, cashierId, patch, actor, ip) => 
       values.push(patch.fullName);
     }
     if (patch.pin !== undefined) {
+      // PIN baru = intervensi Owner: hash baru, reset lockout, kunci dibuka bila
+      // sempat 'locked' (keputusan Fase 10b), dan sesi lama dicabut.
       fields.push(`pin_hash = $${i++}`);
       values.push(await hashPin(patch.pin));
+      fields.push(`pin_set_at = now()`);
+      fields.push(`pin_failed_attempts = 0`);
+      fields.push(`pin_locked_until = NULL`);
+      fields.push(`status = CASE WHEN status = 'locked' THEN 'active' ELSE status END`);
     }
     if (fields.length === 0) return before;
 
@@ -146,6 +152,11 @@ export const updateCashier = async (businessId, cashierId, patch, actor, ip) => 
        RETURNING ${CASHIER_COLUMNS}`,
       values
     );
+
+    // Ganti kredensial PIN => semua sesi kasir lama dicabut (berlaku server).
+    if (patch.pin !== undefined) {
+      await revokeCashierSessions(client, cashierId);
+    }
 
     await writeAudit({
       client,
@@ -241,6 +252,130 @@ export const resetCashierPassword = async (businessId, cashierId, newPassword, a
   });
 };
 
+/** Set / reset PIN kasir (Fase 10b). Intervensi Owner: reset lockout & buka status locked. */
+export const setCashierPin = async (businessId, cashierId, pin, actor, ip) => {
+  return withTransaction(async (client) => {
+    const { rows: currentRows } = await client.query(
+      `SELECT c.id, c.status, c.pin_hash, o.name AS outlet_name
+         FROM cashiers c
+         JOIN outlets o ON o.id = c.outlet_id
+        WHERE c.id = $1 AND o.business_id = $2
+        FOR UPDATE`,
+      [cashierId, businessId]
+    );
+    const before = currentRows[0];
+    if (!before) throw new NotFoundError('Kasir tidak ditemukan');
+
+    const pinHash = await hashPin(pin);
+    const { rows } = await client.query(
+      `UPDATE cashiers
+          SET pin_hash = $1, pin_set_at = now(),
+              pin_failed_attempts = 0, pin_locked_until = NULL,
+              status = CASE WHEN status = 'locked' THEN 'active' ELSE status END
+        WHERE id = $2
+        RETURNING ${CASHIER_COLUMNS}`,
+      [pinHash, cashierId]
+    );
+    await revokeCashierSessions(client, cashierId);
+
+    await writeAudit({
+      client,
+      actorRole: actor.role,
+      actorId: actor.id,
+      businessId,
+      action: 'cashier.pin_set',
+      entityType: 'cashier',
+      entityId: cashierId,
+      before: { status: before.status, pin_present: Boolean(before.pin_hash) },
+      after: { status: rows[0].status, pin_present: true },
+      ip,
+    });
+
+    return rows[0];
+  });
+};
+
+/** Hapus PIN kasir -> kembali password-only. Reset lockout (status locked dibuka). */
+export const removeCashierPin = async (businessId, cashierId, actor, ip) => {
+  return withTransaction(async (client) => {
+    const { rows: currentRows } = await client.query(
+      `SELECT c.id, c.status, o.name AS outlet_name
+         FROM cashiers c
+         JOIN outlets o ON o.id = c.outlet_id
+        WHERE c.id = $1 AND o.business_id = $2
+        FOR UPDATE`,
+      [cashierId, businessId]
+    );
+    const before = currentRows[0];
+    if (!before) throw new NotFoundError('Kasir tidak ditemukan');
+
+    const { rows } = await client.query(
+      `UPDATE cashiers
+          SET pin_hash = NULL, pin_set_at = NULL,
+              pin_failed_attempts = 0, pin_locked_until = NULL,
+              status = CASE WHEN status = 'locked' THEN 'active' ELSE status END
+        WHERE id = $1
+        RETURNING ${CASHIER_COLUMNS}`,
+      [cashierId]
+    );
+
+    await writeAudit({
+      client,
+      actorRole: actor.role,
+      actorId: actor.id,
+      businessId,
+      action: 'cashier.pin_remove',
+      entityType: 'cashier',
+      entityId: cashierId,
+      before: { status: before.status, pin_present: true },
+      after: { status: rows[0].status, pin_present: false },
+      ip,
+    });
+
+    return rows[0];
+  });
+};
+
+/** Buka kunci kasir yang 'locked' (reset penghitung + kunci sementara). */
+export const unlockCashier = async (businessId, cashierId, actor, ip) => {
+  return withTransaction(async (client) => {
+    const { rows: currentRows } = await client.query(
+      `SELECT c.id, c.status, o.name AS outlet_name
+         FROM cashiers c
+         JOIN outlets o ON o.id = c.outlet_id
+        WHERE c.id = $1 AND o.business_id = $2
+        FOR UPDATE`,
+      [cashierId, businessId]
+    );
+    const before = currentRows[0];
+    if (!before) throw new NotFoundError('Kasir tidak ditemukan');
+
+    const { rows } = await client.query(
+      `UPDATE cashiers
+          SET pin_failed_attempts = 0, pin_locked_until = NULL,
+              status = CASE WHEN status = 'locked' THEN 'active' ELSE status END
+        WHERE id = $1
+        RETURNING ${CASHIER_COLUMNS}`,
+      [cashierId]
+    );
+
+    await writeAudit({
+      client,
+      actorRole: actor.role,
+      actorId: actor.id,
+      businessId,
+      action: 'cashier.pin_unlock',
+      entityType: 'cashier',
+      entityId: cashierId,
+      before: { status: before.status },
+      after: { status: rows[0].status },
+      ip,
+    });
+
+    return rows[0];
+  });
+};
+
 /** Cabut semua sesi kasir di dalam transaksi pemanggil. */
 const revokeCashierSessions = (client, cashierId) =>
   client.query(
@@ -262,4 +397,7 @@ export default {
   updateCashier,
   setCashierStatus,
   resetCashierPassword,
+  setCashierPin,
+  removeCashierPin,
+  unlockCashier,
 };

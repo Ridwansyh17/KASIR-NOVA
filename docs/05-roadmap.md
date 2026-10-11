@@ -305,6 +305,26 @@
 > transaksi/produk/kategori + void tetap jalan; `past_due` blokir; idempotensi
 > pasca-kedaluwarsa; aktif kembali → normal).
 
+## Fase 10b — PIN Login Kasir (dikerjakan sebelum Fase 11 atas permintaan pemilik) ✅ SELESAI
+- Login kasir via PIN 4 digit: pilih kartu kasir → verifikasi PIN → sesi normal.
+- Lockout di server: 5x salah → kunci 15 menit; 10x salah → status `locked`
+  (Owner membuka via endpoint unlock).
+- **Selesai jika:** kasir ber-PIN bisa login & transaksi normal; PIN salah
+  terkunci; kasir `locked` terblokir (termasuk email/password) sampai dibuka
+  Owner.
+
+> **Hasil aktual:** migrasi `0008_cashier_pin.sql` (enum `account_status` +
+> `'locked'`; kolom `pin_set_at`, `pin_failed_attempts`, `pin_locked_until`
+> — `pin_hash` sudah ada sejak 0005). `verifyPin` di `utils/hash.js` (prefix
+> `pin:`). Endpoint publik: `GET /api/auth/cashiers?outletId=` (kartu pemilih,
+> nama saja) & `POST /api/auth/cashier-pin` (`pinLimiter` 20/IP/15 mnt;
+> pelindung utama lockout per-kasir). Endpoint Owner: `POST/DELETE
+> /api/owner/.../cashiers/:id/pin` & `POST .../pin/unlock` (tenant-check,
+> audit `cashier.pin_set|pin_remove|pin_unlock`). Sesi lama dicabut saat PIN
+> diubah. UI: layar PIN kasir (apps/kasir) + seksi "Kasir" & modal PIN
+> (apps/owner). **145/145 tes lulus** (7 baru di `cashier-pin.test.js`).
+> Kontrak API: `docs/17-api-pin-kasir.md`.
+
 ## Fase 11 — Audit Log & Manajemen Sesi (estimasi 2–3 hari)
 - Viewer audit log untuk Admin & Owner (scoped), pencabutan sesi bawahan.
 - **Selesai jika:** semua operasi penting tercatat; admin bisa memaksa logout

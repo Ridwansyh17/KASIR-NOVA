@@ -80,4 +80,57 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-export default { listCashiers, createCashier, getCashier, updateCashier, setStatus, resetPassword };
+export const setPin = async (req, res, next) => {
+  try {
+    const cashier = await service.setCashierPin(
+      req.params.businessId,
+      req.params.cashierId,
+      req.body.pin,
+      req.user,
+      req.ip
+    );
+    res.json({ cashier });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const removePin = async (req, res, next) => {
+  try {
+    const cashier = await service.removeCashierPin(
+      req.params.businessId,
+      req.params.cashierId,
+      req.user,
+      req.ip
+    );
+    res.json({ cashier });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const unlockPin = async (req, res, next) => {
+  try {
+    const cashier = await service.unlockCashier(
+      req.params.businessId,
+      req.params.cashierId,
+      req.user,
+      req.ip
+    );
+    res.json({ cashier });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export default {
+  listCashiers,
+  createCashier,
+  getCashier,
+  updateCashier,
+  setStatus,
+  resetPassword,
+  setPin,
+  removePin,
+  unlockPin,
+};

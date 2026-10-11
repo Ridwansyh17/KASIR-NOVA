@@ -721,3 +721,24 @@ select:focus {
   size: 58mm auto;
   margin: 3mm;
 }
+
+/* ---------- Login PIN (Fase 10b) ---------- */
+.swap-line {
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent, #4f46e5);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+button.link:hover {
+  opacity: 0.8;
+}

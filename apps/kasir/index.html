@@ -10,22 +10,54 @@
   <body>
     <!-- ================= LOGIN ================= -->
     <section id="login-view" class="auth hidden">
-      <form id="login-form" class="card auth-card" novalidate>
+      <div class="card auth-card">
         <h1 class="brand-title">KASIR NOVA</h1>
         <p class="muted">Panel Kasir (Titik Penjualan)</p>
 
-        <label class="field">
-          <span>Email</span>
-          <input id="login-email" type="email" autocomplete="username" required />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input id="login-password" type="password" autocomplete="current-password" required />
-        </label>
+        <form id="login-form" novalidate>
+          <label class="field">
+            <span>Email</span>
+            <input id="login-email" type="email" autocomplete="username" required />
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </label>
 
-        <button type="submit" class="btn primary block">Masuk</button>
-        <p id="login-error" class="error hidden"></p>
-      </form>
+          <button type="submit" class="btn primary block">Masuk</button>
+          <p id="login-error" class="error hidden"></p>
+          <p class="swap-line">
+            <button type="button" id="show-pin" class="link">Masuk dengan PIN</button>
+          </p>
+        </form>
+
+        <form id="pin-form" class="hidden" novalidate>
+          <label class="field">
+            <span>Kasir</span>
+            <select id="pin-cashier-select" required></select>
+          </label>
+          <label class="field">
+            <span>PIN (4 digit)</span>
+            <input
+              id="pin-code"
+              type="password"
+              inputmode="numeric"
+              autocomplete="off"
+              maxlength="4"
+              pattern="[0-9]{4}"
+              autofocus
+              required
+            />
+          </label>
+
+          <button type="submit" class="btn primary block">Masuk dengan PIN</button>
+          <p id="pin-hint" class="muted small hidden"></p>
+          <p id="pin-error" class="error hidden"></p>
+          <p class="swap-line">
+            <button type="button" id="show-email" class="link">Masuk dengan email/password</button>
+          </p>
+        </form>
+      </div>
     </section>
 
     <!-- ================= APP ================= -->

@@ -20,6 +20,29 @@ export const login = async (req, res, next) => {
   }
 };
 
+export const loginCashierWithPin = async (req, res, next) => {
+  try {
+    const result = await authService.loginCashierWithPin({
+      cashierId: req.body.cashierId,
+      pin: req.body.pin,
+      ip: req.ip,
+      userAgent: req.get('user-agent') ?? null,
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listPinCashiers = async (req, res, next) => {
+  try {
+    const items = await authService.listPinCashiers({ outletId: req.query.outletId });
+    res.status(200).json({ items });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const refresh = async (req, res, next) => {
   try {
     const result = await authService.refresh({ refreshToken: req.body.refreshToken });

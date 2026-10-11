@@ -27,3 +27,16 @@ export const refreshSchema = z.object({
     .string()
     .regex(/^[a-f0-9]{96}$/, 'Format refresh token tidak valid'),
 });
+
+// Login PIN kasir (Fase 10b): kasir dipilih dari layar -> PIN 4 digit verifikasi.
+export const cashierPinLoginSchema = z.object({
+  cashierId: z.string().uuid('ID kasir tidak valid'),
+  pin: z
+    .string()
+    .regex(/^\d{4}$/, 'PIN harus 4 digit angka'),
+});
+
+// Lookup kartu kasir untuk layar pemilih login PIN (publik, scoped outlet).
+export const cashierPinLookupSchema = z.object({
+  outletId: z.string().uuid('ID outlet tidak valid'),
+});

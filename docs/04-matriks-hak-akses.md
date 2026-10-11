@@ -10,6 +10,7 @@
 |---|---|---|---|
 | Login ke area masing-masing | ✅ | ✅ | ✅ |
 | Login ke area peran lain | ❌ | ❌ | ❌ |
+| Login Kasir via **PIN** (4 digit) | ❌ | ❌ | ✅ (hanya kasir ber-PIN, outlet perangkatnya) |
 | Membuat akun Owner | ✅ | ❌ | ❌ |
 | Membuat akun Kasir | ❌ | ✅ (outlet miliknya) | ❌ |
 | Membuat akun Admin Platform | ❌ (hanya seeding internal) | ❌ | ❌ |
@@ -55,6 +56,10 @@
 | Memindahkan kasir ke outlet lain | ❌ | ✅ (1 outlet tetap, ganti `outlet_id`) | ❌ |
 | Akun kasir di **lebih dari 1 outlet** | ❌ | ❌ (dicegah DB: email UNIQUE) | ❌ |
 | Suspend/aktivasi kasir | ✅ | ✅ | ❌ |
+| Pasang/ganti PIN kasir | ❌ | ✅ | ❌ |
+| Hapus PIN kasir | ❌ | ✅ | ❌ |
+| Buka kunci kasir `locked` (10× PIN salah) | ❌ | ✅ | ❌ |
+| Lebih dari 5× PIN salah | ❌ | ❌ | ➖ (kunci sementara 15 mnt, otomatis) |
 
 ## 6. Produk, Kategori, Harga, Stok
 

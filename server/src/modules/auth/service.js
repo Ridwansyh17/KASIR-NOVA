@@ -9,7 +9,7 @@
  * (tabel `cashiers`) tanpa mengubah alur di sini.
  */
 import { query, withTransaction } from '../../config/db.js';
-import { verifyPassword } from '../../utils/hash.js';
+import { verifyPassword, verifyPin } from '../../utils/hash.js';
 import {
   signAccessToken,
   generateRefreshToken,
@@ -149,6 +149,124 @@ export const login = async ({ role, email, password, ip, userAgent }) => {
     refreshToken,
     user: { id: user.id, email: user.email, fullName: user.full_name, role },
   };
+};
+
+/**
+ * Login PIN kasir (Fase 10b).
+ *
+ * Aturan (keputusan pemilik):
+ *   - PIN 4 digit, opsional; salah -> 401 seragam (anti-enumerasi).
+ *   - Lockout di server, atomik per percobaan: 5x salah -> kunci sementara
+ *     15 menit (429 + retryAfterSeconds); 10x salah -> status 'locked'
+ *     (403, hanya Owner yang membuka via endpoint unlock).
+ *   - Kasir yang `pin_hash`-nya NULL (belum diberi PIN) tidak bisa lewat PIN.
+ */
+export const loginCashierWithPin = async ({ cashierId, pin, ip, userAgent }) => {
+  const { rows } = await query(
+    `SELECT c.id, c.email, c.full_name, c.status, c.pin_hash,
+            c.pin_locked_until, c.pin_failed_attempts,
+            o.id AS outlet_id, o.status AS outlet_status,
+            b.status AS business_status
+       FROM cashiers c
+       JOIN outlets o ON o.id = c.outlet_id
+       JOIN businesses b ON b.id = o.business_id
+      WHERE c.id = $1 AND o.deleted_at IS NULL AND b.deleted_at IS NULL`,
+    [cashierId]
+  );
+  const cashier = rows[0];
+
+  // Pesan seragam agar tidak ter-enumerasi keberadaan akun.
+  if (!cashier || !cashier.pin_hash) {
+    throw new UnauthorizedError('Kasir atau PIN tidak valid');
+  }
+  if (cashier.status === 'locked') {
+    throw new AppError('Kasir terkunci. Mintalah Owner membuka kunci.', 403);
+  }
+  if (cashier.status !== 'active' || cashier.outlet_status !== 'active' || cashier.business_status !== 'active') {
+    throw new AppError('Akun Anda dinonaktifkan. Hubungi administrator.', 403);
+  }
+
+  // Kunci sementara masih aktif -> 429 + berapa detik lagi tersedia.
+  if (cashier.pin_locked_until && new Date(cashier.pin_locked_until) > new Date()) {
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((new Date(cashier.pin_locked_until) - new Date()) / 1000)
+    );
+    throw new AppError('Terlalu banyak percobaan PIN. Coba lagi nanti.', 429, {
+      retryAfterSeconds,
+    });
+  }
+
+  const pinOk = await verifyPin(pin, cashier.pin_hash);
+  if (!pinOk) {
+    // Kenaikan atomik + kunci sementara/status locked dalam SATU statement.
+    const { rows: fail } = await query(
+      `UPDATE cashiers
+          SET pin_failed_attempts = pin_failed_attempts + 1,
+              pin_locked_until = CASE
+                WHEN pin_failed_attempts + 1 >= 10 THEN NULL
+                WHEN pin_failed_attempts + 1 >= 5
+                  THEN now() + interval '15 minutes'
+                ELSE pin_locked_until
+              END,
+              status = CASE
+                WHEN pin_failed_attempts + 1 >= 10 THEN 'locked'::account_status
+                ELSE status
+              END
+        WHERE id = $1
+        RETURNING pin_failed_attempts, pin_locked_until, status`,
+      [cashierId]
+    );
+    const after = fail[0];
+    if (after.status === 'locked') {
+      throw new AppError('Kasir terkunci. Mintalah Owner membuka kunci.', 403);
+    }
+    if (after.pin_failed_attempts >= 5) {
+      throw new AppError('Terlalu banyak percobaan PIN. Coba lagi nanti.', 429, {
+        retryAfterSeconds: 900,
+      });
+    }
+    throw new UnauthorizedError('Kasir atau PIN tidak valid');
+  }
+
+  // Sukses: reset penghitung lockout, lalu terbitkan sesi seperti login biasa.
+  await query(
+    `UPDATE cashiers SET pin_failed_attempts = 0, pin_locked_until = NULL WHERE id = $1`,
+    [cashierId]
+  );
+  const { accessToken, refreshToken } = await issueTokens({
+    role: 'cashier',
+    userId: cashier.id,
+    ip,
+    userAgent,
+  });
+
+  return {
+    accessToken,
+    refreshToken,
+    user: { id: cashier.id, email: cashier.email, fullName: cashier.full_name, role: 'cashier' },
+  };
+};
+
+/**
+ * Kartu kasir untuk layar pemilih PIN (publik, scoped per outlet).
+ * Hanya kasir AKTIF yang SUDAH punya PIN yang muncul — nama saja, tanpa
+ * email/password. Outlet diidentifikasi via UUID (tidak dapat ditebak).
+ */
+export const listPinCashiers = async ({ outletId }) => {
+  const { rows } = await query(
+    `SELECT c.id, c.full_name
+       FROM cashiers c
+       JOIN outlets o ON o.id = c.outlet_id
+       JOIN businesses b ON b.id = o.business_id
+      WHERE c.outlet_id = $1
+        AND o.deleted_at IS NULL AND b.deleted_at IS NULL
+        AND c.status = 'active'
+        AND c.pin_hash IS NOT NULL
+      ORDER BY c.full_name ASC`,
+    [outletId]
+  );
+  return rows;
 };
 
 /**

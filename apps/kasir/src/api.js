@@ -106,6 +106,22 @@ export const login = async (email, password) => {
   return body;
 };
 
+/** Login PIN kasir (Fase 10b): kirim id kartu + PIN 4 digit, terima token. */
+export const loginWithPin = async (cashierId, pin) => {
+  const body = await request('/api/auth/cashier-pin', {
+    method: 'POST',
+    body: JSON.stringify({ cashierId, pin }),
+  });
+  tokenStore.save(body);
+  return body;
+};
+
+/** Kartu kasir ber-PIN untuk layar pemilih login PIN (per outlet). */
+export const listPinCashiers = async (outletId) => {
+  const body = await request(`/api/auth/cashiers?outletId=${encodeURIComponent(outletId)}`);
+  return body.items ?? [];
+};
+
 export const logout = async () => {
   const refreshToken = tokenStore.refresh;
   try {

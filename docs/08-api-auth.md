@@ -109,6 +109,51 @@ Info pengguna dari access token. **Butuh access token.**
 
 ---
 
+## GET `/api/auth/cashiers`  *(Pendukung login PIN kasir — Fase 10b)*
+
+Kartu kasir ber-PIN untuk layar pemilih (nama saja, **tanpa email**). Publik,
+scoped per outlet (UUID; tidak dapat ditebak). Hanya kasir **aktif** yang
+**sudah punya PIN** yang muncul.
+
+**Query:** `?outletId=<uuid>` (wajib)
+
+**200 OK**
+```json
+{ "items": [ { "id": "uuid", "full_name": "Kasir A" } ] }
+```
+
+| Status | Arti |
+|---|---|
+| 422 | `outletId` hilang / bukan UUID |
+
+---
+
+## POST `/api/auth/cashier-pin`  *(Login PIN kasir — Fase 10b)*
+
+Login kasir dengan PIN 4 digit (kasir dipilih dari layar pemilih). Menerbitkan
+sesi normal (access + refresh, rotasi). Dibatasi `pinLimiter` (20/IP/15 mnt).
+
+**Request**
+```json
+{ "cashierId": "uuid", "pin": "2468" }
+```
+
+**200 OK** — bentuk sama dengan login (access + refresh token + user
+`role: "cashier"`).
+
+| Status | Arti |
+|---|---|
+| 401 | Kasir tidak ditemukan / PIN salah / kasir belum ber-PIN (pesan seragam) |
+| 403 | Kasir **terkunci** (10× gagal, perlu unlock Owner) / akun/bisnis nonaktif |
+| 422 | `cashierId`/`pin` tidak valid (PIN harus 4 digit) |
+| 429 | Kunci sementara (5× gagal, 15 menit) → `details.retryAfterSeconds` |
+
+**Aturan lockout (server, atomik):** 5× PIN salah → kunci sementara 15 menit;
+10× → status akun `locked` (semua jalur login terblokir) hingga Owner memanggil
+`POST .../cashiers/:id/pin/unlock`.
+
+---
+
 ## Catatan keamanan untuk tim frontend
 
 - **Jangan** simpan access token di `localStorage` bila memungkinkan (rentan

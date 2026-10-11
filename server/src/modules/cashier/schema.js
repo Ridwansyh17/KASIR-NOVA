@@ -3,7 +3,9 @@
  *
  * Aturan domain:
  *   - email UNIQUE case-insensitive -> satu akun tidak bisa di dua outlet.
- *   - pin opsional 4-6 digit (login PIN akan dipakai saat area kasir tumbuh).
+ *   - PIN opsional, 4 digit (keputusan pemilik Fase 10b); verifikasi hanya
+ *     mengonfirmasi identitas kasir yang sudah dipilih di layar (boleh sama
+ *     antar kasir).
  */
 import { z } from 'zod';
 
@@ -25,7 +27,7 @@ const password = z.string().min(8, 'Password minimal 8 karakter').max(72);
 const pin = z
   .string()
   .trim()
-  .regex(/^\d{4,6}$/, 'PIN harus 4–6 digit angka');
+  .regex(/^\d{4}$/, 'PIN harus 4 digit angka');
 
 export const createCashierSchema = z.object({
   fullName,
@@ -61,4 +63,8 @@ export const cashierStatusSchema = z.object({
 
 export const resetPasswordSchema = z.object({
   password,
+});
+
+export const pinActionSchema = z.object({
+  pin,
 });

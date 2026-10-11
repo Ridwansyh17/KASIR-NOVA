@@ -40,16 +40,20 @@ export const hashPassword = async (password) => {
 };
 
 /**
- * Verifikasi password terhadap hash (konstan-waktu).
- * @param {string} password - plain password
- * @param {string} stored - format `scrypt:N:r:p:salt:hash`
+ * Verifikasi secret (password/PIN) terhadap hash (konstan-waktu).
+ * Menerima prefix `scrypt:` (password) maupun `pin:` (PIN kasir).
+ * @param {string} secret - secret plain (password/PIN)
+ * @param {string} stored - format `scrypt:N:r:p:salt:hash` atau `pin:N:r:p:salt:hash`
  * @returns {Promise<boolean>}
  */
-export const verifyPassword = async (password, stored) => {
-  if (!password || !stored) return false;
+export const verifyPassword = async (secret, stored) => {
+  if (!secret || !stored) return false;
 
   const parts = stored.split(':');
-  if (parts.length !== 6 || parts[0] !== 'scrypt') {
+  if (
+    parts.length !== 6 ||
+    (parts[0] !== 'scrypt' && parts[0] !== 'pin')
+  ) {
     console.warn('[hash] format hash tidak dikenali');
     return false;
   }
@@ -58,7 +62,7 @@ export const verifyPassword = async (password, stored) => {
   const salt = Buffer.from(saltHex, 'hex');
   const expected = Buffer.from(hashHex, 'hex');
 
-  const derived = await scrypt(password, salt, expected.length, {
+  const derived = await scrypt(secret, salt, expected.length, {
     N: Number(n),
     r: Number(r),
     p: Number(p),
@@ -69,6 +73,14 @@ export const verifyPassword = async (password, stored) => {
   if (derived.length !== expected.length) return false;
   return timingSafeEqual(derived, expected);
 };
+
+/**
+ * Verifikasi PIN terhadap hash `pin:...` (alias agar niatnya jelas).
+ * @param {string} pin - PIN 4 digit
+ * @param {string} stored - hash `pin:N:r:p:salt:hash`
+ * @returns {Promise<boolean>}
+ */
+export const verifyPin = async (pin, stored) => verifyPassword(pin, stored);
 
 /**
  * Hash PIN (4-6 digit) untuk login cepat kasir: format `pin:N:r:p:salt:hash`.
@@ -84,4 +96,4 @@ export const hashPin = async (pin) => {
   return `pin:${PARAMS.N}:${PARAMS.r}:${PARAMS.p}:${salt.toString('hex')}:${derived.toString('hex')}`;
 };
 
-export default { hashPassword, verifyPassword, hashPin };
+export default { hashPassword, verifyPassword, hashPin, verifyPin };
