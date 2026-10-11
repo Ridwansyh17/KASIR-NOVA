@@ -20,6 +20,7 @@ import healthRouter from './modules/health/routes.js';
 import authRouter from './modules/auth/routes.js';
 import platformAdminRouter from './modules/platform-admin/routes.js';
 import ownerRouter from './modules/owner/routes.js';
+import cashierAreaRouter from './modules/cashier-area/routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,6 +60,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/platform', platformAdminRouter);
 app.use('/api/owner', ownerRouter);
+app.use('/api/cashier', cashierAreaRouter);
 
 // Panel Admin Platform. Di dev disajikan statis oleh Express agar mudah diuji.
 // Di produksi frontend disajikan Firebase Hosting (backend tidak melayani file).

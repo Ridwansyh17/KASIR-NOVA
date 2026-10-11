@@ -9,7 +9,7 @@ import { api, login, logout, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const ACTIVE_KEY = 'nova_owner_business';
-const state = { businesses: [], activeId: null };
+const state = { businesses: [], activeId: null, categories: [], products: [] };
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
@@ -28,6 +28,14 @@ const fmtDate = (iso) => {
 
 const fmtIDR = (sen) =>
   `Rp ${((Number(sen) ?? 0) / 100).toLocaleString('id-ID')}`;
+
+const debounce = (fn, delay = 300) => {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+};
 
 const describeError = (err) => {
   if (err instanceof ApiError && err.details?.fields?.length) {
@@ -228,6 +236,7 @@ const loadBusinesses = async () => {
     hide($('business-detail'));
     hide($('subscription-section'));
     hide($('outlet-section'));
+    hide($('product-section'));
     show($('waiting-state'));
   } else {
     hide($('waiting-state'));
@@ -237,13 +246,14 @@ const loadBusinesses = async () => {
   }
 };
 
-/** Muat ulang data yang bergantung pada bisnis aktif (langganan + outlet). */
+/** Muat ulang data yang bergantung pada bisnis aktif (langganan + outlet + produk). */
 const refreshContext = async () => {
   const b = activeBusiness();
   if (!b) return;
   const sub = await guard(() => api.subscription(b.id));
   renderSubscription(sub ?? null);
   await loadOutlets();
+  await loadProducts();
 };
 
 $('business-select').addEventListener('change', async (event) => {
@@ -428,6 +438,319 @@ $('outlet-form').addEventListener('submit', async (event) => {
     el.textContent = describeError(err);
     show(el);
   }
+});
+
+// ----------------------------------------------------- Produk & Kategori ----
+const fillCategorySelect = (selectEl, selectedId = '', includeEmpty = true) => {
+  selectEl.innerHTML = '';
+  if (includeEmpty) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '— tanpa kategori —';
+    selectEl.appendChild(opt);
+  }
+  for (const c of state.categories) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = selectedId ?? '';
+};
+
+const renderCategoryChips = () => {
+  const wrap = $('category-chips');
+  wrap.innerHTML = '';
+  $('category-empty').classList.toggle('hidden', state.categories.length > 0);
+
+  for (const c of state.categories) {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${escapeHtml(c.name)} <span class="muted">(${Number(c.product_count)})</span>
+      <button type="button" data-action="delete-category" data-id="${c.id}" title="Hapus kategori">×</button>`;
+    wrap.appendChild(chip);
+  }
+
+  // Sinkronkan filter kategori di daftar produk.
+  fillCategorySelect($('product-filter-category'), $('product-filter-category').value, true);
+  $('product-filter-category').querySelector('option[value=""]').textContent = 'Semua kategori';
+};
+
+const renderProductList = (items) => {
+  const list = $('product-list');
+  list.innerHTML = '';
+  hide($('product-empty'));
+
+  if (!items.length) {
+    show($('product-empty'));
+    return;
+  }
+
+  for (const p of items) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    const stockLabel = p.track_stock
+      ? `Stok ${Number(p.total_stock)}`
+      : '<span class="muted">tanpa stok</span>';
+    card.innerHTML = `
+      <div class="product-head">
+        <div>
+          <strong>${escapeHtml(p.name)}</strong>
+          <p class="muted small">
+            ${p.category_name ? escapeHtml(p.category_name) : 'Tanpa kategori'}
+            ${p.sku ? ' • SKU ' + escapeHtml(p.sku) : ''}
+          </p>
+        </div>
+        <div class="right">
+          <div class="product-price">${escapeHtml(fmtIDR(p.price))}</div>
+          <span class="badge ${p.status === 'active' ? 'ok' : 'off'}">${escapeHtml(p.status)}</span>
+        </div>
+      </div>
+      <div class="outlet-meta muted small">${stockLabel}</div>
+      <div class="detail-actions">
+        <button class="btn small" data-action="edit-product" data-id="${p.id}">Ubah</button>
+        ${p.track_stock ? `<button class="btn small" data-action="stock" data-id="${p.id}">Atur stok</button>` : ''}
+        <button class="btn small danger" data-action="delete-product" data-id="${p.id}">Hapus</button>
+      </div>`;
+    list.appendChild(card);
+  }
+};
+
+const loadCategories = async (b) => {
+  const body = await guard(() => api.categories.list(b.id));
+  if (!body) return;
+  state.categories = body.items;
+  renderCategoryChips();
+};
+
+const loadProducts = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('product-section'));
+    return;
+  }
+  show($('product-section'));
+  await loadCategories(b);
+  const body = await guard(() =>
+    api.products.list(b.id, {
+      search: $('product-search').value.trim(),
+      categoryId: $('product-filter-category').value,
+    })
+  );
+  if (!body) return;
+  state.products = body.items;
+  renderProductList(body.items);
+};
+
+$('new-product-btn').addEventListener('click', () => openProductCreate());
+$('product-search').addEventListener('input', debounce(() => loadProducts(), 300));
+$('product-filter-category').addEventListener('change', () => loadProducts());
+
+$('product-list').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+  const { action, id } = btn.dataset;
+  const b = activeBusiness();
+  if (!b) return;
+
+  if (action === 'edit-product') {
+    (async () => {
+      try {
+        const detail = await guard(() => api.products.get(b.id, id));
+        if (detail?.product) openProductEdit(detail.product);
+      } catch (err) {
+        alertBox(describeError(err), 'error');
+      }
+    })();
+  } else if (action === 'stock') {
+    (async () => {
+      try {
+        const detail = await guard(() => api.products.get(b.id, id));
+        if (detail) openStockModal(detail);
+      } catch (err) {
+        alertBox(describeError(err), 'error');
+      }
+    })();
+  } else if (action === 'delete-product') {
+    (async () => {
+      if (!confirm('Hapus produk ini?')) return;
+      try {
+        await guard(() => api.products.remove(b.id, id));
+        alertBox('Produk dihapus.', 'ok');
+        await loadProducts();
+      } catch (err) {
+        alertBox(describeError(err), 'error');
+      }
+    })();
+  }
+});
+
+// ---------- Modal kategori ----------
+$('new-category-btn').addEventListener('click', () => {
+  $('category-form').reset();
+  hide($('category-form-error'));
+  show($('category-modal'));
+});
+const closeCategoryModal = () => hide($('category-modal'));
+$('category-cancel').addEventListener('click', closeCategoryModal);
+$('category-modal').addEventListener('click', (event) => {
+  if (event.target === $('category-modal')) closeCategoryModal();
+});
+$('category-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('category-form-error'));
+  const b = activeBusiness();
+  if (!b) return;
+  try {
+    await guard(() => api.categories.create(b.id, { name: $('category-name').value.trim() }));
+    alertBox('Kategori ditambahkan.', 'ok');
+    closeCategoryModal();
+    await loadCategories(b);
+  } catch (err) {
+    const el = $('category-form-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+
+$('category-chips').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action="delete-category"]');
+  if (!btn) return;
+  const b = activeBusiness();
+  if (!b) return;
+  (async () => {
+    if (!confirm('Hapus kategori ini?')) return;
+    try {
+      await guard(() => api.categories.remove(b.id, btn.dataset.id));
+      alertBox('Kategori dihapus.', 'ok');
+      await loadCategories(b);
+    } catch (err) {
+      alertBox(describeError(err), 'error');
+    }
+  })();
+});
+
+// ---------- Modal produk ----------
+const openProductCreate = () => {
+  const b = activeBusiness();
+  if (!b) return;
+  $('product-modal-title').textContent = 'Produk Baru';
+  $('product-form').reset();
+  $('product-id').value = '';
+  $('product-track').checked = true;
+  hide($('product-status-field'));
+  fillCategorySelect($('product-category'), '');
+  hide($('product-form-error'));
+  show($('product-modal'));
+};
+
+const openProductEdit = (p) => {
+  $('product-modal-title').textContent = 'Ubah Produk';
+  $('product-id').value = p.id;
+  $('product-name').value = p.name ?? '';
+  $('product-price').value = p.price != null ? Number(p.price) / 100 : '';
+  $('product-sku').value = p.sku ?? '';
+  $('product-barcode').value = p.barcode ?? '';
+  $('product-track').checked = !!p.track_stock;
+  $('product-status').value = p.status ?? 'active';
+  fillCategorySelect($('product-category'), p.category_id ?? '');
+  show($('product-status-field'));
+  hide($('product-form-error'));
+  show($('product-modal'));
+};
+
+const closeProductModal = () => hide($('product-modal'));
+$('product-cancel').addEventListener('click', closeProductModal);
+$('product-modal').addEventListener('click', (event) => {
+  if (event.target === $('product-modal')) closeProductModal();
+});
+
+$('product-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('product-form-error'));
+  const b = activeBusiness();
+  if (!b) return;
+
+  const id = $('product-id').value;
+  const categoryId = $('product-category').value || null;
+  const payload = {
+    name: $('product-name').value.trim(),
+    price: Math.round(Number($('product-price').value || 0) * 100),
+    sku: $('product-sku').value.trim() || null,
+    barcode: $('product-barcode').value.trim() || null,
+    categoryId,
+    trackStock: $('product-track').checked,
+  };
+  if (id) payload.status = $('product-status').value;
+
+  try {
+    if (id) {
+      await guard(() => api.products.update(b.id, id, payload));
+      alertBox('Produk diperbarui.', 'ok');
+    } else {
+      await guard(() => api.products.create(b.id, payload));
+      alertBox('Produk baru berhasil dibuat.', 'ok');
+    }
+    closeProductModal();
+    await loadProducts();
+  } catch (err) {
+    const el = $('product-form-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+
+// ---------- Modal stok ----------
+let stockContext = null;
+
+const openStockModal = (detail) => {
+  stockContext = { productId: detail.product.id };
+  $('stock-product-name').textContent = detail.product.name;
+  const rows = $('stock-rows');
+  rows.innerHTML = '';
+  hide($('stock-form-error'));
+
+  if (!detail.stocks.length) {
+    rows.innerHTML = '<p class="muted small">Belum ada outlet. Tambahkan outlet dulu.</p>';
+  }
+
+  for (const s of detail.stocks) {
+    const row = document.createElement('div');
+    row.className = 'stock-row';
+    row.innerHTML = `
+      <span>${escapeHtml(s.outlet_name)}</span>
+      <div class="filter-bar" style="margin:0">
+        <input type="number" min="0" step="1" value="${Number(s.quantity)}" data-outlet="${s.outlet_id}" />
+        <button type="button" class="btn small primary" data-action="save-stock">Simpan</button>
+      </div>`;
+    rows.appendChild(row);
+  }
+  show($('stock-modal'));
+};
+
+$('stock-rows').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action="save-stock"]');
+  if (!btn) return;
+  const b = activeBusiness();
+  if (!b || !stockContext) return;
+  const input = btn.closest('.stock-row').querySelector('input[data-outlet]');
+  (async () => {
+    try {
+      await guard(() => api.products.setStock(b.id, stockContext.productId, input.dataset.outlet, Number(input.value)));
+      alertBox('Stok disimpan.', 'ok');
+      await loadProducts();
+    } catch (err) {
+      const el = $('stock-form-error');
+      el.textContent = describeError(err);
+      show(el);
+    }
+  })();
+});
+
+const closeStockModal = () => hide($('stock-modal'));
+$('stock-cancel').addEventListener('click', closeStockModal);
+$('stock-modal').addEventListener('click', (event) => {
+  if (event.target === $('stock-modal')) closeStockModal();
 });
 
 // ------------------------------------------------------------- Bootstrap -----

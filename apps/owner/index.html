@@ -111,6 +111,36 @@
           <p id="outlet-empty" class="empty hidden">Belum ada outlet. Tambahkan outlet pertama Anda.</p>
         </section>
 
+        <!-- Produk & stok bisnis aktif -->
+        <section id="product-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Produk & Stok</h3>
+              <p class="muted">Katalog produk & stok per outlet bisnis aktif</p>
+            </div>
+            <div class="detail-actions">
+              <button id="new-category-btn" class="btn">+ Kategori</button>
+              <button id="new-product-btn" class="btn primary">+ Produk</button>
+            </div>
+          </div>
+
+          <div class="category-bar">
+            <span class="muted small">Kategori:</span>
+            <span id="category-chips" class="chips"></span>
+            <span id="category-empty" class="muted small">belum ada</span>
+          </div>
+
+          <div class="filter-bar">
+            <input id="product-search" type="search" placeholder="Cari nama / SKU…" />
+            <select id="product-filter-category">
+              <option value="">Semua kategori</option>
+            </select>
+          </div>
+
+          <div class="product-list" id="product-list"></div>
+          <p id="product-empty" class="empty hidden">Belum ada produk. Tambahkan produk pertama Anda.</p>
+        </section>
+
         <div id="empty-state" class="card empty hidden">
           <p>Anda belum memiliki bisnis.</p>
           <button id="empty-new-btn" class="btn primary">+ Buat Bisnis Pertama</button>
@@ -185,6 +215,88 @@
             <button type="submit" class="btn primary">Simpan</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL KATEGORI ================= -->
+    <div id="category-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Kategori Baru</h3>
+        <form id="category-form" novalidate>
+          <label class="field">
+            <span>Nama kategori</span>
+            <input id="category-name" type="text" required />
+          </label>
+          <p id="category-form-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="category-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL PRODUK ================= -->
+    <div id="product-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="product-modal-title">Produk Baru</h3>
+        <form id="product-form" novalidate>
+          <input type="hidden" id="product-id" />
+
+          <label class="field">
+            <span>Nama produk</span>
+            <input id="product-name" type="text" required />
+          </label>
+          <label class="field">
+            <span>Harga (Rp)</span>
+            <input id="product-price" type="number" min="0" step="1" required />
+          </label>
+          <label class="field">
+            <span>SKU (opsional)</span>
+            <input id="product-sku" type="text" />
+          </label>
+          <label class="field">
+            <span>Barcode (opsional)</span>
+            <input id="product-barcode" type="text" />
+          </label>
+          <label class="field">
+            <span>Kategori (opsional)</span>
+            <select id="product-category">
+              <option value="">— tanpa kategori —</option>
+            </select>
+          </label>
+          <label class="field checkbox">
+            <input id="product-track" type="checkbox" checked />
+            <span>Lacak stok</span>
+          </label>
+          <label class="field" id="product-status-field">
+            <span>Status</span>
+            <select id="product-status">
+              <option value="active">Aktif</option>
+              <option value="suspended">Nonaktif</option>
+            </select>
+          </label>
+
+          <p id="product-form-error" class="error hidden"></p>
+
+          <div class="modal-actions">
+            <button type="button" id="product-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL STOK ================= -->
+    <div id="stock-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Atur Stok</h3>
+        <p id="stock-product-name" class="muted"></p>
+        <div id="stock-rows" class="stock-rows"></div>
+        <p id="stock-form-error" class="error hidden"></p>
+        <div class="modal-actions">
+          <button type="button" id="stock-cancel" class="btn">Tutup</button>
+        </div>
       </div>
     </div>
 

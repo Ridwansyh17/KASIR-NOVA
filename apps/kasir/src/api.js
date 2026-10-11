@@ -124,4 +124,11 @@ export const logout = async () => {
 
 export const api = {
   me: () => request('/api/auth/me'),
+
+  products: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.search) qs.set('search', params.search);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/api/cashier/products${suffix}`);
+  },
 };

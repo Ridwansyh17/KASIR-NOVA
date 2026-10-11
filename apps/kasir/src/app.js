@@ -2,16 +2,33 @@
  * Logika UI panel Kasir (Vanilla JS modular).
  *
  * Alur: login (peran terkunci cashier) -> /me -> tampilkan profil + konteks
- * outlet/bisnis milik kasir. Area penjualan (produk, transaksi) menyusul di
- * fase berikutnya. Verifikasi peran & status tetap ditegakkan server.
+ * outlet/bisnis milik kasir, lalu daftar produk outlet (read-only, Fase 6).
+ * Area transaksi penjualan menyusul di fase berikutnya. Verifikasi peran &
+ * status tetap ditegakkan server.
  */
 import { api, login, logout, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { user: null, context: null };
+const state = { user: null, context: null, products: [] };
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
+
+const escapeHtml = (value) =>
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+  );
+
+const fmtIDR = (sen) => `Rp ${((Number(sen) ?? 0) / 100).toLocaleString('id-ID')}`;
+
+const debounce = (fn, delay = 300) => {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
+};
 
 const describeError = (err) => {
   if (err instanceof ApiError && err.details?.fields?.length) {
@@ -69,6 +86,48 @@ const fetchCurrentUser = () =>
     renderProfile();
   });
 
+// --------------------------------------------------------------- Produk -----
+const renderProductList = (items) => {
+  const list = $('product-list');
+  list.innerHTML = '';
+  hide($('product-empty'));
+  if (!items.length) {
+    show($('product-empty'));
+    return;
+  }
+  for (const p of items) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    const stockLabel = p.track_stock
+      ? `Stok ${Number(p.quantity ?? 0)}`
+      : '<span class="muted">tanpa stok</span>';
+    card.innerHTML = `
+      <div class="product-head">
+        <div>
+          <strong>${escapeHtml(p.name)}</strong>
+          <p class="muted small">
+            ${p.category_name ? escapeHtml(p.category_name) : 'Tanpa kategori'}
+            ${p.sku ? ' • SKU ' + escapeHtml(p.sku) : ''}
+          </p>
+        </div>
+        <div class="right">
+          <div class="product-price">${escapeHtml(fmtIDR(p.price))}</div>
+        </div>
+      </div>
+      <div class="outlet-meta muted small">${stockLabel}</div>`;
+    list.appendChild(card);
+  }
+};
+
+const loadProducts = async () => {
+  const body = await guard(() => api.products({ search: $('product-search').value.trim() }));
+  if (!body) return;
+  state.products = body.items;
+  renderProductList(body.items);
+};
+
+$('product-search').addEventListener('input', debounce(() => loadProducts(), 300));
+
 // ---------------------------------------------------------------- Login ----
 $('login-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -81,6 +140,7 @@ $('login-form').addEventListener('submit', async (event) => {
     await fetchCurrentUser();
     hide($('login-view'));
     show($('app-view'));
+    await loadProducts();
   } catch (err) {
     const el = $('login-error');
     el.textContent = describeError(err);
@@ -98,15 +158,17 @@ $('logout-btn').addEventListener('click', async () => {
 
 $('refresh-btn').addEventListener('click', async () => {
   await fetchCurrentUser();
+  await loadProducts();
   alertBox('Data dimuat ulang.');
 });
 
 // Pemulihan sesi: jika access token masih ada di storage, langsung tampilkan.
 if (tokenStore.access) {
   fetchCurrentUser()
-    .then(() => {
+    .then(async () => {
       hide($('login-view'));
       show($('app-view'));
+      await loadProducts();
     })
     .catch(() => {
       // guard() sudah menangani 401; error lain cukup dibiarkan ke login.

@@ -277,7 +277,9 @@ test('Aktivasi kembali langganan A: outlet diblokir oleh KUOTA (bukan langganan)
 test('Admin melihat semua bisnis + cari by email owner', async () => {
   const res = await adminGet('/businesses');
   assert.strictEqual(res.status, 200);
-  assert.strictEqual(res.body.total, 2);
+  // DB dev dibagi antar-suite (bisa berjalan paralel), jadi jangan mengunci
+  // jumlah TOTAL global — cukup pastikan admin melihat bisnis suite ini.
+  assert.ok(res.body.total >= 2);
   assert.ok(res.body.items.some((b) => b.id === businessA));
   assert.ok(res.body.items.some((b) => b.id === businessB));
 

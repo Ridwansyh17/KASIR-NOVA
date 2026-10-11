@@ -85,11 +85,37 @@ refresh_tokens (sesi, per peran)
 > Endpoint pembuatan kasir juga memverifikasi outlet milik `business_id`
 > sesi Owner. Suspend/reset password mencabut semua sesi kasir.
 
-### `categories` / `products` / `stock`
-| products | id, business_id FK, category_id FK, name, sku, barcode, price BIGINT (sen), cost BIGINT, tax_rate, is_active |
-| stock | product_id, outlet_id, qty BIGINT — **komposit PK (product_id, outlet_id)** |
+### `product_categories` / `products` / `product_stocks`
 
-> Stok **per outlet**, disimpan persisten, diupdate dalam DB transaction.
+| `product_categories` | id | UUID PK |
+| | business_id | UUID FK → businesses, ON DELETE CASCADE |
+| | name | TEXT (UNIQUE per bisnis, `lower(name)`) |
+| | created_at, updated_at | TIMESTAMPTZ |
+
+| `products` | id | UUID PK |
+| | business_id | UUID FK → businesses, ON DELETE CASCADE |
+| | category_id | UUID FK → product_categories, ON DELETE SET NULL (nullable) |
+| | name | TEXT (UNIQUE per bisnis untuk produk aktif, `lower(name)`) |
+| | sku, barcode | TEXT (UNIQUE per bisnis bila diisi) |
+| | price | BIGINT (SEN, non-negatif) |
+| | track_stock | BOOLEAN (default TRUE; jasa dapat `false`) |
+| | status | `account_status` (`active`/`suspended`) |
+| | deleted_at | TIMESTAMPTZ (soft delete) |
+| | created_at, updated_at | TIMESTAMPTZ |
+
+| `product_stocks` | id | UUID PK |
+| | product_id | UUID FK → products, ON DELETE CASCADE |
+| | outlet_id | UUID FK → outlets, ON DELETE CASCADE |
+| | quantity | INT (default 0, CHECK ≥ 0) |
+| | created_at, updated_at | TIMESTAMPTZ |
+
+> **UNIQUE (product_id, outlet_id)** pada `product_stocks` menjaga satu saldo per
+> pasangan produk×outlet — `CHECK (quantity >= 0)` mencegah stok negatif sejak
+> level skema. Produk yang dibuat dengan `track_stock=true` otomatis mendapat
+> baris stok 0 di **setiap** outlet aktif bisnis. Harga dalam **sen** (BIGINT),
+> konsisten dengan `subscription_plans.price`. Kategori & produk dihapus
+> dengan soft delete untuk produk; penghapusan kategori diblokir (409) bila
+> masih dipakai produk aktif. (Fase 6.)
 
 ### `transactions`
 | id | UUID PK | |

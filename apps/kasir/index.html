@@ -65,8 +65,25 @@
           </dl>
 
           <p class="muted small">
-            Area penjualan (produk & transaksi) akan tersedia pada fase berikutnya.
+            Area transaksi penjualan akan tersedia pada fase berikutnya.
           </p>
+        </section>
+
+        <!-- Produk outlet (read-only) -->
+        <section class="detail card">
+          <div class="detail-head">
+            <div>
+              <h3>Produk Outlet</h3>
+              <p class="muted">Katalog & stok outlet Anda (hanya lihat)</p>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <input id="product-search" type="search" placeholder="Cari nama / SKU…" />
+          </div>
+
+          <div class="product-list" id="product-list"></div>
+          <p id="product-empty" class="empty hidden">Belum ada produk di outlet ini.</p>
         </section>
       </main>
     </div>

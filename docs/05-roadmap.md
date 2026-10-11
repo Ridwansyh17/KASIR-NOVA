@@ -199,11 +199,26 @@
 > suspend mencabut sesi; reset menonaktifkan password lama). Kontrak API:
 > `docs/13-api-cashier.md`.
 
-## Fase 6 — Produk, Kategori, Harga, Stok (estimasi 4 hari)
+## Fase 6 — Produk, Kategori, Harga, Stok (estimasi 4 hari) ✅ SELESAI
 - Modul `product` + `stock`: CRUD, harga dalam sen, stok per outlet.
 - Tampilan pilihan produk untuk kasir (read-only).
 - **Selesai jika:** harga & stok tersimpan persisten; kasir hanya bisa
   **melihat** produk outletnya.
+
+> **Hasil aktual:** migrasi `0006` membuat `product_categories`, `products`,
+> `product_stocks` (UNIQUE produk×outlet, `CHECK quantity >= 0`; nama/SKU/
+> barcode unik per bisnis). Modul `product` untuk Owner di bawah
+> `/api/owner/businesses/:businessId/{categories,products}`: CRUD kategori &
+> produk + `PATCH .../products/:id/stocks/:outletId`. Membuat produk
+> `track_stock=true` otomatis membuat baris stok 0 di setiap outlet aktif.
+> Modul baru `cashier-area` menyediakan `GET /api/cashier/products`
+> (read-only) yang **menurunkan outlet dari akun kasir** — tanpa parameter
+> tenant di URL, jadi tidak ada permukaan IDOR. Panel Owner mendapat bagian
+> "Produk & Stok" (kategori, filter, CRUD, atur stok per outlet); panel Kasir
+> menampilkan katalog outletnya. **110/110 tes lulus** (15 baru): harga/stok
+> negatif = 422; nama/SKU/barcode duplikat = 409; isolasi tenant = 404;
+> token kasir di route owner = 403; owner di route kasir = 403; kasir hanya
+> melihat produk outletnya. Kontrak API: `docs/14-api-produk-stok.md`.
 
 ## Fase 7 — Transaksi Penjualan (estimasi 5–7 hari) — inti
 - Modul `transaction`: keranjang, diskon, pajak per outlet, pembayaran tunai.
