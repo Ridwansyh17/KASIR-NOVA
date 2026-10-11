@@ -255,10 +255,20 @@
 > outlet. **126/126 tes lulus** (16 baru). Kontrak API:
 > `docs/15-api-transaksi.md`.
 
-## Fase 8 — Struk & Riwayat (estimasi 3 hari)
+## Fase 8 — Struk & Riwayat (estimasi 3 hari) ✅ SELESAI
 - Cetak struk (thermal/ukuran 58mm/80mm via CSS @page), nomor invoice per outlet.
 - Riwayat transaksi dengan filter (tanggal, outlet, kasir).
 - **Selesai jika:** struk tercetak dan nomor invoice unik per outlet.
+
+> **Hasil aktual:** nomor invoice `INV-YYYYMMDD-NNNN` unik per outlet
+> (realisasi utama, diuji di Fase 7). Panel Kasir mendapat tombol **Cetak
+> Struk** — template struk 58mm (`@media print` + `@page size: 58mm`) berisi
+> nama outlet/bisnis, kasir, nomor invoice, item, subtotal/disk/pajak/total,
+> dibayar/kembalian, plus ucapan terima kasih. Panel Owner bagian Transaksi
+> Penjualan kini memfilter riwayat berdasarkan **rentang tanggal**, **outlet**,
+> dan **status** (API sudah mendukung `outletId`, `cashierId`, `status`,
+> `dateFrom`, `dateTo` sejak Fase 7). **127/127 tes lulus** (1 baru: filter
+> riwayat outlet/tanggal/status).
 
 ## Fase 9 — Laporan (estimasi 4 hari)
 - Laporan harian/mingguan/bulanan/tahunan (agregat SQL, dijamin cakupan tenant).

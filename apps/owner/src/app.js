@@ -211,6 +211,18 @@ const loadOutlets = async () => {
   if (!body) return;
   show($('outlet-section'));
   renderOutletList(body.items);
+
+  // Sinkronkan filter outlet pada bagian transaksi.
+  const sel = $('tx-outlet-filter');
+  const previous = sel.value;
+  sel.innerHTML = '<option value="">Semua outlet</option>';
+  for (const o of body.items) {
+    const opt = document.createElement('option');
+    opt.value = o.id;
+    opt.textContent = o.name;
+    sel.appendChild(opt);
+  }
+  if ([...sel.options].some((o) => o.value === previous)) sel.value = previous;
 };
 
 // --------------------------------------------------------- Muat konteks ------
@@ -794,7 +806,12 @@ const loadTransactions = async () => {
   }
   show($('tx-section'));
   const body = await guard(() =>
-    api.transactions.list(b.id, { status: $('tx-status-filter').value })
+    api.transactions.list(b.id, {
+      status: $('tx-status-filter').value,
+      outletId: $('tx-outlet-filter').value,
+      dateFrom: $('tx-date-from').value,
+      dateTo: $('tx-date-to').value,
+    })
   );
   if (!body) return;
   renderTxList(body.items);
@@ -881,6 +898,9 @@ $('tx-list').addEventListener('click', (event) => {
 
 $('tx-refresh-btn').addEventListener('click', loadTransactions);
 $('tx-status-filter').addEventListener('change', loadTransactions);
+$('tx-outlet-filter').addEventListener('change', loadTransactions);
+$('tx-date-from').addEventListener('change', loadTransactions);
+$('tx-date-to').addEventListener('change', loadTransactions);
 
 $('tx-void-btn').addEventListener('click', async () => {
   const b = activeBusiness();

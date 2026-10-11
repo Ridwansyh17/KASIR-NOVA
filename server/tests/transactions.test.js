@@ -463,3 +463,27 @@ test('Audit log mencatat transaksi dibuat & dibatalkan', async () => {
   assert.ok(actions.includes('transaction.create'), 'audit harus memuat transaction.create');
   assert.ok(actions.includes('transaction.void'), 'audit harus memuat transaction.void');
 });
+
+test('Filter riwayat: outlet, rentang tanggal, status (Fase 8)', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const basePath = transactions(businessA);
+
+  const byOutlet = await ownerGet(tokenA, basePath + `?outletId=${outletA1}`);
+  assert.strictEqual(byOutlet.status, 200);
+  assert.ok(byOutlet.body.items.length >= 1);
+  assert.ok(byOutlet.body.items.every((t) => t.outlet_id === outletA1));
+
+  const byDate = await ownerGet(tokenA, basePath + `?dateFrom=${today}&dateTo=${today}`);
+  assert.strictEqual(byDate.status, 200);
+  // Seluruh transaksi suite dibuat hari ini -> hasilnya sama dengan tanpa filter.
+  assert.strictEqual(byDate.body.items.length, byOutlet.body.items.length);
+
+  const voided = await ownerGet(tokenA, basePath + '?status=voided');
+  assert.strictEqual(voided.status, 200);
+  assert.ok(voided.body.items.length >= 1);
+  assert.ok(voided.body.items.every((t) => t.status === 'voided'));
+
+  const none = await ownerGet(tokenA, basePath + '?status=refunded');
+  assert.strictEqual(none.status, 200);
+  assert.strictEqual(none.body.items.length, 0);
+});

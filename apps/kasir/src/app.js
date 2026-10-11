@@ -270,11 +270,19 @@ const resetSaleForm = () => {
   $('payment-amount').value = '';
   $('sale-note').value = '';
   hide($('checkout-error'));
+  // Kosongkan isi struk ringkas (pertahankan header + tombol cetak).
+  const receipt = $('receipt');
+  const info = receipt.querySelectorAll('p.mono, .cart-row, dl.meta');
+  info.forEach((node) => node.remove());
+  lastTx = null;
   hide($('receipt'));
   renderCart();
 };
 
+let lastTx = null;
+
 const renderReceipt = (t) => {
+  lastTx = t;
   const el = $('receipt');
   const rows = t.items
     .map(
@@ -291,11 +299,10 @@ const renderReceipt = (t) => {
     t.payments?.[0]?.method
   ] ?? '-';
 
-  el.innerHTML = `
-    <div class="receipt-head">
-      <strong>Transaksi berhasil</strong>
-      <span class="mono">${escapeHtml(t.invoice_no)}</span>
-    </div>
+  el.querySelector('.receipt-head strong').textContent = `Transaksi berhasil`;
+  const info = document.createElement('div');
+  info.innerHTML = `
+    <p class="mono">${escapeHtml(t.invoice_no)}</p>
     ${rows}
     <dl class="meta">
       <div><dt>Subtotal</dt><dd>${escapeHtml(fmtIDR(t.subtotal))}</dd></div>
@@ -306,9 +313,43 @@ const renderReceipt = (t) => {
       <div><dt>Kembalian</dt><dd>${escapeHtml(fmtIDR(t.change_amount))}</dd></div>
     </dl>
     <p class="muted small">${escapeHtml(fmtDate(t.created_at))}</p>`;
+  el.appendChild(info);
   show(el);
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
+
+/** Isi template struk 58mm lalu buka dialog cetak. */
+const printStruk = () => {
+  const t = lastTx;
+  if (!t) return;
+  const methodLabel = { cash: 'Tunai', card: 'Kartu', qr: 'QRIS', wallet: 'E-Wallet' }[
+    t.payments?.[0]?.method
+  ] ?? '-';
+  const rows = t.items
+    .map(
+      (it) => `${escapeHtml(it.product_name)}\n  ${it.qty} x ${escapeHtml(fmtIDR(it.unit_price))}  ${escapeHtml(fmtIDR(it.line_total))}`
+    )
+    .join('');
+
+  const out = state.context?.business?.name ?? 'KASIR NOVA';
+  const outlet = state.context?.outlet?.name ?? '';
+  $('print-struk').innerHTML =
+    `<div class="struk-head"><strong>${escapeHtml(out)}</strong></div>` +
+    `<div class="struk-sub">${escapeHtml(outlet)} ${escapeHtml(state.user?.fullName ?? '')}</div>` +
+    `<div class="struk-sub mono">${escapeHtml(t.invoice_no)}</div>` +
+    `<div class="struk-sub">${escapeHtml(fmtDate(t.created_at))}</div>` +
+    `<pre class="struk-items">${rows}</pre>` +
+    `<div class="struk-row"><span>Subtotal</span><span>${escapeHtml(fmtIDR(t.subtotal))}</span></div>` +
+    `<div class="struk-row"><span>Diskon</span><span>-${escapeHtml(fmtIDR(t.discount_total))}</span></div>` +
+    `<div class="struk-row"><span>Pajak (${Number(t.tax_rate)}%)</span><span>${escapeHtml(fmtIDR(t.tax_total))}</span></div>` +
+    `<div class="struk-row total"><span>Total</span><span>${escapeHtml(fmtIDR(t.total))}</span></div>` +
+    `<div class="struk-row"><span>Dibayar (${escapeHtml(methodLabel)})</span><span>${escapeHtml(fmtIDR(t.paid_amount))}</span></div>` +
+    `<div class="struk-row"><span>Kembalian</span><span>${escapeHtml(fmtIDR(t.change_amount))}</span></div>` +
+    `<div class="struk-foot">Terima kasih atas kunjungan Anda</div>`;
+  window.print();
+};
+
+$('print-struk-btn').addEventListener('click', printStruk);
 
 $('checkout-btn').addEventListener('click', async () => {
   hide($('checkout-error'));

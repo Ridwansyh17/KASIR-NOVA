@@ -128,11 +128,13 @@ untuk transaksi berikutnya (transaksi lama menyimpan snapshot).
 - Penomoran invoice: `outlet_invoice_counters` per (outlet, hari) dengan zona
   waktu bisnis; format `INV-YYYYMMDD-NNNN` (atomik, unik per outlet).
 - Outlet yang masih punya transaksi `completed` **tidak bisa dihapus** (409).
+- Struk (Fase 8): template 58mm di panel Kasir (`@media print` + `@page size:
+  58mm`), tombol **Cetak Struk** setelah transaksi berhasil.
 
 ## G. Pengujian
 
-- `npm.cmd test` di `server/` — `tests/transactions.test.js` (16 kasus baru;
-  total **126/126**).
+- `npm.cmd test` di `server/` — `tests/transactions.test.js` (17 kasus;
+  total **127/127**).
 - Kasus inti: total dihitung server + stok berkurang atomik; diskon persen
   (12.5%) & nominal sebelum pajak; pajak inklusif vs eksklusif per outlet;
   stok kurang = 409 tanpa stok negatif; **dua penjualan paralel hanya satu
@@ -141,4 +143,5 @@ untuk transaksi berikutnya (transaksi lama menyimpan snapshot).
   mengembalikan stok & void ulang 409; isolasi tenant (owner/kasir lintas
   bisnis = 404); peran salah (owner di route kasir = 403, kasir di route void
   = 403); admin bisa baca transaksi; outlet ber-transaksi tidak bisa dihapus;
-  audit `transaction.create`/`transaction.void` tercatat.
+  audit `transaction.create`/`transaction.void` tercatat; filter riwayat
+  outlet/rentang tanggal/status (Fase 8).

@@ -141,7 +141,17 @@
         </section>
 
         <!-- Hasil transaksi terakhir -->
-        <div id="receipt" class="card receipt hidden"></div>
+        <div id="receipt" class="card receipt hidden">
+          <div class="receipt-head">
+            <strong>Transaksi berhasil</strong>
+            <div class="btn-row">
+              <button id="print-struk-btn" type="button" class="btn small">Cetak Struk</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Template struk (58mm) untuk pencetakan -->
+        <div id="print-struk" class="print-only" aria-hidden="true"></div>
 
         <!-- Riwayat transaksi outlet (10 terakhir) -->
         <section class="detail card">
