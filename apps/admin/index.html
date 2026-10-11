@@ -236,6 +236,62 @@
       </div>
     </div>
 
+    <!-- ================= MODAL LAPORAN BISNIS (baca saja) ================= -->
+    <div id="report-modal" class="modal hidden">
+      <div class="modal-card card wide-card">
+        <div class="detail-head">
+          <div>
+            <h3 id="report-modal-title">Laporan Bisnis</h3>
+            <p class="muted" id="report-modal-sub"></p>
+          </div>
+          <div class="detail-actions">
+            <input id="rep-modal-from" type="date" title="Dari tanggal" />
+            <input id="rep-modal-to" type="date" title="Sampai tanggal" />
+            <select id="rep-modal-group-by">
+              <option value="day">Harian</option>
+              <option value="week">Mingguan</option>
+              <option value="month" selected>Bulanan</option>
+              <option value="year">Tahunan</option>
+            </select>
+            <button id="rep-modal-load" class="btn">Muat ulang</button>
+            <button id="rep-modal-csv" class="btn" title="Unduh CSV">CSV</button>
+            <button id="rep-modal-json" class="btn" title="Unduh JSON">JSON</button>
+          </div>
+        </div>
+
+        <div class="cards" id="rep-modal-summary"></div>
+
+        <h4>Produk Terlaris</h4>
+        <div id="rep-modal-top" class="tx-list"></div>
+
+        <h4>Tabel Agregat</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Periode</th>
+                <th class="right">Transaksi</th>
+                <th class="right">Item</th>
+                <th class="right">Subtotal</th>
+                <th class="right">Diskon</th>
+                <th class="right">Pajak</th>
+                <th class="right">Total</th>
+                <th class="right">Void</th>
+              </tr>
+            </thead>
+            <tbody id="rep-modal-body"></tbody>
+          </table>
+          <p id="rep-modal-empty" class="empty hidden">Belum ada data pada rentang ini.</p>
+        </div>
+
+        <p id="report-modal-error" class="error hidden"></p>
+
+        <div class="modal-actions">
+          <button type="button" id="report-modal-close" class="btn">Tutup</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= MODAL LANGGANAN BISNIS ================= -->
     <div id="sub-modal" class="modal hidden">
       <div class="modal-card card">

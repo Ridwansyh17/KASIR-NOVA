@@ -21,6 +21,7 @@ import outletRoutes from '../outlet/routes.js';
 import cashierRoutes from '../cashier/routes.js';
 import { categoryRoutes, productRoutes } from '../product/routes.js';
 import { transactionRoutes } from '../transaction/routes.js';
+import { reportRoutes } from '../report/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -79,5 +80,8 @@ router.use('/businesses/:businessId/products', productRoutes);
 
 // Transaksi penjualan: riwayat/detail + void (kembalikan stok).
 router.use('/businesses/:businessId/transactions', transactionRoutes);
+
+// Laporan penjualan: agregat per periode, ringkasan, ekspor CSV/JSON.
+router.use('/businesses/:businessId/reports', reportRoutes);
 
 export default router;

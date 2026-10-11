@@ -167,6 +167,61 @@
           <p id="tx-empty" class="empty hidden">Belum ada transaksi di bisnis ini.</p>
         </section>
 
+        <!-- Laporan penjualan bisnis aktif -->
+        <section id="report-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Laporan Penjualan</h3>
+              <p class="muted">Agregat per periode + ringkasan + ekspor CSV/JSON</p>
+            </div>
+            <div class="detail-actions">
+              <input id="rep-date-from" type="date" title="Dari tanggal" />
+              <input id="rep-date-to" type="date" title="Sampai tanggal" />
+              <select id="rep-outlet-filter">
+                <option value="">Semua outlet</option>
+              </select>
+              <select id="rep-group-by">
+                <option value="day">Harian</option>
+                <option value="week">Mingguan</option>
+                <option value="month" selected>Bulanan</option>
+                <option value="year">Tahunan</option>
+              </select>
+              <button id="rep-refresh-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div class="report-actions">
+            <button id="rep-export-csv" class="btn small">Ekspor CSV</button>
+            <button id="rep-export-json" class="btn small">Ekspor JSON</button>
+          </div>
+
+          <div class="cards" id="rep-summary"></div>
+
+          <h4>Produk Terlaris</h4>
+          <div class="tx-list" id="rep-top-products"></div>
+          <p id="rep-top-empty" class="empty hidden">Belum ada produk terjual pada rentang ini.</p>
+
+          <h4>Tabel Agregat</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Periode</th>
+                  <th class="right">Transaksi</th>
+                  <th class="right">Item</th>
+                  <th class="right">Subtotal</th>
+                  <th class="right">Diskon</th>
+                  <th class="right">Pajak</th>
+                  <th class="right">Total</th>
+                  <th class="right">Void</th>
+                </tr>
+              </thead>
+              <tbody id="rep-body"></tbody>
+            </table>
+            <p id="rep-empty" class="empty hidden">Belum ada data penjualan pada rentang ini.</p>
+          </div>
+        </section>
+
         <div id="empty-state" class="card empty hidden">
           <p>Anda belum memiliki bisnis.</p>
           <button id="empty-new-btn" class="btn primary">+ Buat Bisnis Pertama</button>

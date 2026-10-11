@@ -18,6 +18,7 @@ import {
   transactionListQuerySchema,
   transactionParamSchema,
 } from '../transaction/schema.js';
+import { reportRoutes } from '../report/routes.js';
 
 const router = Router({ mergeParams: true });
 
@@ -65,5 +66,8 @@ router.get(
   requireBusinessAccess(),
   txController.detail
 );
+
+// Laporan penjualan lintas platform (baca saja, sesuai matriks hak akses).
+router.use('/:businessId/reports', reportRoutes);
 
 export default router;

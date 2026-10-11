@@ -439,6 +439,7 @@ const renderBusinesses = (items) => {
       <td>${subBadge}</td>
       <td>${b.status === 'active' ? '<span class="badge ok">aktif</span>' : '<span class="badge off">nonaktif</span>'}</td>
       <td class="right actions">
+        <button class="btn small" data-action="report" data-id="${b.id}">Laporan</button>
         <button class="btn small" data-action="sub" data-id="${b.id}">Langganan</button>
       </td>`;
     tbody.appendChild(tr);
@@ -556,6 +557,137 @@ $('sub-set-status').addEventListener('click', async () => {
 $('sub-cancel').addEventListener('click', () => hide($('sub-modal')));
 $('sub-modal').addEventListener('click', (event) => {
   if (event.target === $('sub-modal')) hide($('sub-modal'));
+});
+
+// ================================================== MODAL LAPORAN (baca) ======
+let currentReportBusinessId = null;
+
+const openReportModal = async (businessId) => {
+  currentReportBusinessId = businessId;
+  hide($('report-modal-error'));
+  const store = state.businesses.find((b) => b.id === businessId);
+  $('report-modal-title').textContent = `Laporan — ${store?.name ?? 'Bisnis'}`;
+  $('report-modal-sub').textContent = store?.owner_name
+    ? `Owner: ${store.owner_name}`
+    : '';
+  show($('report-modal'));
+  await loadReportModal();
+};
+
+const reportModalQuery = () => ({
+  groupBy: $('rep-modal-group-by').value,
+  from: $('rep-modal-from').value,
+  to: $('rep-modal-to').value,
+});
+
+const renderReportModal = ({ rows, sum, top }) => {
+  const cards = [
+    { label: 'Total pendapatan', value: fmtIDR(sum.total), sub: `${sum.transactions} transaksi` },
+    { label: 'Rata-rata / transaksi', value: fmtIDR(sum.avg_total), sub: '' },
+    { label: 'Dibatalkan (void)', value: fmtIDR(sum.voided_total), sub: '' },
+    { label: 'Outlet aktif', value: `${sum.active_outlets}`, sub: '' },
+  ];
+  $('rep-modal-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(c.value)}</strong>
+        ${c.sub ? `<span class="muted small">${escapeHtml(c.sub)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+
+  const topEl = $('rep-modal-top');
+  topEl.innerHTML = '';
+  for (const p of top) {
+    const row = document.createElement('div');
+    row.className = 'tx-row';
+    row.innerHTML = `
+      <div><strong>${escapeHtml(p.product_name)}</strong>
+        <span class="muted small">${p.qty} item terjual</span></div>
+      <span class="right mono">${escapeHtml(fmtIDR(p.revenue))}</span>`;
+    topEl.appendChild(row);
+  }
+
+  const tbody = $('rep-modal-body');
+  tbody.innerHTML = '';
+  hide($('rep-modal-empty'));
+  if (!rows.length) {
+    show($('rep-modal-empty'));
+    return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(r.period_start)}</td>
+      <td class="right">${r.transactions}</td>
+      <td class="right">${r.items_sold}</td>
+      <td class="right">${escapeHtml(fmtIDR(r.subtotal))}</td>
+      <td class="right">${escapeHtml(fmtIDR(r.discount_total))}</td>
+      <td class="right">${escapeHtml(fmtIDR(r.tax_total))}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(r.total))}</td>
+      <td class="right">${r.voided_total ? escapeHtml(fmtIDR(r.voided_total)) : '—'}</td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadReportModal = async () => {
+  if (!currentReportBusinessId) return;
+  hide($('report-modal-error'));
+  try {
+    const query = reportModalQuery();
+    const rows = await guard(() => api.reports.grouped(currentReportBusinessId, query));
+    const { summary: sum, top_products: top } = await guard(() =>
+      api.reports.summary(currentReportBusinessId, query)
+    );
+    if (!rows || !sum) return;
+    renderReportModal({ rows, sum, top });
+  } catch (err) {
+    const el = $('report-modal-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+};
+
+const downloadReportModal = async (format) => {
+  if (!currentReportBusinessId) return;
+  try {
+    const data = await guard(() =>
+      api.reports.download(currentReportBusinessId, { from: $('rep-modal-from').value, to: $('rep-modal-to').value }, format)
+    );
+    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    const blob = new Blob([text], {
+      type: format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `laporan-${currentReportBusinessId}-${new Date().toISOString().slice(0, 10)}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    const el = $('report-modal-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+};
+
+$('biz-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn || btn.dataset.action !== 'report') return;
+  await openReportModal(btn.dataset.id);
+});
+
+$('rep-modal-load').addEventListener('click', loadReportModal);
+$('rep-modal-group-by').addEventListener('change', loadReportModal);
+$('rep-modal-from').addEventListener('change', loadReportModal);
+$('rep-modal-to').addEventListener('change', loadReportModal);
+$('rep-modal-csv').addEventListener('click', () => downloadReportModal('csv'));
+$('rep-modal-json').addEventListener('click', () => downloadReportModal('json'));
+$('report-modal-close').addEventListener('click', () => hide($('report-modal')));
+$('report-modal').addEventListener('click', (event) => {
+  if (event.target === $('report-modal')) hide($('report-modal'));
 });
 
 // ------------------------------------------------------------- Bootstrap -----

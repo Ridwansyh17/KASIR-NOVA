@@ -444,3 +444,100 @@ select:focus {
     flex-wrap: wrap;
   }
 }
+
+/* ---------- Laporan (baca saja) ---------- */
+.modal-card.wide-card {
+  max-width: 980px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.detail-head h3 {
+  margin: 0;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.detail-actions input[type='date'] {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.card.stat {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-value {
+  font-size: 20px;
+}
+
+.tx-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fafbff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.tx-row .right {
+  text-align: right;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.table th.right,
+.table td.right {
+  text-align: right;
+}
+
+h4 {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}

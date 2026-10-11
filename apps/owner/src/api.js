@@ -38,6 +38,16 @@ export class ApiError extends Error {
   }
 }
 
+/** Bangun query string dari pasangan yang ber-isi (mengabaikan kosong/null). */
+const queryString = (params) => {
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') qs.set(key, value);
+  }
+  const suffix = qs.toString();
+  return suffix ? `?${suffix}` : '';
+};
+
 const raw = async (path, options = {}) => {
   const headers = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
   const access = tokenStore.access;
@@ -183,6 +193,20 @@ export const api = {
         method: 'POST',
         body: '{}',
       }),
+  },
+
+  reports: {
+    /** @param {{groupBy?,from?,to?,outletId?,cashierId?}} params */
+    grouped: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/reports${queryString(params)}`),
+    summary: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/reports/summary${queryString(params)}`),
+    /** @returns {Promise<string|object>} teks CSV atau objek {items}. */
+    download: (businessId, params = {}, format = 'csv') => {
+      const qs = new URLSearchParams(params);
+      if (format) qs.set('format', format);
+      return request(`/api/owner/businesses/${businessId}/reports/export?${qs.toString()}`);
+    },
   },
 
   categories: {

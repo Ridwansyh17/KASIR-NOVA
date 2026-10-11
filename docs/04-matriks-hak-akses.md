@@ -88,8 +88,17 @@
 | Operasi | A | O | K |
 |---|---|---|---|
 | Laporan harian/mingguan/bulanan/tahunan | ✅ (semua bisnis) | ✅ (bisnisnya) | ❌ |
-| Ringkasan omzet outlet | ❌ | ✅ | ❌ |
-| Export laporan | ❌ | ✅ | ❌ |
+| Ringkasan omzet outlet | ✅ (semua bisnis) | ✅ (bisnisnya) | ❌ |
+| Export laporan (CSV/JSON) | ✅ (baca saja, semua bisnis) | ✅ (bisnisnya) | ❌ |
+
+> Fase 9 (implementasi `docs/16-api-laporan.md`): seluruh agregat dan ekspor
+> dihitung **di server** memakai zona waktu bisnis; fokus kriteria selesai
+> adalah **isolasi tenant** ("angkat laporan untuk 2 business_id terisolasi,
+> hasilnya tidak bocor"). Admin tetap **baca-saja**: menyandingkan "Export
+> laporan A = ❌" pada matriks rencana dengan kemampuan admin membaca data
+> lintas bisnis; karena ekspor adalah penyajian data baca (tanpa perubahan
+> data), admin diberi akses ekspor *read-only* agar konsisten dengan perannya
+> pada baris "Laporan … = ✅ (semua bisnis)".
 
 ## 9. Audit Log
 

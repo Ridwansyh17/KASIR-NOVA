@@ -270,11 +270,22 @@
 > `dateFrom`, `dateTo` sejak Fase 7). **127/127 tes lulus** (1 baru: filter
 > riwayat outlet/tanggal/status).
 
-## Fase 9 — Laporan (estimasi 4 hari)
+## Fase 9 — Laporan (estimasi 4 hari) ✅ SELESAI
 - Laporan harian/mingguan/bulanan/tahunan (agregat SQL, dijamin cakupan tenant).
 - Export CSV/JSON.
 - **Selesai jika:** angkat laporan untuk 2 business_id terisolasi, hasilnya
   tidak bocor.
+
+> **Hasil aktual:** modul `report` (Owner + Admin baca-saja). Agregat per
+> periode (`day`/`week`/`month`/`year`) via `DATE_TRUNC`, ringkasan rentang,
+> top 5 produk, dan ekspor **CSV/JSON** — semua dihitung server memakai zona
+> waktu bisnis; hanya `completed` dihitung sebagai pendapatan, `voided`
+> tampil terpisah (`voided_total`). Isolasi tenant diuji dengan 2 business_id
+> (owner B → 404; admin lintas platform → 200; kasir → 403). UI Owner
+> mendapat seksi **Laporan Penjualan** (filter rentang/outlet, kartu
+> ringkasan, tabel agregat, top produk, tombol ekspor); UI Admin mendapat
+> aksi **Laporan** di tabs Bisnis (modal baca-saja). **133/133 tes lulus**
+> (6 baru). Kontrak API: `docs/16-api-laporan.md`.
 
 ## Fase 10 — Langganan & Pembatasan Akses (estimasi 3 hari)
 - Modul `subscription`: masa aktif, status pembayaran, gerbang fitur.

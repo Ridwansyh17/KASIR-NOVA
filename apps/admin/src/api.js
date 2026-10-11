@@ -179,4 +179,31 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+
+  // Laporan penjualan (baca saja, sesuai matriks hak akses).
+  reports: {
+    grouped: (businessId, params = {}) => {
+      const q = new URLSearchParams();
+      if (params.groupBy) q.set('groupBy', params.groupBy);
+      if (params.from) q.set('from', params.from);
+      if (params.to) q.set('to', params.to);
+      const suffix = q.toString() ? `?${q.toString()}` : '';
+      return request(`/api/platform/businesses/${businessId}/reports${suffix}`);
+    },
+    summary: (businessId, params = {}) => {
+      const q = new URLSearchParams();
+      if (params.from) q.set('from', params.from);
+      if (params.to) q.set('to', params.to);
+      const suffix = q.toString() ? `?${q.toString()}` : '';
+      return request(`/api/platform/businesses/${businessId}/reports/summary${suffix}`);
+    },
+    /** @returns {Promise<string|object>} teks CSV atau {items}. */
+    download: (businessId, params = {}, format = 'csv') => {
+      const q = new URLSearchParams();
+      if (params.from) q.set('from', params.from);
+      if (params.to) q.set('to', params.to);
+      q.set('format', format);
+      return request(`/api/platform/businesses/${businessId}/reports/export?${q.toString()}`);
+    },
+  },
 };

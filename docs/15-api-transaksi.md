@@ -134,7 +134,7 @@ untuk transaksi berikutnya (transaksi lama menyimpan snapshot).
 ## G. Pengujian
 
 - `npm.cmd test` di `server/` — `tests/transactions.test.js` (17 kasus;
-  total **127/127**).
+  total suites **133/133** per Fase 9; sebelum Fase 9 = **127/127**).
 - Kasus inti: total dihitung server + stok berkurang atomik; diskon persen
   (12.5%) & nominal sebelum pajak; pajak inklusif vs eksklusif per outlet;
   stok kurang = 409 tanpa stok negatif; **dua penjualan paralel hanya satu

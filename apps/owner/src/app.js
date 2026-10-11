@@ -212,17 +212,19 @@ const loadOutlets = async () => {
   show($('outlet-section'));
   renderOutletList(body.items);
 
-  // Sinkronkan filter outlet pada bagian transaksi.
-  const sel = $('tx-outlet-filter');
-  const previous = sel.value;
-  sel.innerHTML = '<option value="">Semua outlet</option>';
-  for (const o of body.items) {
-    const opt = document.createElement('option');
-    opt.value = o.id;
-    opt.textContent = o.name;
-    sel.appendChild(opt);
+  // Sinkronkan filter outlet pada bagian transaksi & laporan.
+  for (const id of ['tx-outlet-filter', 'rep-outlet-filter']) {
+    const sel = $(id);
+    const previous = sel.value;
+    sel.innerHTML = '<option value="">Semua outlet</option>';
+    for (const o of body.items) {
+      const opt = document.createElement('option');
+      opt.value = o.id;
+      opt.textContent = o.name;
+      sel.appendChild(opt);
+    }
+    if ([...sel.options].some((o) => o.value === previous)) sel.value = previous;
   }
-  if ([...sel.options].some((o) => o.value === previous)) sel.value = previous;
 };
 
 // --------------------------------------------------------- Muat konteks ------
@@ -250,6 +252,7 @@ const loadBusinesses = async () => {
     hide($('outlet-section'));
     hide($('product-section'));
     hide($('tx-section'));
+    hide($('report-section'));
     show($('waiting-state'));
   } else {
     hide($('waiting-state'));
@@ -268,6 +271,7 @@ const refreshContext = async () => {
   await loadOutlets();
   await loadProducts();
   await loadTransactions();
+  await loadReport();
 };
 
 $('business-select').addEventListener('change', async (event) => {
@@ -923,6 +927,120 @@ $('tx-cancel').addEventListener('click', closeTxModal);
 $('tx-modal').addEventListener('click', (event) => {
   if (event.target === $('tx-modal')) closeTxModal();
 });
+
+// ------------------------------------------------------------- Laporan --------
+const reportQuery = () => ({
+  groupBy: $('rep-group-by').value,
+  outletId: $('rep-outlet-filter').value,
+  from: $('rep-date-from').value,
+  to: $('rep-date-to').value,
+});
+
+const renderReport = ({ rows, sum, top }) => {
+  // Kartu ringkasan.
+  const cards = [
+    { label: 'Total pendapatan', value: fmtIDR(sum.total), sub: `${sum.transactions} transaksi` },
+    { label: 'Rata-rata per transaksi', value: fmtIDR(sum.avg_total), sub: '' },
+    { label: 'Dibatalkan (void)', value: fmtIDR(sum.voided_total), sub: '' },
+    { label: 'Outlet aktif', value: `${sum.active_outlets}`, sub: '' },
+  ];
+  $('rep-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(c.value)}</strong>
+        ${c.sub ? `<span class="muted small">${escapeHtml(c.sub)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+
+  // Produk terlaris.
+  const prodList = $('rep-top-products');
+  prodList.innerHTML = '';
+  hide($('rep-top-empty'));
+  if (top.length) {
+    for (const p of top) {
+      const row = document.createElement('div');
+      row.className = 'tx-row';
+      row.innerHTML = `
+        <div><strong>${escapeHtml(p.product_name)}</strong>
+          <span class="muted small">${p.qty} item terjual</span></div>
+        <span class="right mono">${escapeHtml(fmtIDR(p.revenue))}</span>`;
+      prodList.appendChild(row);
+    }
+  } else {
+    show($('rep-top-empty'));
+  }
+
+  // Tabel agregat.
+  const body = $('rep-body');
+  body.innerHTML = '';
+  hide($('rep-empty'));
+  if (!rows.length) {
+    show($('rep-empty'));
+    return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(r.period_start)}</td>
+      <td class="right">${r.transactions}</td>
+      <td class="right">${r.items_sold}</td>
+      <td class="right">${escapeHtml(fmtIDR(r.subtotal))}</td>
+      <td class="right">${escapeHtml(fmtIDR(r.discount_total))}</td>
+      <td class="right">${escapeHtml(fmtIDR(r.tax_total))}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(r.total))}</td>
+      <td class="right">${r.voided_total ? escapeHtml(fmtIDR(r.voided_total)) : '—'}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadReport = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('report-section'));
+    return;
+  }
+  show($('report-section'));
+  const query = reportQuery();
+  const rows = await guard(() => api.reports.grouped(b.id, query));
+  if (!rows) return;
+  const { summary: sum, top_products: top } = await guard(() =>
+    api.reports.summary(b.id, query)
+  );
+  if (!sum) return;
+  renderReport({ rows, sum, top });
+};
+
+const downloadReport = async (format) => {
+  const b = activeBusiness();
+  if (!b) return;
+  try {
+    const data = await guard(() => api.reports.download(b.id, reportQuery(), format));
+    const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+    const blob = new Blob([text], {
+      type: format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `laporan-${(b.name ?? 'bisnis').toLowerCase().replace(/\s+/g, '-')}-${today}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  }
+};
+
+$('rep-refresh-btn').addEventListener('click', loadReport);
+$('rep-group-by').addEventListener('change', loadReport);
+$('rep-outlet-filter').addEventListener('change', loadReport);
+$('rep-date-from').addEventListener('change', loadReport);
+$('rep-date-to').addEventListener('change', loadReport);
+$('rep-export-csv').addEventListener('click', () => downloadReport('csv'));
+$('rep-export-json').addEventListener('click', () => downloadReport('json'));
 
 // ------------------------------------------------------------- Bootstrap -----
 const boot = async () => {
