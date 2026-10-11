@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>KASIR NOVA — Owner</title>
+    <link rel="stylesheet" href="./styles/styles.css" />
+  </head>
+  <body>
+    <!-- ================= LOGIN ================= -->
+    <section id="login-view" class="auth hidden">
+      <form id="login-form" class="card auth-card" novalidate>
+        <h1 class="brand-title">KASIR NOVA</h1>
+        <p class="muted">Panel Owner (Pemilik Bisnis)</p>
+
+        <label class="field">
+          <span>Email</span>
+          <input id="login-email" type="email" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <button type="submit" class="btn primary block">Masuk</button>
+        <p id="login-error" class="error hidden"></p>
+      </form>
+    </section>
+
+    <!-- ================= APP ================= -->
+    <div id="app-view" class="hidden">
+      <header class="topbar">
+        <div class="brand">KASIR NOVA <span class="muted">/ Owner</span></div>
+        <div class="user">
+          <span id="current-user" class="muted"></span>
+          <button id="logout-btn" class="btn">Keluar</button>
+        </div>
+      </header>
+
+      <main class="container">
+        <div class="toolbar">
+          <h2>Bisnis Saya</h2>
+          <div class="toolbar-actions">
+            <label class="field inline">
+              <span>Bisnis aktif</span>
+              <select id="business-select" disabled></select>
+            </label>
+            <button id="refresh-btn" class="btn">Muat ulang</button>
+            <button id="new-business-btn" class="btn primary">+ Bisnis Baru</button>
+          </div>
+        </div>
+
+        <div id="alert" class="alert hidden"></div>
+
+        <!-- Detail bisnis aktif -->
+        <section id="business-detail" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3 id="detail-name">—</h3>
+              <p id="detail-type" class="muted">—</p>
+            </div>
+            <span id="detail-status" class="badge">—</span>
+          </div>
+
+          <dl class="meta">
+            <div><dt>ID bisnis</dt><dd id="detail-id" class="mono">—</dd></div>
+            <div><dt>Mata uang</dt><dd id="detail-currency">—</dd></div>
+            <div><dt>Zona waktu</dt><dd id="detail-timezone">—</dd></div>
+            <div><dt>Dibuat</dt><dd id="detail-created">—</dd></div>
+            <div><dt>Diperbarui</dt><dd id="detail-updated">—</dd></div>
+          </dl>
+
+          <div class="detail-actions">
+            <button id="edit-business-btn" class="btn">Ubah</button>
+            <button id="toggle-status-btn" class="btn danger">Nonaktifkan</button>
+          </div>
+        </section>
+
+        <div id="empty-state" class="card empty hidden">
+          <p>Anda belum memiliki bisnis.</p>
+          <button id="empty-new-btn" class="btn primary">+ Buat Bisnis Pertama</button>
+        </div>
+      </main>
+    </div>
+
+    <!-- ================= MODAL ================= -->
+    <div id="modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="modal-title">Bisnis Baru</h3>
+        <form id="business-form" novalidate>
+          <input type="hidden" id="business-id" />
+
+          <label class="field">
+            <span>Nama bisnis</span>
+            <input id="business-name" type="text" required />
+          </label>
+          <label class="field">
+            <span>Jenis usaha (opsional)</span>
+            <input id="business-type" type="text" placeholder="mis. retail, F&B, jasa" />
+          </label>
+          <label class="field">
+            <span>Mata uang (opsional)</span>
+            <input id="business-currency" type="text" placeholder="IDR" maxlength="3" />
+          </label>
+          <label class="field">
+            <span>Zona waktu (opsional)</span>
+            <input id="business-timezone" type="text" placeholder="Asia/Jakarta" />
+          </label>
+
+          <p id="form-error" class="error hidden"></p>
+
+          <div class="modal-actions">
+            <button type="button" id="modal-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

@@ -83,12 +83,43 @@
 4. Panel admin disajikan Express pada dev; **produksi tetap Firebase Hosting**
    (backend tidak melayani file statis saat `NODE_ENV=production`).
 
-## Fase 3 — Owner & Multi-Bisnis (estimasi 4 hari)
+## Fase 3 — Owner & Multi-Bisnis (estimasi 4 hari) ✅ SELESAI
 - Modul `owner` + `business`: owner membuat beberapa bisnis.
 - Panel `apps/owner`: daftar bisnis, buat bisnis, ganti konteks aktif.
 - Tenant middleware aktif: `business_id` dari sesi, filter semua query.
 - **Selesai jika:** owner memiliki ≥2 bisnis dan **tidak bisa** melihat data
   bisnis lain (uji negatif).
+
+> **Keputusan pemilik proyek (sebelum implementasi):**
+> 1. Bisnis dibuat **bebas tanpa langganan otomatis** — langganan/plan diatur
+>    kemudian (Fase 4 & 10).
+> 2. `business_type` = **teks bebas** (tanpa daftar pilihan kaku).
+
+> **Hasil aktual:** tabel `businesses` (migrasi `0003`, akar tenant dengan FK
+> `owner_id`, default `currency=IDR`, `timezone=Asia/Jakarta`, kolom
+> `deleted_at`). 5 endpoint `/api/owner/businesses*` (list/buat/detail/ubah/
+> status) — seluruhnya terkunci peran `owner` + **middleware tenant**
+> (`requireBusinessAccess`) yang mengembalikan **404** untuk bisnis milik
+> tenant lain (anti-IDOR, mencegah enumerasi). Setiap mutasi menulis
+> `audit_logs` (dengan `business_id`) di transaksi yang sama. Panel
+> `apps/owner` (login terkunci `owner`, daftar → pilih konteks bisnis aktif →
+> detail/ubah/aktif-nonaktif, disajikan di `/owner` saat dev). Owner bisa
+> memiliki ≥2 bisnis. **56/56 tes lulus** (13 baru; termasuk uji negatif
+> isolasi: Owner A → bisnis Owner B = 404). Kontrak API:
+> `docs/10-api-owner-business.md`.
+
+### Catatan deviasi dari rencana (dengan alasan)
+1. **Tidak ada endpoint hapus bisnis** di fase ini. Matriks hak akses owner
+   hanya mencantumkan buat/lihat/ubah/status; kolom `deleted_at` sudah disiapkan
+   untuk soft-delete bila keputusan hapus tiba. Hard delete bisnis juga akan
+   menghancurkan seluruh data outlet/transaksinya secara berantai.
+2. **"Ganti konteks aktif"** adalah urusan frontend murni: id bisnis aktif
+   disimpan di `localStorage`; server tetap memverifikasi kepemilikan tiap
+   request sehingga berpindah konteks tidak pernah menjadi celah isolasi.
+3. **Admin belum punya daftar semua bisnis** (`GET /api/platform/businesses`).
+   Matriks mengizinkan admin melihat semua bisnis, tapi UI/endpoint-nya
+   dijadwalkan bersama pengawasan platform (Fase 9/11) untuk menjaga lingkup
+   fase. Isolasi tenant sudah diuji di sisi modul `owner`.
 
 ## Fase 4 — Outlet & Batas Langganan (estimasi 3 hari)
 - Modul `outlet` + `subscription`: buat outlet, cek `max_outlets`.

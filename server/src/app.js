@@ -19,6 +19,7 @@ import { notFoundHandler, errorHandler } from './middleware/error.js';
 import healthRouter from './modules/health/routes.js';
 import authRouter from './modules/auth/routes.js';
 import platformAdminRouter from './modules/platform-admin/routes.js';
+import ownerRouter from './modules/owner/routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -57,11 +58,13 @@ app.get('/', (req, res) => {
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/platform', platformAdminRouter);
+app.use('/api/owner', ownerRouter);
 
 // Panel Admin Platform. Di dev disajikan statis oleh Express agar mudah diuji.
 // Di produksi frontend disajikan Firebase Hosting (backend tidak melayani file).
 if (!env.isProduction) {
   app.use('/admin', express.static(join(__dirname, '../../apps/admin')));
+  app.use('/owner', express.static(join(__dirname, '../../apps/owner')));
 }
 
 // 404 & error handler (harus setelah semua route)
