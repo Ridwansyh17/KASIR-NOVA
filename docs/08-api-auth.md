@@ -1,0 +1,122 @@
+# KASIR NOVA — Kontrak API: Auth & Sesi
+
+> Basis URL dev: `http://localhost:4000/api/auth`
+> Semua request/response berformat JSON (`Content-Type: application/json`).
+> Error selalu berbentuk: `{ "error": { "message": "...", "details"?: ... } }`.
+
+## Konsep token
+
+| Token | Bentuk | Umur | Penyimpanan |
+|---|---|---|---|
+| **Access token** | JWT (`Authorization: Bearer ...`) | 15 menit | Di memori frontend (jangan localStorage bila bisa) |
+| **Refresh token** | String hex 96 karakter (acak) | 7 hari | Disimpan aman; server hanya menyimpan hash-nya (SHA-256) |
+
+- **Refresh bersifat sekali pakai (rotasi):** setiap `POST /refresh`
+  mengembalikan refresh token **baru** dan mencabut yang lama. Simpan yang baru.
+- Bila access token kedaluwarsa (401 "Token akses kedaluwarsa"), panggil
+  `/refresh` untuk mendapatkan pasangan baru, lalu ulangi request semula.
+- Bila `/refresh` gagal (401), sesi berakhir → arahkan pengguna ke login.
+
+## Peran
+
+| `role` | Area aplikasi | Status Fase 1 |
+|---|---|---|
+| `platform_admin` | `apps/admin` | ✅ aktif |
+| `owner` | `apps/owner` | ✅ aktif |
+| `cashier` | `apps/kasir` | ⏳ aktif di Fase 5 (sementara `404`) |
+
+> Tiap aplikasi frontend mengirim `role` tetapnya sendiri (tidak dipilih
+> pengguna). Ini memisahkan area login.
+
+---
+
+## POST `/api/auth/login`
+
+Login per peran. Dibatasi **10 percobaan / IP / 15 menit** (HTTP 429 bila
+terlampaui).
+
+**Request**
+```json
+{ "role": "owner", "email": "owner@nova.test", "password": "••••••••" }
+```
+
+**200 OK**
+```json
+{
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "f3a9...96_hex...",
+  "user": { "id": "uuid", "email": "owner@nova.test", "fullName": "Owner Demo", "role": "owner" }
+}
+```
+
+| Status | Arti |
+|---|---|
+| 200 | Berhasil |
+| 401 | Email atau password salah (pesan seragam, anti-enumerasi) |
+| 403 | Akun dinonaktifkan |
+| 404 | Peran belum tersedia (mis. `cashier` sebelum Fase 5) |
+| 422 | Validasi gagal (mis. password < 8 karakter, peran tak dikenal) |
+| 429 | Terlalu banyak percobaan |
+
+---
+
+## POST `/api/auth/refresh`
+
+Rotasi refresh token.
+
+**Request**
+```json
+{ "refreshToken": "f3a9...96_hex..." }
+```
+
+**200 OK** — bentuk sama dengan login (access + refresh token baru + user).
+
+| Status | Arti |
+|---|---|
+| 401 | Token tidak valid / sudah dicabut / kedaluwarsa |
+| 422 | Format token tidak valid |
+
+---
+
+## POST `/api/auth/logout`
+
+Mencabut satu sesi (refresh token terkait). **Butuh access token.**
+
+**Header:** `Authorization: Bearer <accessToken>`
+
+**Request**
+```json
+{ "refreshToken": "f3a9...96_hex..." }
+```
+
+**200 OK**
+```json
+{ "message": "Logout berhasil", "revoked": true }
+```
+
+---
+
+## GET `/api/auth/me`
+
+Info pengguna dari access token. **Butuh access token.**
+
+**Header:** `Authorization: Bearer <accessToken>`
+
+**200 OK**
+```json
+{ "user": { "id": "uuid", "role": "owner", "email": "owner@nova.test", "fullName": "Owner Demo" } }
+```
+
+---
+
+## Catatan keamanan untuk tim frontend
+
+- **Jangan** simpan access token di `localStorage` bila memungkinkan (rentan
+  XSS). Utamakan simpan di memori; refresh token pada penyimpanan yang lebih
+  terlindungi.
+- Setelah logout, **hapus** kedua token di klien.
+- Saat menerima 401 dari endpoint bisnis: coba `/refresh` **sekali**; jika
+  tetap 401, paksa login ulang.
+- Jangan pernah menaruh `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` di frontend.
+- Server memverifikasi ulang status akun setiap request; akun yang
+  dinonaktifkan langsung kehilangan akses walau access token belum kedaluwarsa.

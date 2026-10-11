@@ -30,6 +30,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Backup lokal (snapshot kerja, tidak di-commit)
+backups/
+
 # Firebase
 .firebase/
 firebase-debug.log*

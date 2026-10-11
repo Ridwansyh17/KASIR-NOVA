@@ -28,12 +28,32 @@
 3. **scrypt N=2^16 gagal** di Node 24 (limit memori OpenSSL ~32MB). Parameter
    diturunkan & `maxmem` dinaikkan eksplisit ke 128MB.
 
-## Fase 1 — Autentikasi & Sesi (estimasi 3–4 hari)
+## Fase 1 — Autentikasi & Sesi (estimasi 3–4 hari) ✅ SELESAI
 - Modul `auth`: login 3 peran, access + refresh token, rotasi refresh.
 - Tabel `refresh_tokens` (hash), logout = pencabutan (revoked_at).
 - Middleware `auth.js` + `rateLimit.js` di endpoint login.
 - **Selesai jika:** login tiap peran hanya berhasil di areanya; token kedaluwarsa
   memicu refresh; logout membuat token lama ditolak; brute force dibatasi.
+
+> **Hasil aktual:** endpoint `POST /api/auth/login | refresh | logout`,
+> `GET /api/auth/me`. Access token JWT (15m) + refresh token acak 48 byte
+> (disimpan sebagai SHA-256 di DB, umur 7 hari, **rotasi sekali pakai** dalam
+> satu DB transaction). Login dibatasi 10 percobaan/IP/15 menit (429).
+> `requireAuth` memverifikasi ulang status akun di DB tiap request, sehingga
+> akun nonaktif langsung kehilangan akses. Owner demo `owner@nova.test`
+> di-seed untuk dev. **28/28 tes lulus** (23 auth + 5 fondasi).
+> Kontrak API: `docs/08-api-auth.md`.
+
+### Catatan deviasi dari rencana (dengan alasan)
+1. **Login `cashier` belum aktif di fase ini (404).** Tabel `cashiers`
+   bergantung pada `outlets`/`businesses` yang baru dibuat Fase 3–5, dan
+   aturan domain mewajibkan 1 kasir = 1 outlet. Membuatnya sekarang akan
+   menghasilkan relasi yatim tanpa FK. Modul auth sudah memakai *registry
+   peran* (`USER_STORES`) sehingga Fase 5 cukup menambah satu entri
+   `cashier` → mesin otorisasi (requireAuth/requireRole) yang sama langsung
+   berlaku. Kontrak API tiga peran sudah final sejak sekarang.
+2. **Rotasi refresh memakai `SELECT ... FOR UPDATE`** agar balapan (race)
+   dua permintaan refresh bersamaan tidak menghasilkan dua token valid.
 
 ## Fase 2 — Platform Admin (estimasi 3 hari)
 - Modul `platform-admin`: CRUD owner, suspend/aktivasi.

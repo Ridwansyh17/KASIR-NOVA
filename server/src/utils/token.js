@@ -39,4 +39,26 @@ export const generateRefreshToken = () => randomBytes(48).toString('hex');
 export const hashRefreshToken = (token) =>
   createHash('sha256').update(token).digest('hex');
 
-export default { signAccessToken, verifyAccessToken, generateRefreshToken, hashRefreshToken };
+/**
+ * Ubah durasi string (mis. '7d', '12h', '30m', '45s') menjadi milidetik.
+ * Dipakai untuk menghitung `expires_at` refresh token di DB.
+ * Default 7 hari bila format tidak dikenali.
+ */
+export const durationToMs = (duration) => {
+  const match = /^(\d+)\s*([smhd])$/.exec(String(duration).trim());
+  if (!match) return 7 * 24 * 60 * 60 * 1000;
+  const unit = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[match[2]];
+  return Number(match[1]) * unit;
+};
+
+/** Umur refresh token (milidetik) sesuai konfigurasi env. */
+export const refreshTokenExpiryMs = () => durationToMs(env.jwt.refreshExpiresIn);
+
+export default {
+  signAccessToken,
+  verifyAccessToken,
+  generateRefreshToken,
+  hashRefreshToken,
+  durationToMs,
+  refreshTokenExpiryMs,
+};

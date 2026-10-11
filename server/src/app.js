@@ -15,6 +15,7 @@ import cors from 'cors';
 import env from './config/env.js';
 import { notFoundHandler, errorHandler } from './middleware/error.js';
 import healthRouter from './modules/health/routes.js';
+import authRouter from './modules/auth/routes.js';
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/health', healthRouter);
+app.use('/api/auth', authRouter);
 
 // 404 & error handler (harus setelah semua route)
 app.use(notFoundHandler);
