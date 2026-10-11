@@ -36,8 +36,8 @@ tiga area aplikasi yang berbagi **satu backend dan satu database terpusat**:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        KLIEN                                 │
-│  apps/admin   apps/owner   apps/kasir      (Android: nanti)  │
-│  HTML+CSS+JS  HTML+CSS+JS  HTML+CSS+JS      Capacitor         │
+│  apps/admin   apps/owner   apps/kasir      (Web saja; bukan APK) │
+│  HTML+CSS+JS  HTML+CSS+JS  HTML+CSS+JS    Firebase Hosting        │
 └──────────────┬──────────────────────────────────────────────┘
                │  HTTPS / REST + JSON
                │  Authorization: Bearer <access token>
@@ -103,7 +103,8 @@ Backend memvalidasi kecocokan jenis token dengan area yang diakses.
 | UI & hak akses berbeda | 3 build frontend terpisah + penegakan di server |
 | Panel Admin Platform terpisah | area `/admin` + jenis token khusus |
 | Transaksi persisten | DB transaction (BEGIN/COMMIT) + row lock pada stok |
-| Web dulu, APK nanti | Capacitor hanya setelah web + backend + tes stabil |
+| Distribusi klien | **Web via Firebase Hosting** (keputusan 11 Okt 2026); tidak ada APK/Capacitor |
+
 
 ## 7. Modul Ditangguhkan (dirancang terpisah, ikut setelahnya)
 

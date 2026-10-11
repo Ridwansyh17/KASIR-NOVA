@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "GANTI_DENGAN_PROJECT_ID"
+  },
+  "targets": {
+    "GANTI_DENGAN_PROJECT_ID": {
+      "hosting": {
+        "admin": ["nova-admin"],
+        "owner": ["nova-owner"],
+        "kasir": ["nova-kasir"]
+      }
+    }
+  }
+}

@@ -48,12 +48,22 @@ const queryString = (params) => {
   return suffix ? `?${suffix}` : '';
 };
 
+/**
+ * Basis URL API. Kosong = origin yang sama (dev). Untuk produksi Firebase
+ * Hosting diisi lewat `window.NOVA_API_BASE` (lihat ./config.js di root app).
+ */
+const API_BASE =
+  typeof window !== 'undefined' && typeof window.NOVA_API_BASE === 'string'
+    ? window.NOVA_API_BASE.replace(/\/+$/, '')
+    : '';
+const apiUrl = (path) => (/^https?:\/\//i.test(path) ? path : `${API_BASE}${path}`);
+
 const raw = async (path, options = {}) => {
   const headers = { 'Content-Type': 'application/json', ...(options.headers ?? {}) };
   const access = tokenStore.access;
   if (access) headers.Authorization = `Bearer ${access}`;
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(apiUrl(path), { ...options, headers });
   const text = await res.text();
   let body = null;
   if (text) {

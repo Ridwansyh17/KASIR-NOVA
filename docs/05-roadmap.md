@@ -349,13 +349,22 @@
 > `audit-log.test.js` 6, `session-revoke.test.js` 6). API:
 > `docs/19-api-audit-sesi.md`.
 
-## Fase 12 — Pengujian, Backup, Monitoring, Persiapan APK (estimasi 5–7 hari)
+## Fase 12 — Pengujian, Backup, Monitoring, Persiapan Firebase Hosting (estimasi 5–7 hari)
 - Tes unit + integrasi + otorisasi (kasus negatif tiap matriks) + e2e.
 - Skrip backup/restore PostgreSQL terjadwal (`pg_dump`/`pg_restore`).
 - Endpoint health check + dasbor monitoring minimal.
-- Bungkus `apps/kasir` dengan **Capacitor** untuk APK.
-- **Selesai jika:** seluruh suite lulus, backup teruji bisa direstore, APK
-   terbuild dan bisa login ke backend.
+- Persiapan **Firebase Hosting** (3 site: admin, owner, kasir) — scaffold
+  `firebase.json`/`.firebaserc.example` + `NOVA_API_BASE` per app; **tanpa
+  deploy** (butuh persetujuan). **APK/Capacitor dibatalkan** atas keputusan
+  pemilik.
+- **Selesai jika:** seluruh suite lulus, backup teruji bisa direstore, dan
+  ketiga app dapat disajikan lewat Firebase Hosting serta terhubung ke backend
+  (diuji dengan emulator).
+
+> **Keputusan 11 Okt 2026:** distribusi klien = **web via Firebase Hosting**,
+> **bukan APK**. Backend Node+PostgreSQL di-host terpisah (belum ditetapkan);
+> frontend dibuat fleksibel via `NOVA_API_BASE` + CORS.
+> Runbook: `docs/20-deploy-firebase-hosting.md`.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —

@@ -33,13 +33,7 @@ coverage/
 # Backup lokal (snapshot kerja, tidak di-commit)
 backups/
 
-# Firebase
+# Firebase (`.firebaserc` lokal — salin dari `.firebaserc.example`)
 .firebase/
 firebase-debug.log*
 .firebaserc
-
-# Android / Capacitor (nanti)
-android/app/debug/
-android/app/release/
-*.apk
-*.aab

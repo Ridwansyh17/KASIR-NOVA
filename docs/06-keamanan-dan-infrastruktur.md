@@ -33,12 +33,14 @@
 - Monitoring minimal: health check + log terstruktur.
 
 ### Frontend (Firebase Hosting)
-- Firebase Hosting untuk 3 apps (static build).
-- Variabel API URL per environment (dev/produksi) — **bukan** rahasia.
+- Firebase Hosting untuk **3 site** dalam 1 project (admin, owner, kasir) —
+  lihat `docs/20-deploy-firebase-hosting.md`.
+- Variabel API URL per environment (`window.NOVA_API_BASE`) — **bukan** rahasia.
+- Backend wajib HTTPS dan mengizinkan origin site Firebase di `CORS_ORIGIN`.
 
-### Android (fase lanjut)
-- **Capacitor** membungkus `apps/kasir`.
-- APK hanya setelah web + backend + autentikasi + tes stabil.
+### Distribusi klien
+- Keputusan pemilik (11 Okt 2026): **web via Firebase Hosting**, **bukan APK**.
+- Capacitor/APK **dibatalkan** dan tidak termasuk lingkup Fase 12+.
 
 ## C. Batasan Lingkungan Saat Ini (penting)
 
