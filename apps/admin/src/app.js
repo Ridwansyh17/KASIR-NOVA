@@ -18,6 +18,10 @@ const state = {
   plans: [],
   // businesses
   bizPage: 1, bizLimit: 20, bizTotal: 0, bizSearch: '', businesses: [],
+  // audit log
+  auditPage: 1, auditLimit: 20, auditTotal: 0, audits: [],
+  // sessions
+  cashierSessions: [],
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -77,6 +81,8 @@ document.querySelectorAll('.tab').forEach((tab) => {
     show($(`view-${tab.dataset.tab}`));
     if (tab.dataset.tab === 'plans') loadPlans();
     if (tab.dataset.tab === 'businesses') loadBusinesses();
+    if (tab.dataset.tab === 'audit') loadAuditLogs();
+    if (tab.dataset.tab === 'sessions') loadCashierSessions();
   });
 });
 
@@ -688,6 +694,146 @@ $('rep-modal-json').addEventListener('click', () => downloadReportModal('json'))
 $('report-modal-close').addEventListener('click', () => hide($('report-modal')));
 $('report-modal').addEventListener('click', (event) => {
   if (event.target === $('report-modal')) hide($('report-modal'));
+});
+
+// ================================================== TAB AUDIT LOG =============
+const roleLabel = (role) =>
+  ({ platform_admin: 'Admin', owner: 'Owner', cashier: 'Kasir' }[role] ?? role);
+
+const auditFilters = () => ({
+  actorRole: $('audit-role-filter').value || undefined,
+  action: $('audit-action-filter').value.trim() || undefined,
+  from: $('audit-from').value || undefined,
+  to: $('audit-to').value || undefined,
+});
+
+const renderAuditLogs = (items) => {
+  const tbody = $('audit-body');
+  tbody.innerHTML = '';
+  hide($('audit-empty'));
+  if (!items.length) {
+    show($('audit-empty'));
+    return;
+  }
+  const businessNames = new Map(state.businesses.map((b) => [b.id, b.name]));
+  for (const a of items) {
+    const biz = a.business_id
+      ? (businessNames.get(a.business_id) ?? a.business_id.slice(0, 8))
+      : '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(fmtDate(a.created_at))}</td>
+      <td>${escapeHtml(a.actor_name || a.actor_email || '—')}</td>
+      <td>${escapeHtml(roleLabel(a.actor_role))}</td>
+      <td class="mono">${escapeHtml(a.action)}</td>
+      <td>${escapeHtml(a.entity_type)}${a.entity_id ? `<div class="muted small mono">${escapeHtml(a.entity_id.slice(0, 8))}</div>` : ''}</td>
+      <td>${escapeHtml(biz)}</td>
+      <td class="mono">${escapeHtml(a.ip || '—')}</td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadAuditLogs = async () => {
+  const offset = (state.auditPage - 1) * state.auditLimit;
+  const body = await guard(() =>
+    api.listAuditLogs({ ...auditFilters(), limit: state.auditLimit, offset })
+  );
+  if (!body) return;
+
+  state.audits = body.items;
+  state.auditTotal = body.total;
+  renderAuditLogs(body.items);
+
+  const pages = Math.max(1, Math.ceil(body.total / state.auditLimit));
+  if (state.auditPage > pages) {
+    state.auditPage = pages;
+    return loadAuditLogs();
+  }
+  $('audit-page-info').textContent = `Halaman ${state.auditPage} / ${pages} • ${body.total} entri`;
+  $('audit-prev-btn').disabled = state.auditPage <= 1;
+  $('audit-next-btn').disabled = state.auditPage >= pages;
+};
+
+const resetAuditPageAndLoad = () => {
+  state.auditPage = 1;
+  loadAuditLogs();
+};
+
+$('refresh-audit-btn').addEventListener('click', resetAuditPageAndLoad);
+$('audit-role-filter').addEventListener('change', resetAuditPageAndLoad);
+$('audit-from').addEventListener('change', resetAuditPageAndLoad);
+$('audit-to').addEventListener('change', resetAuditPageAndLoad);
+
+let auditTimer = null;
+$('audit-action-filter').addEventListener('input', (event) => {
+  clearTimeout(auditTimer);
+  auditTimer = setTimeout(resetAuditPageAndLoad, 400);
+});
+
+$('audit-prev-btn').addEventListener('click', () => {
+  if (state.auditPage > 1) {
+    state.auditPage -= 1;
+    loadAuditLogs();
+  }
+});
+$('audit-next-btn').addEventListener('click', () => {
+  state.auditPage += 1;
+  loadAuditLogs();
+});
+
+// ================================================== TAB SESI KASIR ============
+const renderCashierSessions = (items) => {
+  const tbody = $('sessions-body');
+  tbody.innerHTML = '';
+  hide($('sessions-empty'));
+  if (!items.length) {
+    show($('sessions-empty'));
+    return;
+  }
+  for (const c of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(c.full_name)}</strong><div class="muted small">${escapeHtml(c.email)}</div></td>
+      <td>${escapeHtml(c.outlet_name)}</td>
+      <td>${escapeHtml(c.business_name)}</td>
+      <td><span class="badge ${Number(c.active_count) > 0 ? 'ok' : 'off'}">${escapeHtml(String(c.active_count))}</span></td>
+      <td>${escapeHtml(fmtDate(c.last_active_at))}</td>
+      <td class="right actions">
+        <button class="btn small" data-session-revoke="${c.id}" ${Number(c.active_count) > 0 ? '' : 'disabled'}>Paksa Logout</button>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadCashierSessions = async () => {
+  const body = await guard(() => api.listCashierSessions());
+  if (!body) return;
+  state.cashierSessions = body.items;
+  renderCashierSessions(body.items);
+};
+
+$('refresh-sessions-btn').addEventListener('click', loadCashierSessions);
+
+$('sessions-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-session-revoke]');
+  if (!btn) return;
+  const cashierId = btn.dataset.sessionRevoke;
+  const row = state.cashierSessions.find((c) => c.id === cashierId);
+  const name = row?.full_name ?? 'Kasir ini';
+  if (
+    !window.confirm(
+      `Paksa logout semua sesi "${name}"?\nRefresh token kasir akan langsung dicabut di server, sehingga sesi berakhir pada request berikutnya.`
+    )
+  ) {
+    return;
+  }
+  try {
+    const result = await guard(() => api.revokeCashierSessions(cashierId));
+    alertBox('alert-sessions', `Sesi ${name} dicabut (${result.revoked} sesi).`, 'ok');
+  } catch (err) {
+    alertBox('alert-sessions', describeError(err), 'error');
+  }
+  await loadCashierSessions();
 });
 
 // ------------------------------------------------------------- Bootstrap -----

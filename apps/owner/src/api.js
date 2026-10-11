@@ -196,6 +196,28 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({}),
       }),
+    sessions: {
+      list: (businessId, cashierId) =>
+        request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}/sessions`),
+      revoke: (businessId, cashierId) =>
+        request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}/sessions/revoke`, {
+          method: 'POST',
+          body: JSON.stringify({}),
+        }),
+    },
+  },
+
+  auditLogs: {
+    list: (businessId, params = {}) => {
+      const qs = new URLSearchParams();
+      if (params.actorRole) qs.set('actorRole', params.actorRole);
+      if (params.action) qs.set('action', params.action);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      if (params.limit) qs.set('limit', String(params.limit));
+      if (params.offset !== undefined) qs.set('offset', String(params.offset));
+      return request(`/api/owner/businesses/${businessId}/audit-logs?${qs.toString()}`);
+    },
   },
 
   transactions: {

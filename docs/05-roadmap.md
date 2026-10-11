@@ -325,10 +325,29 @@
 > (apps/owner). **145/145 tes lulus** (7 baru di `cashier-pin.test.js`).
 > Kontrak API: `docs/17-api-pin-kasir.md`.
 
-## Fase 11 — Audit Log & Manajemen Sesi (estimasi 2–3 hari)
+## Fase 11 — Audit Log & Manajemen Sesi (estimasi 2–3 hari) ✅ SELESAI
 - Viewer audit log untuk Admin & Owner (scoped), pencabutan sesi bawahan.
 - **Selesai jika:** semua operasi penting tercatat; admin bisa memaksa logout
   kasir.
+
+> **Hasil aktual:** modul `audit/{schema,controller,routes}.js` menambah
+> `listAuditLogs` (join nama/email aktor per peran; filter `actorRole`,
+> `action`, `entityType`, `businessId`, `from`/`to`, pagination) —
+> `GET /api/platform/audit-logs` (semua bisnis, admin) dan
+> `GET /api/owner/businesses/:businessId/audit-logs` (scoped
+> `requireBusinessAccess`; bisnis lain → 404 anti-enumerasi). Modul baru
+> `session/`: `GET /api/platform/sessions` (daftar kasir + jumlah sesi aktif
+> lintas bisnis), `POST /api/platform/sessions/:cashierId/revoke` (admin),
+> `GET/POST /api/owner/businesses/:businessId/cashiers/:cashierId/sessions[/revoke]`
+> (owner, tenant-check). Pencabutan mengisi `revoked_at` pada `refresh_tokens`
+> dalam satu transaksi + audit `session.revoke_all`; token lama langsung
+> ditolak `/refresh` (401) — efek "paksa logout" berlaku penuh di server saat
+> request berikutnya (access JWT pendek 15 mnt tanpa blacklist). UI Admin:
+> tab "Audit Log" (filter + pagination) & "Sesi Kasir" (list + tombol Paksa
+> Logout). UI Owner: seksi "Audit Log" + tombol "Sesi" per kasir (modal
+> daftar sesi + Paksa Logout Semua). **157/157 tes lulus** (12 baru:
+> `audit-log.test.js` 6, `session-revoke.test.js` 6). API:
+> `docs/19-api-audit-sesi.md`.
 
 ## Fase 12 — Pengujian, Backup, Monitoring, Persiapan APK (estimasi 5–7 hari)
 - Tes unit + integrasi + otorisasi (kasus negatif tiap matriks) + e2e.

@@ -206,4 +206,24 @@ export const api = {
       return request(`/api/platform/businesses/${businessId}/reports/export?${q.toString()}`);
     },
   },
+
+  // Audit log (baca lintas bisnis — matriks §9).
+  listAuditLogs(params = {}) {
+    const q = new URLSearchParams();
+    if (params.actorRole) q.set('actorRole', params.actorRole);
+    if (params.action) q.set('action', params.action);
+    if (params.from) q.set('from', params.from);
+    if (params.to) q.set('to', params.to);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.offset !== undefined) q.set('offset', String(params.offset));
+    return request(`/api/platform/audit-logs?${q.toString()}`);
+  },
+
+  // Manajemen sesi kasir (Fase 11).
+  listCashierSessions: () => request('/api/platform/sessions'),
+  revokeCashierSessions: (cashierId) =>
+    request(`/api/platform/sessions/${cashierId}/revoke`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 };

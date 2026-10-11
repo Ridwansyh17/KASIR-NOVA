@@ -9,7 +9,16 @@ import { api, login, logout, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const ACTIVE_KEY = 'nova_owner_business';
-const state = { businesses: [], activeId: null, categories: [], products: [] };
+const state = {
+  businesses: [],
+  activeId: null,
+  categories: [],
+  products: [],
+  // audit log
+  auditPage: 1,
+  auditLimit: 20,
+  auditTotal: 0,
+};
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
@@ -254,6 +263,7 @@ const renderCashierList = (items) => {
     const unlock = locked
       ? `<button class="btn small" data-action="unlock" data-id="${c.id}" data-name="${name}">Buka Kunci</button>`
       : '';
+    const sessionsBtn = `<button class="btn small" data-action="sessions" data-id="${c.id}" data-name="${name}">Sesi</button>`;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -262,7 +272,7 @@ const renderCashierList = (items) => {
       <td>${escapeHtml(c.outlet_name ?? '—')}</td>
       <td>${statusBadge}</td>
       <td>${pinBadge}</td>
-      <td class="right">${pinBtn} ${remove} ${unlock}</td>`;
+      <td class="right">${sessionsBtn} ${pinBtn} ${remove} ${unlock}</td>`;
     tbody.appendChild(tr);
   }
 };
@@ -365,6 +375,10 @@ $('cashier-list').addEventListener('click', async (event) => {
     $('pin-modal-input').focus();
     return;
   }
+  if (action === 'sessions') {
+    await openSessionModal(b.id, cashierId, name);
+    return;
+  }
   if (action === 'remove-pin') {
     if (!confirm(`Hapus PIN kasir "${name}"? Kasir kembali login pakai email/password.`)) return;
     try {
@@ -414,6 +428,159 @@ $('pin-modal-form').addEventListener('submit', async (event) => {
   }
 });
 
+// ============================================================ Sesi Kasir ------
+let sessionContext = null; // { businessId, cashierId, name }
+
+const renderSessionRows = (items) => {
+  const tbody = $('session-modal-body');
+  tbody.innerHTML = '';
+  $('session-modal-empty').classList.toggle('hidden', items.length > 0);
+  for (const s of items) {
+    const active = !s.revoked_at && new Date(s.expires_at) > new Date();
+    const badge = active
+      ? '<span class="badge ok">aktif</span>'
+      : s.revoked_at
+        ? '<span class="badge off">dicabut</span>'
+        : '<span class="badge off">kedaluwarsa</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(fmtDate(s.created_at))}</td>
+      <td>${escapeHtml(fmtDate(s.expires_at))}</td>
+      <td>${badge}</td>
+      <td class="muted small">${escapeHtml(s.ip || '—')}<div>${escapeHtml((s.user_agent || '—').slice(0, 60))}</div></td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const openSessionModal = async (businessId, cashierId, name) => {
+  sessionContext = { businessId, cashierId, name };
+  $('session-modal-cashier').textContent = `${name} — ${businessId.slice(0, 8)}…`;
+  $('session-modal-error').classList.add('hidden');
+  show($('session-modal'));
+  await loadSessionModal();
+};
+
+const loadSessionModal = async () => {
+  if (!sessionContext) return;
+  const { businessId, cashierId, name } = sessionContext;
+  try {
+    const body = await guard(() => api.cashiers.sessions.list(businessId, cashierId));
+    renderSessionRows(body?.items ?? []);
+  } catch (err) {
+    const el = $('session-modal-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+};
+
+$('session-revoke-btn').addEventListener('click', async () => {
+  if (!sessionContext) return;
+  const { businessId, cashierId, name } = sessionContext;
+  if (
+    !confirm(
+      `Paksa logout SEMUA sesi "${name}"?\nSesi di perangkat lain akan berakhir pada request berikutnya (berlaku di server).`
+    )
+  ) {
+    return;
+  }
+  try {
+    const result = await guard(() => api.cashiers.sessions.revoke(businessId, cashierId));
+    alertBox(`Semua sesi ${name} dicabut (${result.revoked} sesi).`, 'ok');
+    await loadSessionModal();
+  } catch (err) {
+    const el = $('session-modal-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
+});
+$('session-cancel').addEventListener('click', () => hide($('session-modal')));
+$('session-modal').addEventListener('click', (event) => {
+  if (event.target === $('session-modal')) hide($('session-modal'));
+});
+
+// ============================================================ Audit Log -------
+const roleLabel = (role) =>
+  ({ platform_admin: 'Admin', owner: 'Owner', cashier: 'Kasir' }[role] ?? role);
+
+const auditFilters = () => ({
+  actorRole: $('audit-role-filter').value || undefined,
+  action: $('audit-action-filter').value.trim() || undefined,
+  from: $('audit-date-from').value || undefined,
+  to: $('audit-date-to').value || undefined,
+});
+
+const renderAuditRows = (items) => {
+  const tbody = $('audit-body');
+  tbody.innerHTML = '';
+  hide($('audit-empty'));
+  if (!items.length) {
+    show($('audit-empty'));
+    return;
+  }
+  for (const a of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(fmtDate(a.created_at))}</td>
+      <td>${escapeHtml(a.actor_name || a.actor_email || '—')}</td>
+      <td>${escapeHtml(roleLabel(a.actor_role))}</td>
+      <td class="mono">${escapeHtml(a.action)}</td>
+      <td>${escapeHtml(a.entity_type)}${a.entity_id ? `<div class="muted small mono">${escapeHtml(a.entity_id.slice(0, 8))}</div>` : ''}</td>
+      <td class="mono">${escapeHtml(a.ip || '—')}</td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadAuditLog = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('audit-section'));
+    return;
+  }
+  const offset = (state.auditPage - 1) * state.auditLimit;
+  const body = await guard(() =>
+    api.auditLogs.list(b.id, { ...auditFilters(), limit: state.auditLimit, offset })
+  );
+  if (!body) return;
+  show($('audit-section'));
+  renderAuditRows(body.items);
+  state.auditTotal = body.total;
+
+  const pages = Math.max(1, Math.ceil(body.total / state.auditLimit));
+  if (state.auditPage > pages) {
+    state.auditPage = pages;
+    return loadAuditLog();
+  }
+  $('audit-page-info').textContent = `Halaman ${state.auditPage} / ${pages} • ${body.total} entri`;
+  $('audit-prev-btn').disabled = state.auditPage <= 1;
+  $('audit-next-btn').disabled = state.auditPage >= pages;
+};
+
+const resetAuditPageAndLoad = () => {
+  state.auditPage = 1;
+  loadAuditLog();
+};
+$('audit-refresh-btn').addEventListener('click', resetAuditPageAndLoad);
+$('audit-role-filter').addEventListener('change', resetAuditPageAndLoad);
+$('audit-date-from').addEventListener('change', resetAuditPageAndLoad);
+$('audit-date-to').addEventListener('change', resetAuditPageAndLoad);
+$('audit-action-filter').addEventListener(
+  'input',
+  debounce(() => {
+    state.auditPage = 1;
+    loadAuditLog();
+  }, 400)
+);
+$('audit-prev-btn').addEventListener('click', () => {
+  if (state.auditPage > 1) {
+    state.auditPage -= 1;
+    loadAuditLog();
+  }
+});
+$('audit-next-btn').addEventListener('click', () => {
+  state.auditPage += 1;
+  loadAuditLog();
+});
+
 // --------------------------------------------------------- Muat konteks ------
 const loadBusinesses = async () => {
   const body = await guard(() => api.listBusinesses());
@@ -441,6 +608,7 @@ const loadBusinesses = async () => {
     hide($('product-section'));
     hide($('tx-section'));
     hide($('report-section'));
+    hide($('audit-section'));
     show($('waiting-state'));
   } else {
     hide($('waiting-state'));
@@ -461,6 +629,7 @@ const refreshContext = async () => {
   await loadProducts();
   await loadTransactions();
   await loadReport();
+  await loadAuditLog();
 };
 
 $('business-select').addEventListener('change', async (event) => {

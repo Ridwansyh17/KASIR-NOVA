@@ -42,6 +42,8 @@
         <button class="tab active" data-tab="owners">Owner</button>
         <button class="tab" data-tab="plans">Paket</button>
         <button class="tab" data-tab="businesses">Bisnis &amp; Langganan</button>
+        <button class="tab" data-tab="audit">Audit Log</button>
+        <button class="tab" data-tab="sessions">Sesi Kasir</button>
       </nav>
 
       <main class="container">
@@ -152,6 +154,86 @@
             <button id="biz-prev-btn" class="btn">‹ Sebelumnya</button>
             <span id="biz-page-info" class="muted"></span>
             <button id="biz-next-btn" class="btn">Berikutnya ›</button>
+          </div>
+        </section>
+
+        <!-- ================= TAB AUDIT LOG ================= -->
+        <section id="view-audit" class="tab-view hidden">
+          <div class="toolbar">
+            <h2>Audit Log (read-only)</h2>
+            <div class="toolbar-actions">
+              <select id="audit-role-filter">
+                <option value="">Semua peran</option>
+                <option value="platform_admin">Admin</option>
+                <option value="owner">Owner</option>
+                <option value="cashier">Kasir</option>
+              </select>
+              <input id="audit-action-filter" type="search" placeholder="Aksi (mis. cashier.create)…" />
+              <label class="field inline">
+                <span>Dari</span>
+                <input id="audit-from" type="date" />
+              </label>
+              <label class="field inline">
+                <span>Sampai</span>
+                <input id="audit-to" type="date" />
+              </label>
+              <button id="refresh-audit-btn" class="btn">Terapkan</button>
+            </div>
+          </div>
+
+          <p class="muted small">Jejak append-only: baris tidak bisa dihapus lewat API.</p>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Aktor</th>
+                  <th>Peran</th>
+                  <th>Aksi</th>
+                  <th>Entitas</th>
+                  <th>Bisnis</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody id="audit-body"></tbody>
+            </table>
+            <p id="audit-empty" class="empty hidden">Belum ada jejak audit.</p>
+          </div>
+
+          <div class="pager">
+            <button id="audit-prev-btn" class="btn">‹ Sebelumnya</button>
+            <span id="audit-page-info" class="muted"></span>
+            <button id="audit-next-btn" class="btn">Berikutnya ›</button>
+          </div>
+        </section>
+
+        <!-- ================= TAB SESI KASIR ================= -->
+        <section id="view-sessions" class="tab-view hidden">
+          <div class="toolbar">
+            <h2>Manajemen Sesi Kasir</h2>
+            <div class="toolbar-actions">
+              <button id="refresh-sessions-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div id="alert-sessions" class="alert hidden"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Kasir</th>
+                  <th>Outlet</th>
+                  <th>Bisnis</th>
+                  <th>Sesi aktif</th>
+                  <th>Terakhir aktif</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="sessions-body"></tbody>
+            </table>
+            <p id="sessions-empty" class="empty hidden">Belum ada kasir.</p>
           </div>
         </section>
       </main>

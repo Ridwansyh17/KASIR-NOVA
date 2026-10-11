@@ -22,6 +22,8 @@ import cashierRoutes from '../cashier/routes.js';
 import { categoryRoutes, productRoutes } from '../product/routes.js';
 import { transactionRoutes } from '../transaction/routes.js';
 import { reportRoutes } from '../report/routes.js';
+import { createAuditRouter } from '../audit/routes.js';
+import { ownerSessionRouter } from '../session/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -83,5 +85,14 @@ router.use('/businesses/:businessId/transactions', transactionRoutes);
 
 // Laporan penjualan: agregat per periode, ringkasan, ekspor CSV/JSON.
 router.use('/businesses/:businessId/reports', reportRoutes);
+
+// Audit log bisnisnya (read-only, scoped tenant).
+router.use('/businesses/:businessId/audit-logs', createAuditRouter({ scoped: true }));
+
+// Kelola sesi kasir miliknya (paksa logout).
+router.use(
+  '/businesses/:businessId/cashiers/:cashierId/sessions',
+  ownerSessionRouter
+);
 
 export default router;

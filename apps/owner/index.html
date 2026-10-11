@@ -288,6 +288,51 @@
           </div>
         </section>
 
+        <!-- Audit log bisnis aktif -->
+        <section id="audit-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Audit Log</h3>
+              <p class="muted">Jejak aktivitas bisnis ini (read-only, append-only)</p>
+            </div>
+            <div class="detail-actions">
+              <select id="audit-role-filter">
+                <option value="">Semua peran</option>
+                <option value="platform_admin">Admin</option>
+                <option value="owner">Owner</option>
+                <option value="cashier">Kasir</option>
+              </select>
+              <input id="audit-action-filter" type="search" placeholder="Aksi (mis. cashier.create)…" />
+              <input id="audit-date-from" type="date" title="Dari tanggal" />
+              <input id="audit-date-to" type="date" title="Sampai tanggal" />
+              <button id="audit-refresh-btn" class="btn">Terapkan</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Aktor</th>
+                  <th>Peran</th>
+                  <th>Aksi</th>
+                  <th>Entitas</th>
+                  <th>IP</th>
+                </tr>
+              </thead>
+              <tbody id="audit-body"></tbody>
+            </table>
+            <p id="audit-empty" class="empty hidden">Belum ada jejak audit di bisnis ini.</p>
+          </div>
+
+          <div class="pager">
+            <button id="audit-prev-btn" class="btn">‹ Sebelumnya</button>
+            <span id="audit-page-info" class="muted"></span>
+            <button id="audit-next-btn" class="btn">Berikutnya ›</button>
+          </div>
+        </section>
+
         <div id="empty-state" class="card empty hidden">
           <p>Anda belum memiliki bisnis.</p>
           <button id="empty-new-btn" class="btn primary">+ Buat Bisnis Pertama</button>
@@ -488,6 +533,33 @@
             <button type="submit" class="btn primary">Simpan PIN</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL SESI KASIR ================= -->
+    <div id="session-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Sesi Kasir</h3>
+        <p id="session-modal-cashier" class="muted"></p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Dipasang</th>
+                <th>Berakhir</th>
+                <th>Status</th>
+                <th>IP / Device</th>
+              </tr>
+            </thead>
+            <tbody id="session-modal-body"></tbody>
+          </table>
+        </div>
+        <p id="session-modal-empty" class="empty hidden">Tidak ada sesi ditemukan.</p>
+        <p id="session-modal-error" class="error hidden"></p>
+        <div class="modal-actions">
+          <button type="button" id="session-revoke-btn" class="btn danger">Paksa Logout Semua</button>
+          <button type="button" id="session-cancel" class="btn">Tutup</button>
+        </div>
       </div>
     </div>
 

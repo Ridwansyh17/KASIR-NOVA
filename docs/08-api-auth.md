@@ -94,6 +94,10 @@ Mencabut satu sesi (refresh token terkait). **Butuh access token.**
 { "message": "Logout berhasil", "revoked": true }
 ```
 
+> Pencabutan sesi **bawahan** (Admin/Owner memaksa logout kasir) bukan bagian
+> kontrak publik ini — lihat `docs/19-api-audit-sesi.md` (endpoint `…/sessions`
+> & `…/sessions/revoke` di area `/api/platform` dan `/api/owner`).
+
 ---
 
 ## GET `/api/auth/me`

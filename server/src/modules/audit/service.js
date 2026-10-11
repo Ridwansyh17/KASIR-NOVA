@@ -10,6 +10,79 @@
 import { query } from '../../config/db.js';
 
 /**
+ * Baca audit log (append-only; tidak ada hapus).
+ *
+ * Param filter dipakai untuk membangun WHERE. `businessId` wajib untuk scope
+ * Owner (juga ditegakkan middleware tenant); Admin boleh tanpa filter bisnis.
+ * Kolom `actor_name`/`actor_email` di-join dari tabel peran (LEFT JOIN karena
+ * akun mungkin sudah dihapus/di-cascade).
+ */
+export const listAuditLogs = async ({
+  businessId = null,
+  actorRole = null,
+  action = null,
+  entityType = null,
+  from = null,
+  to = null,
+  limit = 50,
+  offset = 0,
+}) => {
+  const conds = [];
+  const params = [];
+  let i = 1;
+
+  if (businessId) {
+    conds.push(`a.business_id = $${i++}`);
+    params.push(businessId);
+  }
+  if (actorRole) {
+    conds.push(`a.actor_role = $${i++}`);
+    params.push(actorRole);
+  }
+  if (action) {
+    conds.push(`a.action = $${i++}`);
+    params.push(action);
+  }
+  if (entityType) {
+    conds.push(`a.entity_type = $${i++}`);
+    params.push(entityType);
+  }
+  if (from) {
+    conds.push(`a.created_at >= $${i++}`);
+    params.push(from);
+  }
+  if (to) {
+    conds.push(`a.created_at <= $${i++}`);
+    params.push(to);
+  }
+
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+  const { rows: countRows } = await query(
+    `SELECT COUNT(*)::int AS total FROM audit_logs a ${where}`,
+    params
+  );
+  const total = countRows[0].total;
+
+  const { rows } = await query(
+    `SELECT a.id, a.actor_role, a.actor_id, a.business_id, a.action,
+            a.entity_type, a.entity_id, a.before, a.after, a.ip, a.created_at,
+            COALESCE(pa.full_name, ow.full_name, ca.full_name) AS actor_name,
+            COALESCE(pa.email, ow.email, ca.email) AS actor_email
+       FROM audit_logs a
+       LEFT JOIN platform_admins pa ON pa.id = a.actor_id AND a.actor_role = 'platform_admin'
+       LEFT JOIN owners ow ON ow.id = a.actor_id AND a.actor_role = 'owner'
+       LEFT JOIN cashiers ca ON ca.id = a.actor_id AND a.actor_role = 'cashier'
+       ${where}
+      ORDER BY a.created_at DESC
+      LIMIT $${i} OFFSET $${i + 1}`,
+    [...params, limit, offset]
+  );
+
+  return { items: rows, total };
+};
+
+/**
  * Tulis satu baris audit.
  * @param {object} p
  * @param {import('pg').PoolClient} [p.client] - ikut transaksi pemanggil bila ada
@@ -44,4 +117,4 @@ export const writeAudit = async ({
   else await query(sql, params);
 };
 
-export default { writeAudit };
+export default { writeAudit, listAuditLogs };

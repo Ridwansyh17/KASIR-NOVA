@@ -112,6 +112,12 @@
 | Membaca audit log | ✅ (semua) | ✅ (bisnisnya) | ❌ |
 | Menghapus audit log | ❌ | ❌ | ❌ |
 
+> Fase 11 (implementasi): viewer `GET /api/platform/audit-logs` (admin) dan
+> `GET /api/owner/businesses/:businessId/audit-logs` (owner, scoped). Pencabutan
+> sesi bawahan (baris matriks §1) via `POST /api/platform/sessions/:cashierId/revoke`
+> (admin) dan `.../cashiers/:cashierId/sessions/revoke` (owner); `refresh_tokens`
+> di-set `revoked_at` di server sehingga token lama ditolak `/refresh`.
+
 ## 10. Langganan
 
 | Operasi | A | O | K |

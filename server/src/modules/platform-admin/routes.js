@@ -31,6 +31,8 @@ import {
 } from './schema.js';
 import plansRouter from '../plans/routes.js';
 import businessRouter from './business-routes.js';
+import { createAuditRouter } from '../audit/routes.js';
+import { adminSessionRouter } from '../session/routes.js';
 
 const router = Router();
 
@@ -39,6 +41,8 @@ router.use(requireAuth, requireRole('platform_admin'));
 
 router.use('/plans', plansRouter);
 router.use('/businesses', businessRouter);
+router.use('/audit-logs', createAuditRouter());
+router.use('/sessions', adminSessionRouter);
 
 router.get('/owners', ...validate({ query: listOwnersQuerySchema }), controller.listOwners);
 router.post('/owners', ...validate({ body: createOwnerSchema }), controller.createOwner);
