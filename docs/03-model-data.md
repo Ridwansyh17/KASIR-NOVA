@@ -70,16 +70,20 @@ refresh_tokens (sesi, per peran)
 
 ### `cashiers`
 | id | UUID PK | |
-| outlet_id | UUID FK → outlets | **NOT NULL** |
-| email | TEXT UNIQUE | **mencegah 1 akun di banyak outlet** |
-| password_hash, pin_hash | TEXT | |
+| outlet_id | UUID FK → outlets | **NOT NULL**, ON DELETE CASCADE |
+| email | TEXT UNIQUE (`lower(email)`) | **mencegah 1 akun di banyak outlet** |
+| password_hash | TEXT | scrypt (format `scrypt:N:r:p:salt:hash`) |
+| pin_hash | TEXT | opsional, scrypt (`pin:N:r:p:salt:hash`), 4–6 digit |
 | full_name | TEXT | |
-| status | TEXT | `active`/`suspended` |
-| created_by | UUID | FK `owners.id` |
+| status | TEXT | `account_status` (`active`/`suspended`), default `active` |
+| created_by | UUID | FK `owners.id`, ON DELETE SET NULL |
 
-> Penegakan "1 Kasir = 1 outlet": email UNIQUE + satu baris hanya punya satu
-> `outlet_id`. Endpoint pembuatan kasir juga memverifikasi outlet milik
-> `business_id` sesi Owner.
+> Penegakan "1 Kasir = 1 outlet": email UNIQUE case-insensitive + `outlet_id`
+> NOT NULL (satu baris hanya punya satu outlet). Batas jumlah kasir diatur
+> `subscription_plans.max_cashiers`, dicek server saat membuat kasir
+> (`enforceCashierQuota`, Fase 5) — selaras dengan batas outlet.
+> Endpoint pembuatan kasir juga memverifikasi outlet milik `business_id`
+> sesi Owner. Suspend/reset password mencabut semua sesi kasir.
 
 ### `categories` / `products` / `stock`
 | products | id, business_id FK, category_id FK, name, sku, barcode, price BIGINT (sen), cost BIGINT, tax_rate, is_active |

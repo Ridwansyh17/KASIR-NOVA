@@ -2,10 +2,9 @@
  * Skema validasi modul auth (Zod).
  *
  * CATATAN PERAN:
- * - 'platform_admin' & 'owner' aktif sejak Fase 1.
- * - 'cashier' sudah diterima di kontrak API (agar tiga area frontend final),
- *   tetapi tabel `cashiers` baru dibuat di Fase 5. Sampai saat itu service
- *   mengembalikan 404 dengan pesan yang jelas.
+ * - 'platform_admin' & 'owner' aktif sejak Fase 1, 'cashier' sejak Fase 5
+ *   (tabel `cashiers` dari migrasi 0005). Semua peran memakai mesin
+ *   otorisasi yang sama (`USER_STORES` di auth/service.js).
  */
 import { z } from 'zod';
 

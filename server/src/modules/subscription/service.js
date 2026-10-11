@@ -46,21 +46,11 @@ export const createDefaultSubscription = async (client, businessId) => {
  * pesan penolakan akurat (belum ada / nonaktif / kedaluwarsa).
  */
 export const enforceOutletQuota = async (client, businessId) => {
-  const { rows } = await client.query(
-    `SELECT s.id AS sub_id, s.status AS sub_status, s.expires_at,
-            p.max_outlets
-       FROM subscriptions s
-       JOIN subscription_plans p ON p.id = s.plan_id
-      WHERE s.business_id = $1
-      ORDER BY s.created_at DESC, s.id DESC
-      LIMIT 1`,
-    [businessId]
-  );
-  const sub = rows[0];
+  const sub = await latestSubscription(client, businessId);
   if (!sub) {
     throw new ConflictError('Bisnis belum memiliki langganan');
   }
-  if (sub.sub_status !== 'active') {
+  if (sub.status !== 'active') {
     throw new ConflictError('Langganan bisnis sedang tidak aktif');
   }
   if (sub.expires_at && sub.expires_at <= new Date()) {
@@ -77,6 +67,50 @@ export const enforceOutletQuota = async (client, businessId) => {
       `Batas jumlah outlet untuk paket ini (${sub.max_outlets}) telah tercapai`
     );
   }
+};
+
+/**
+ * Gerbang kuota kasir — analog dengan enforceOutletQuota: membaca langganan
+ * TERBARU, memastikan aktif & belum kedaluwarsa, lalu membandingkan jumlah
+ * kasir aktif terhadap `max_cashiers` paket. WAJIB dipanggil dalam transaksi
+ * yang sudah mengunci baris bisnis (FOR UPDATE).
+ */
+export const enforceCashierQuota = async (client, businessId) => {
+  const sub = await latestSubscription(client, businessId);
+  if (!sub) throw new ConflictError('Bisnis belum memiliki langganan');
+  if (sub.status !== 'active') {
+    throw new ConflictError('Langganan bisnis sedang tidak aktif');
+  }
+  if (sub.expires_at && sub.expires_at <= new Date()) {
+    throw new ConflictError('Langganan bisnis sudah kedaluwarsa');
+  }
+
+  const { rows: countRows } = await client.query(
+    `SELECT count(*)::int AS n
+       FROM cashiers c
+       JOIN outlets o ON o.id = c.outlet_id
+      WHERE o.business_id = $1 AND c.status = 'active'`,
+    [businessId]
+  );
+  if (countRows[0].n >= sub.max_cashiers) {
+    throw new ConflictError(
+      `Batas jumlah kasir untuk paket ini (${sub.max_cashiers}) telah tercapai`
+    );
+  }
+};
+
+const latestSubscription = async (client, businessId) => {
+  const { rows } = await client.query(
+    `SELECT s.id AS sub_id, s.status, s.expires_at,
+            p.max_outlets, p.max_cashiers
+       FROM subscriptions s
+       JOIN subscription_plans p ON p.id = s.plan_id
+      WHERE s.business_id = $1
+      ORDER BY s.created_at DESC, s.id DESC
+      LIMIT 1`,
+    [businessId]
+  );
+  return rows[0] ?? null;
 };
 
 /** Pemetaan langganan TERBARU + paketnya untuk dilihat Owner/Admin. */
@@ -216,6 +250,7 @@ export const setSubscriptionStatus = async (businessId, status, actor, ip) => {
 export default {
   createDefaultSubscription,
   enforceOutletQuota,
+  enforceCashierQuota,
   getSubscriptionView,
   assignSubscription,
   setSubscriptionStatus,

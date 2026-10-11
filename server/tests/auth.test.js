@@ -100,13 +100,13 @@ test('login email tak terdaftar memakai pesan sama (anti-enumerasi)', async () =
   assert.strictEqual(res.body.error.message, 'Email atau password salah');
 });
 
-test('login peran cashier belum tersedia (404)', async () => {
+test('login peran kasir aktif sejak Fase 5: kredensial tak dikenal = 401', async () => {
   const res = await request.post('/api/auth/login', {
     role: 'cashier',
     email: 'kasir@nova.test',
     password: PASSWORD,
   });
-  assert.strictEqual(res.status, 404);
+  assert.strictEqual(res.status, 401);
 });
 
 test('login password < 8 karakter ditolak validasi (422)', async () => {

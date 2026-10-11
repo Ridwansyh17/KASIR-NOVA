@@ -26,7 +26,7 @@ import { AppError, UnauthorizedError } from '../../middleware/error.js';
 const USER_STORES = {
   platform_admin: { table: 'platform_admins', label: 'Admin Platform' },
   owner: { table: 'owners', label: 'Owner' },
-  // cashier: { table: 'cashiers', label: 'Kasir' }, // diaktifkan di Fase 5
+  cashier: { table: 'cashiers', label: 'Kasir' }, // diaktifkan di Fase 5
 };
 
 export const SUPPORTED_ROLES = Object.keys(USER_STORES);
@@ -64,6 +64,28 @@ const findUserWithSecret = async (role, email) => {
     [email]
   );
   return rows[0] ?? null;
+};
+
+/**
+ * Konteks kasir untuk `/me`: outlet + bisnis yang ditetapkan.
+ * Dipakai panel Kasir dan penegakan tenant di sisi klien (server tetap
+ * memverifikasi kepemilikan pada setiap operasi penting).
+ */
+export const getCashierContext = async (cashierId) => {
+  const { rows } = await query(
+    `SELECT o.id AS outlet_id, o.name AS outlet_name,
+            b.id AS business_id, b.name AS business_name, b.currency
+       FROM cashiers c
+       JOIN outlets o ON o.id = c.outlet_id
+       JOIN businesses b ON b.id = o.business_id
+      WHERE c.id = $1`,
+    [cashierId]
+  );
+  if (!rows[0]) return null;
+  return {
+    outlet: { id: rows[0].outlet_id, name: rows[0].outlet_name },
+    business: { id: rows[0].business_id, name: rows[0].business_name, currency: rows[0].currency },
+  };
 };
 
 /**
@@ -214,6 +236,7 @@ export default {
   refresh,
   logout,
   getUserById,
+  getCashierContext,
   isRoleSupported,
   revokeAllSessions,
   SUPPORTED_ROLES,

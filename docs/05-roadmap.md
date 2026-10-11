@@ -45,13 +45,10 @@
 > Kontrak API: `docs/08-api-auth.md`.
 
 ### Catatan deviasi dari rencana (dengan alasan)
-1. **Login `cashier` belum aktif di fase ini (404).** Tabel `cashiers`
-   bergantung pada `outlets`/`businesses` yang baru dibuat Fase 3–5, dan
-   aturan domain mewajibkan 1 kasir = 1 outlet. Membuatnya sekarang akan
-   menghasilkan relasi yatim tanpa FK. Modul auth sudah memakai *registry
-   peran* (`USER_STORES`) sehingga Fase 5 cukup menambah satu entri
-   `cashier` → mesin otorisasi (requireAuth/requireRole) yang sama langsung
-   berlaku. Kontrak API tiga peran sudah final sejak sekarang.
+1. **Login `cashier` diaktifkan di Fase 5 (lihat Hasil aktual Fase 5).** Saat
+   Fase 1, tabel `cashiers` belum ada sehingga peran itu sengaja dikomentari
+   di `USER_STORES`; kontrak API tiga peran sudah final sejak saat itu, dan
+   Fase 5 cukup membalik satu komentar tanpa mengubah alur auth.
 2. **Rotasi refresh memakai `SELECT ... FOR UPDATE`** agar balapan (race)
    dua permintaan refresh bersamaan tidak menghasilkan dua token valid.
 
@@ -172,11 +169,35 @@
    yang `active`), agar Admin bisa mengembalikan langganan `expired` ke
    `active` tanpa membuat baris baru.
 
-## Fase 5 — Manajemen Kasir (estimasi 2–3 hari)
+## Fase 5 — Manajemen Kasir (estimasi 2–3 hari) ✅ SELESAI
 - Modul `cashier`: Owner membuat kasir, **terkunci 1 outlet**.
 - Verifikasi: email UNIQUE + outlet milik business_id sesi.
 - **Selesai jika:** upaya mendaftarkan satu email ke 2 outlet **gagal**;
   kasir hanya bisa login di `/kasir`.
+
+> **Hasil aktual:** migrasi `0005` membuat tabel `cashiers` — `outlet_id`
+> NOT NULL FK → outlets (1 kasir = 1 outlet), email UNIQUE case-insensitive
+> (index `lower(email)`), `password_hash` (scrypt), `pin_hash` (opsional,
+> format `pin:N:r:p:salt:hash`; login PIN dipakai saat area kasir tumbuh),
+> `status account_status`, `created_by` FK → owners.
+>
+> Modul `cashier` + endpoint Owner di bawah
+> `/api/owner/businesses/:businessId/cashiers` (list/buat/detail/ubah/
+> status/reset-password). Membuat kasir melewati gerbang kuota
+> `enforceCashierQuota` (`max_cashiers` plan) di transaksi yang mengunci
+> bisnis `FOR UPDATE`; outlet diverifikasi milik bisnis sesi (anti-IDOR).
+> Suspend & reset password **mencabut semua sesi kasir** di server dalam
+> transaksi yang sama. `auth` cukup mengaktifkan entri peran `cashier` di
+> `USER_STORES` → login/refresh/`/me` (konteks outlet+bisnis) langsung
+> berlaku; access token kasir tak bisa menyentuh route owner (403).
+>
+> Panel `apps/kasir` disajikan di `/kasir` saat dev: login terkunci peran
+> `cashier`, dashboard profil + outlet/bisnis/mata uang, muat ulang, keluar.
+> **95/95 tes lulus** (19 baru; termasuk uji inti: email sama di outlet kedua
+> = 409 walau beda kapital; kuota Gratis 1 kasir = 409; kasir login 200 via
+> peran cashier; akses route owner = 403; isolasi tenant kasir/outlet = 404;
+> suspend mencabut sesi; reset menonaktifkan password lama). Kontrak API:
+> `docs/13-api-cashier.md`.
 
 ## Fase 6 — Produk, Kategori, Harga, Stok (estimasi 4 hari)
 - Modul `product` + `stock`: CRUD, harga dalam sen, stok per outlet.

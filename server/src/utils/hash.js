@@ -70,4 +70,18 @@ export const verifyPassword = async (password, stored) => {
   return timingSafeEqual(derived, expected);
 };
 
-export default { hashPassword, verifyPassword };
+/**
+ * Hash PIN (4-6 digit) untuk login cepat kasir: format `pin:N:r:p:salt:hash`.
+ * PIN bukan pengganti password; verifikasi PIN ditambahkan saat area kasir
+ * memakai login PIN (fase selanjutnya).
+ */
+export const hashPin = async (pin) => {
+  if (typeof pin !== 'string' || !/^\d{4,6}$/.test(pin)) {
+    throw new Error('PIN harus 4–6 digit angka');
+  }
+  const salt = randomBytes(SALT_LEN);
+  const derived = await scrypt(pin, salt, KEY_LEN, { ...PARAMS, maxmem: MAXMEM });
+  return `pin:${PARAMS.N}:${PARAMS.r}:${PARAMS.p}:${salt.toString('hex')}:${derived.toString('hex')}`;
+};
+
+export default { hashPassword, verifyPassword, hashPin };

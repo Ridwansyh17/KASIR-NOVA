@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>KASIR NOVA — Kasir</title>
+    <link rel="stylesheet" href="./styles/styles.css" />
+  </head>
+  <body>
+    <!-- ================= LOGIN ================= -->
+    <section id="login-view" class="auth hidden">
+      <form id="login-form" class="card auth-card" novalidate>
+        <h1 class="brand-title">KASIR NOVA</h1>
+        <p class="muted">Panel Kasir (Titik Penjualan)</p>
+
+        <label class="field">
+          <span>Email</span>
+          <input id="login-email" type="email" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <button type="submit" class="btn primary block">Masuk</button>
+        <p id="login-error" class="error hidden"></p>
+      </form>
+    </section>
+
+    <!-- ================= APP ================= -->
+    <div id="app-view" class="hidden">
+      <header class="topbar">
+        <div class="brand">KASIR NOVA <span class="muted">/ Kasir</span></div>
+        <div class="user">
+          <span id="current-user" class="muted"></span>
+          <button id="logout-btn" class="btn">Keluar</button>
+        </div>
+      </header>
+
+      <main class="container">
+        <div class="toolbar">
+          <h2>Selamat datang</h2>
+          <div class="toolbar-actions">
+            <button id="refresh-btn" class="btn">Muat ulang</button>
+          </div>
+        </div>
+
+        <div id="alert" class="alert hidden"></div>
+
+        <!-- Profil kasir + konteks outlet -->
+        <section class="detail card">
+          <div class="detail-head">
+            <div>
+              <h3 id="profile-name">—</h3>
+              <p id="profile-email" class="muted mono">—</p>
+            </div>
+            <span id="profile-status" class="badge">—</span>
+          </div>
+
+          <dl class="meta">
+            <div><dt>Outlet</dt><dd id="profile-outlet">—</dd></div>
+            <div><dt>Bisnis</dt><dd id="profile-business">—</dd></div>
+            <div><dt>Mata uang</dt><dd id="profile-currency">—</dd></div>
+          </dl>
+
+          <p class="muted small">
+            Area penjualan (produk & transaksi) akan tersedia pada fase berikutnya.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

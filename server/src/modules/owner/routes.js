@@ -8,6 +8,7 @@
  *   PATCH  /api/owner/businesses/:businessId/status  aktif/nonaktif
  *   GET    /api/owner/businesses/:businessId/subscription  lihat langganan
  *   ...    /api/owner/businesses/:businessId/outlets       kelola outlet
+ *   ...    /api/owner/businesses/:businessId/cashiers      kelola kasir
  *
  * Middleware tenant memverifikasi kepemilikan business_id (anti-IDOR).
  */
@@ -17,6 +18,7 @@ import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { requireBusinessAccess } from '../../middleware/tenant.js';
 import { validate } from '../../middleware/validate.js';
 import outletRoutes from '../outlet/routes.js';
+import cashierRoutes from '../cashier/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -65,5 +67,8 @@ router.get(
 
 // Kelola outlet (sub-router dengan mergeParams agar :businessId tersedia).
 router.use('/businesses/:businessId/outlets', outletRoutes);
+
+// Kelola kasir (1 kasir = 1 outlet; kuota max_cashiers).
+router.use('/businesses/:businessId/cashiers', cashierRoutes);
 
 export default router;

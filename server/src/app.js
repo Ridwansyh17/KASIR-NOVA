@@ -65,6 +65,7 @@ app.use('/api/owner', ownerRouter);
 if (!env.isProduction) {
   app.use('/admin', express.static(join(__dirname, '../../apps/admin')));
   app.use('/owner', express.static(join(__dirname, '../../apps/owner')));
+  app.use('/kasir', express.static(join(__dirname, '../../apps/kasir')));
 }
 
 // 404 & error handler (harus setelah semua route)

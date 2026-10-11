@@ -42,6 +42,14 @@ export const logout = async (req, res, next) => {
   }
 };
 
-export const me = async (req, res) => {
-  res.status(200).json({ user: req.user });
+export const me = async (req, res, next) => {
+  try {
+    let context = null;
+    if (req.user.role === 'cashier') {
+      context = await authService.getCashierContext(req.user.id);
+    }
+    res.status(200).json({ user: req.user, context });
+  } catch (err) {
+    next(err);
+  }
 };

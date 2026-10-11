@@ -38,6 +38,7 @@ export const requireAuth = async (req, _res, next) => {
       role: payload.role,
       email: user.email,
       fullName: user.full_name,
+      status: user.status,
     };
     next();
   } catch (err) {
