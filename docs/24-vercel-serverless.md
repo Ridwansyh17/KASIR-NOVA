@@ -104,5 +104,15 @@ Invoke-RestMethod https://<APP>.vercel.app/api/auth/login -Method Post -ContentT
 - ✅ Adaptasi serverless disiapkan & **diuji lokal**: health OK, `/kasir` `/admin`
   `/owner` 200, login admin **200** (same-origin diizinkan).
 - ✅ Suite tes **159/159** lulus.
-- ⏳ Menunggu **token Vercel** untuk deploy produksi.
+- ✅ **DEPLOY PRODUKSI BERHASIL** — https://kasir-nova.vercel.app
+  (project `prj_lJ1uTBaLKSOThkF4QqMgbus4XDjm`, team *KASIR NOVA*, plan **hobby**, **tanpa kartu**).
+  Vercel Authentication (Deployment Protection) **dimatikan** agar publik & API dapat diakses.
+- ✅ Verifikasi publik: `/api/health` → `database: up` (Neon); `/kasir` `/admin` `/owner` → 200;
+  login `admin@nova.test` (platform_admin) → 200.
 - ℹ️ Render **ditolak** (HTTP 402 butuh kartu) — `render.yaml` tetap disimpan sebagai alternatif.
+
+### Cara memperbarui (deploy ulang)
+```powershell
+npx vercel deploy --prod --yes --token <VERCEL_TOKEN>
+```
+(Database Neon tidak berubah; connection string tersimpan sebagai env `DATABASE_URL` di Vercel.)

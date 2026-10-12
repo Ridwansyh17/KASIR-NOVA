@@ -50,3 +50,5 @@ akun-kasir-nova.txt
 AKUN_TEST.txt
 TEST-ACCOUNT-KASIR-NOVA.txt
 firebase.json.backup-*
+.neon
+.vercel
