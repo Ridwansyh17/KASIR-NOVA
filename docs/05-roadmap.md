@@ -370,15 +370,20 @@
 > `docs/20-deploy-firebase-hosting.md`.
 >
 > **Update 12 Okt 2026:** **Cloudflare dinonaktifkan** (bukan proxy/hosting/DNS/
-> dependency deploy). Integrasi diubah ke **same-origin `/api/**`** (rewrite
-> Firebase Hosting) menuju backend **Cloud Run + Cloud SQL**. Artefak deploy
-> backend disiapkan (`server/Dockerfile`, `cloudbuild.yaml`,
-> `scripts/deploy-gcp.ps1`, `server/.env.production.example`).
-> Deploy publik **BLOCKED** — butuh `gcloud` + **billing GCP aktif**
-> (persetujuan pemilik). Pengujian lokal same-origin: `GET /api/health` = ok
-> (db up), `/admin/` = 200, **157/157 tes lulus**. Suite tes kini idempoten
-> (pra-tes `scripts/clean-test-fixtures.mjs`). Runbook:
-> `docs/21-deploy-backend-cloud-run.md`.
+> dependency deploy). **Keputusan pemilik: tetap paket Spark (gratis) — tanpa
+> backend publik.** Karena integrasi Hosting→Cloud Run (blok `rewrites[].run`)
+> / Functions memerlukan **Blaze**, `firebase.json` **tidak** memuat rewrite
+> `/api/**`; frontend live tetap statis. Backend tetap diuji **lokal**
+> (same-origin): `GET /api/health` = ok (db up), `/admin/` = 200,
+> **159/159 tes lulus**. Suite tes idempoten (pra-tes
+> `scripts/clean-test-fixtures.mjs`). Artefak deploy backend disiapkan untuk
+> masa depan (`server/Dockerfile`, `cloudbuild.yaml`, `scripts/deploy-gcp.ps1`).
+> Backup/restore PostgreSQL (`scripts/backup-db.ps1`/`restore-db.ps1`) sudah
+> dibuat & diuji (17/17 tabel). Runbook: `docs/20`, `docs/21`, `docs/22`.
+>
+> ⚠️ Catatan arsitektur: `rewrites[].destination` Firebase Hosting **hanya**
+> menerima berkas lokal — **bukan URL eksternal**. Backend dinamis = blok
+> `run`/`function` (perlu Blaze).
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —

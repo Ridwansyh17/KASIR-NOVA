@@ -1,4 +1,4 @@
-﻿{
+{
   "hosting": {
     "site": "kasir-nova",
     "public": "dist/hosting",
@@ -7,7 +7,6 @@
       { "source": "/", "destination": "/kasir", "type": 301 }
     ],
     "rewrites": [
-      { "source": "/api/**", "destination": "https://GANTI-DENGAN-CLOUD-RUN-URL/api/**" },
       { "source": "/admin/**", "destination": "/admin/index.html" },
       { "source": "/owner/**", "destination": "/owner/index.html" },
       { "source": "/kasir/**", "destination": "/kasir/index.html" }

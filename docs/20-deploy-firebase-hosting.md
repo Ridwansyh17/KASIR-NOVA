@@ -3,41 +3,44 @@
 > **Status frontend: SUDAH TER-DEPLOY** (11 Okt 2026) ke `https://kasir-nova.web.app`
 > — project `kasir-nova`, site `kasir-nova`.
 >
-> **Status integrasi backend: 12 Okt 2026** — jalur **same-origin `/api/**`**
-> disiapkan & diuji lokal (157/157 tes lulus); backend publik (Cloud Run)
-> **belum di-deploy** (butuh billing GCP). Cloudflare **dinonaktifkan**.
+> **Status integrasi backend: 12 Okt 2026** — Keputusan pemilik: **tetap gratis
+> (Spark), tanpa backend publik**. Jalur same-origin sudah diuji **lokal**
+> (159/159 tes lulus); `firebase.json` **tidak** memuat rewrite `/api/**` agar
+> hosting tetap valid di Spark. Cloudflare **dinonaktifkan**.
 >
 > Keputusan pemilik: distribusi **web via Firebase Hosting**, **bukan APK**.
 
-## 1. Arsitektur final
+## 1. Arsitektur
 
 ```
-https://kasir-nova.web.app  (Firebase Hosting — statis + proxy /api)
+https://kasir-nova.web.app  (Firebase Hosting — statis)
    /kasir/**   → apps/kasir   (POS)
    /admin/**   → apps/admin   (Panel Admin Platform)
    /owner/**   → apps/owner   (Panel Owner)
-   /api/**     → rewrite ke backend HTTPS (Cloud Run)   ← SAME-ORIGIN
    /           → 301 /kasir
-        │  rewrite same-origin (tanpa CORS, tanpa tunnel)
-        ▼
-   Backend Node.js/Express + PostgreSQL (Cloud Run + Cloud SQL)
 ```
 
 - **1 site, 3 subpath** (site `kasir-nova`; hemat kuota deploy harian).
-- Firebase Hosting menyajikan statis **dan** mem-proxy `/api/**` ke backend.
-- **Strategi terpilih = same-origin:** `window.NOVA_API_BASE = ''` sehingga
-  frontend memanggil `/api/...` di origin yang sama; Firebase Hosting menulis
-  ulang ke backend HTTPS. Kelebihan: **tanpa CORS**, tanpa URL backend
-  ter-hardcode di frontend.
-- **Alternatif (cross-origin):** isi `NOVA_API_BASE` dengan URL backend absolut
-  + tambahkan origin site ke `CORS_ORIGIN`. Tetap didukung `build-hosting.mjs`.
+- Saat ini **tanpa backend publik** (paket Spark). Hosting hanya menyajikan statis.
+- **Rencana same-origin (bila backend ditambahkan, butuh paket Blaze):**
+  `window.NOVA_API_BASE = ''` → frontend memanggil `/api/...` di origin yang
+  sama → Firebase Hosting meneruskan ke **Cloud Run** lewat blok `run`
+  (lihat bagian 4). Kelebihan: **tanpa CORS**, tanpa URL backend di frontend.
+- **Alternatif (cross-origin, tanpa Blaze):** isi `NOVA_API_BASE` dengan URL
+  backend HTTPS absolut + tambahkan origin site ke `CORS_ORIGIN`. Didukung
+  `build-hosting.mjs` (lihat `docs/21`).
 - **Cloudflare TIDAK dipakai** (bukan proxy/hosting/DNS/dependency deploy).
+
+> ⚠️ **Penting (jebakan):** `rewrites[].destination` di Firebase Hosting **hanya**
+> boleh berupa **berkas lokal yang ada** — **bukan URL eksternal**. Menulis
+> `"destination": "https://..."` adalah **salah**. Untuk backend gunakan blok
+> `"run"` (Cloud Run) atau `"function"` (Cloud Functions).
 
 ## 2. Berkas pendukung deploy
 
 | Berkas | Isi |
 |---|---|
-| `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite `/api/**` **sebelum** fallback SPA, header keamanan + cache |
+| `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite subpath SPA, header keamanan + cache (tanpa `/api/**` saat ini) |
 | `scripts/build-hosting.mjs` | salin 3 app ke `dist/hosting` & suntik `NOVA_API_BASE` (kosong = same-origin) |
 | `apps/<app>/config.js` | default dev (`NOVA_API_BASE` kosong = origin sama) |
 | `.firebaserc` | lokal (di-`.gitignore`), berisi `kasir-nova` |
@@ -47,10 +50,10 @@ https://kasir-nova.web.app  (Firebase Hosting — statis + proxy /api)
 ## 3. Build + deploy
 
 ```powershell
-# A) Bangun aset (same-origin — rekomendasi: /api/** di-rewrite oleh Hosting)
+# A) Bangun aset statis
 node scripts/build-hosting.mjs
 
-#    A-alt) Cross-origin (backend HTTPS absolut) — opsional:
+#    (opsional) Cross-origin ke backend HTTPS absolut:
 #    node scripts/build-hosting.mjs https://<URL-BACKEND>
 
 # B) Deploy (butuh login: firebase login sekali)
@@ -58,11 +61,8 @@ firebase use kasir-nova
 firebase deploy --only hosting
 ```
 
-> **Penting:** sebelum deploy dengan `firebase.json` yang memakai rewrite
-> `/api/**`, ganti nilai `destination` placeholder
-> (`https://GANTI-DENGAN-CLOUD-RUN-URL/api/**`) dengan URL backend final.
-> Bila URL backend belum ada, buang dulu rewrite `/api/**` agar tidak mem-proxy
-> ke host tak dikenal.
+> `build-hosting.mjs` tanpa argumen menghasilkan `NOVA_API_BASE = ''`
+> (same-origin). Ini hanya berguna bila ada backend yang menerima `/api/**`.
 
 Header keamanan otomatis dipasang: `X-Content-Type-Options`, `X-Frame-Options:
 DENY`, `Referrer-Policy: no-referrer`; cache 1 jam untuk JS/CSS, `no-cache`
@@ -70,24 +70,37 @@ untuk `index.html`.
 
 ## 4. Backend HTTPS (Cloud Run) — bukan Cloudflare
 
-Backend Express + PostgreSQL di-deploy ke **Cloud Run + Cloud SQL** (lihat
-`docs/21-deploy-backend-cloud-run.md`). Setelah URL Cloud Run didapat:
+Backend Express + PostgreSQL dapat di-deploy ke **Cloud Run + Cloud SQL**
+(runbook: `docs/21-deploy-backend-cloud-run.md`). **Wajib paket Blaze**
+(Cloud Run berbayar + integrasi Hosting).
 
-```powershell
-# arahkan rewrite /api/** ke URL Cloud Run
-#   "destination": "https://<service>-<hash>-uc.a.run.app/api/**"
-node scripts/build-hosting.mjs
-firebase deploy --only hosting
+Hubungkan Hosting → Cloud Run dengan blok `run` (same-origin, **bukan** URL
+eksternal di `destination`):
+
+```json
+"rewrites": [
+  { "source": "/api/**", "run": { "serviceId": "nova-server", "region": "us-central1" } },
+  { "source": "/admin/**", "destination": "/admin/index.html" },
+  { "source": "/owner/**", "destination": "/owner/index.html" },
+  { "source": "/kasir/**", "destination": "/kasir/index.html" }
+]
 ```
+
+- `source: /api/**` **harus di urutan pertama** (aturan pertama yang cocok menang).
+- Service Cloud Run harus berada di **project yang sama** dengan Hosting.
+- Metode yang didukung: `GET/POST/HEAD/PUT/DELETE/PATCH/OPTIONS`.
+- Lalu: `node scripts/build-hosting.mjs` dan `firebase deploy --only hosting`.
 
 > ❌ **Jangan** memakai Cloudflare (tunnel/`trycloudflare`) sebagai proxy, DNS,
 > hosting, atau dependency deploy. Keputusan pemilik: Cloudflare tidak dipakai.
+>
+> ❌ **Jangan** menaruh URL eksternal di `rewrites[].destination` — tidak didukung.
 
 ## 5. CORS backend
 
-Dengan strategi **same-origin** (`/api/**` di-rewrite oleh Hosting), browser
-memanggil origin yang sama (`kasir-nova.web.app`) sehingga **CORS tidak wajib**.
-Tetap isi `CORS_ORIGIN` untuk skenario cross-origin / dev:
+Dengan integrasi `run` (**same-origin**) browser memanggil origin yang sama
+(`kasir-nova.web.app`) sehingga **CORS tidak wajib**. Tetap isi `CORS_ORIGIN`
+untuk skenario cross-origin / dev:
 
 ```ini
 CORS_ORIGIN=http://localhost:5173,http://localhost:5174,http://localhost:5175,https://kasir-nova.web.app
@@ -108,10 +121,10 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
 3 app kita total < 1 MB — sangat cukup. Yang perlu dijaga hanya
 **10 deploy/hari** saat eksperimen.
 
-> ⚠️ **Perlu verifikasi:** rewrite `/api/**` ke **URL eksternal** (di luar
-> Firebase/Google Cloud) dapat dibatasi pada paket **Spark** dan umumnya
-> **memerlukan paket Blaze**. Sebelum mengandalkan jalur ini untuk produksi,
-> konfirmasi status paket project `kasir-nova` di Firebase Console → Usage & billing.
+> ⚠️ Integrasi Hosting → **Cloud Run** (`run`) dan **Cloud Functions**
+> (`function`) **memerlukan paket Blaze**. Paket **Spark tidak mendukung**
+> backend dinamis dari Hosting. Karena itu, pada mode **Spark (keputusan saat
+> ini) tidak ada rewrite `/api/**`** dan backend diuji **lokal** saja.
 
 ## 7. Yang sudah diverifikasi
 
@@ -121,7 +134,7 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
 - Login admin → 200 (`role=platform_admin`); baca audit log → 200 (`total=146`).
 
 **12 Okt 2026 (integrasi same-origin lokal, Cloudflare dinonaktifkan):**
-- Suite tes backend **157/157 lulus** (`npm test`, PostgreSQL 16.1 port 5433).
+- Suite tes backend **159/159 lulus** (`npm test`, PostgreSQL 16.1 port 5433).
 - `GET /api/health` same-origin → `{status:"ok", db:"up"}`.
 - `GET /admin/` disajikan dari origin yang sama → **200** (membuktikan jalur
   same-origin `/api` + statis).
@@ -130,8 +143,10 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
 
 ## 8. Yang masih menyusul
 
-- **Deploy backend tetap** (Cloud Run + Cloud SQL) → lihat `docs/21-deploy-backend-cloud-run.md`.
-  Saat ini **BLOCKED**: butuh `gcloud` + **billing GCP aktif** (persetujuan pemilik).
-- **Ganti placeholder** `https://GANTI-DENGAN-CLOUD-RUN-URL/api/**` dengan URL Cloud Run final.
+- **Keputusan 12 Okt 2026: tetap paket Spark — tanpa backend publik.**
+  Karena itu `firebase.json` **tidak** memuat rewrite `/api/**` (integrasi
+  `run`/`function` butuh Blaze). Frontend live tetap statis seperti sekarang.
+- Bila kelak memilih Blaze: ikuti `docs/21-deploy-backend-cloud-run.md`, lalu
+  tambahkan rewrite `run` (bagian 4 di atas).
 - **Secrets produksi** (JWT & DB) — pakai Secret Manager, bukan nilai `dev_`.
 - CSP ketat untuk site statis (bergantung URL backend final).

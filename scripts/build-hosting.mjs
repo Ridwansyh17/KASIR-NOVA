@@ -6,9 +6,14 @@
  * berkas source di repo. Setelah ini: `firebase deploy --only hosting`.
  *
  * Pemakaian:
- *   node scripts/build-hosting.mjs                         # same-origin (rewrite /api/**)
+ *   node scripts/build-hosting.mjs                         # same-origin (NOVA_API_BASE='')
  *   node scripts/build-hosting.mjs https://api.example.com # cross-origin (URL absolut)
  *   NOVA_API_BASE=https://api.example.com node scripts/build-hosting.mjs
+ *
+ * Catatan: base KOSONG berarti frontend memanggil `/api/**` di origin yang sama.
+ * Agar berfungsi, origin tersebut harus melayani `/api` (mis. server Express
+ * yang juga menyajikan statis, atau Firebase Hosting + blok `run`/`function`
+ * yang memerlukan paket Blaze).
  */
 import { cpSync, rmSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -18,8 +23,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 
 const apps = ['admin', 'owner', 'kasir'];
-// Kosong => same-origin (pakai rewrite /api/** di Firebase Hosting). Diisi URL
-// absolut => cross-origin langsung ke backend HTTPS.
+// Kosong => same-origin (frontend memanggil /api/** di origin yang sama; origin
+// itu harus melayani /api). Diisi URL absolut => cross-origin ke backend HTTPS.
 const apiBase = (process.argv[2] ?? process.env.NOVA_API_BASE ?? '').trim();
 
 if (apiBase && !/^https?:\/\//i.test(apiBase)) {
@@ -53,5 +58,5 @@ for (const app of apps) {
   console.log(`✓ apps/${app} -> dist/hosting/${app}`);
 }
 
-console.log(`\nNOVA_API_BASE = ${normalizedBase || '(kosong / same-origin via rewrite /api/**)'}`);
+console.log(`\nNOVA_API_BASE = ${normalizedBase || "(kosong = same-origin; origin harus melayani /api/**)"}`);
 console.log('Siap: firebase deploy --only hosting');

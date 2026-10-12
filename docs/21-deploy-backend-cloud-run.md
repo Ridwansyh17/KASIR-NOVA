@@ -1,7 +1,8 @@
 # KASIR NOVA — Deploy Backend ke Cloud Run + Cloud SQL
 
-> **Status: BELUM DI-DEPLOY (BLOCKED).** Menunggu prasyarat di bagian 1
-> (terutama **billing GCP aktif** + persetujuan pemilik).
+> **Status: BELUM DI-DEPLOY.** Keputusan pemilik 12 Okt 2026: **tetap paket
+> Spark (gratis), tanpa backend publik.** Dokumen ini disimpan sebagai runbook
+> untuk dipakai **bila kelak** beralih ke Blaze.
 >
 > Backend = Node.js/Express (`server/`) + PostgreSQL. Dipilih **Cloud Run**
 > (bukan Firebase Functions) karena Express bersifat long-lived dan memakai
@@ -76,10 +77,16 @@ npm run db:seed     # butuh SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
 
 ## 5. Menyambungkan ke Firebase Hosting
 
-1. Ambil URL Cloud Run (mis. `https://nova-server-xxxx-uc.a.run.app`).
-2. Ganti placeholder di `firebase.json`:
+1. Widget Cloud Run service: `nova-server` (project yang sama dengan Hosting).
+2. **Tambahkan** rewrite `/api/**` dengan blok `run` di `firebase.json`
+   (urutan pertama), **bukan** URL eksternal:
    ```json
-   { "source": "/api/**", "destination": "https://nova-server-xxxx-uc.a.run.app/api/**" }
+   "rewrites": [
+     { "source": "/api/**", "run": { "serviceId": "nova-server", "region": "us-central1" } },
+     { "source": "/admin/**", "destination": "/admin/index.html" },
+     { "source": "/owner/**", "destination": "/owner/index.html" },
+     { "source": "/kasir/**", "destination": "/kasir/index.html" }
+   ]
    ```
 3. Build & deploy hosting:
    ```powershell
@@ -99,7 +106,7 @@ Invoke-RestMethod https://kasir-nova.web.app/api/health   # {status:"ok"}
 Kriteria lolos:
 - `GET /api/health` → `200 {status:"ok"}` (tanpa data sensitif).
 - Login owner/kasir via Hosting berhasil.
-- Isolasi tenant & validasi langganan tetap berlaku (suite 157 tes lokal lulus).
+- Isolasi tenant & validasi langganan tetap berlaku (suite 159 tes lokal lulus).
 
 ---
 
@@ -115,5 +122,10 @@ Kriteria lolos:
 
 ## 8. Catatan paket Firebase
 
-Rewrite `/api/**` ke **URL eksternal** dapat memerlukan paket **Blaze**.
-Verifikasi di Firebase Console → Usage & billing sebelum mengandalkannya.
+Integrasi Hosting → Cloud Run (blok `rewrites[].run`) dan Cloud Functions
+(blok `rewrites[].function`) **memerlukan paket Blaze**. Pada **Spark tidak
+tersedia**.
+
+> ⚠️ `rewrites[].destination` **hanya** menerima **berkas lokal** — menulis URL
+> eksternal (`https://...`) di `destination` **tidak didukung** (akan gagal /
+> diabaikan). Gunakan blok `run`/`function`, bukan URL.
