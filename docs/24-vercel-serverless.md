@@ -99,6 +99,27 @@ Invoke-RestMethod https://<APP>.vercel.app/api/auth/login -Method Post -ContentT
 
 ---
 
+## Frontend (Firebase Hosting → API Vercel)
+
+Frontend tetap di **Firebase Hosting** (`kasir-nova.web.app`, paket Spark),
+tetapi kini memanggil API **cross-origin** ke Vercel. Base API di-*inject* saat build:
+
+```powershell
+node scripts/build-hosting.mjs https://kasir-nova.vercel.app
+firebase deploy --only hosting
+```
+
+- `config.js` tiap app berisi `window.NOVA_API_BASE = 'https://kasir-nova.vercel.app'`.
+- `CORS_ORIGIN` di Vercel = `https://kasir-nova.web.app` → preflight **204**,
+  login cross-origin admin & owner **200**.
+- Kembali ke same-origin (base kosong): `node scripts/build-hosting.mjs` lalu
+  `firebase deploy --only hosting`.
+
+> `/api/**` **tidak** di-rewrite di `firebase.json` (butuh paket Blaze), sehingga
+> frontend memakai panggilan absolut ke origin Vercel.
+
+---
+
 ## Status (12 Okt 2026)
 
 - ✅ Adaptasi serverless disiapkan & **diuji lokal**: health OK, `/kasir` `/admin`
@@ -110,6 +131,9 @@ Invoke-RestMethod https://<APP>.vercel.app/api/auth/login -Method Post -ContentT
 - ✅ Verifikasi publik: `/api/health` → `database: up` (Neon); `/kasir` `/admin` `/owner` → 200;
   login `admin@nova.test` (platform_admin) → 200.
 - ℹ️ Render **ditolak** (HTTP 402 butuh kartu) — `render.yaml` tetap disimpan sebagai alternatif.
+- ✅ **Frontend Firebase dialihkan** ke API Vercel (cross-origin): `kasir-nova.web.app`
+  `/kasir` `/admin` `/owner` → 200; login admin & owner cross-origin → 200; preflight CORS 204.
+- ✅ Skill Neon di-commit ke repo (`.agents/skills/` + `skills-lock.json`).
 
 ### Cara memperbarui (deploy ulang)
 ```powershell
