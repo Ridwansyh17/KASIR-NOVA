@@ -153,3 +153,20 @@ diizinkan. (Paket Spark cukup — tak perlu rewrite `/api/**`.)
 | Tidak ingin publik | Render → **Suspend** service |
 | Frontend keliru | `node scripts/build-hosting.mjs` (base kosong) lalu deploy ulang |
 | DB | Neon → restore dari branch/history; atau `scripts/restore-db.ps1` |
+
+---
+
+## 9. Status kesiapan (12 Okt 2026)
+
+| Item | Status |
+|---|---|
+| Neon CLI | ✅ `neon` 8.3.5 + MCP Neon (remote) + 8 agent skills di `.agents/skills/` |
+| Proyek Neon | ✅ **KASIR NOVA** — id `tiny-rain-72150501`, org *Ridwan* (free) |
+| Branch / DB | ✅ `production` (`br-silent-truth-b517f5sp`) / database `neondb`, region `us-east-2` |
+| Migrasi | ✅ 8/8 diterapkan (17 tabel) |
+| Seed | ✅ `admin@nova.test` (platform_admin) & `owner@nova.test` (owner), status active |
+| Uji end-to-end | ✅ Server dijalankan menunjuk Neon: `/api/health` OK, login admin & owner → **200** (accessToken + refreshToken) |
+| Sisa langkah | ⏳ Buat **web service Render** dari repo GitHub, isi `DATABASE_URL` = connection string Neon (dashboard Render), lalu verifikasi URL publik |
+
+> Rahasia (connection string Neon) **tidak** disimpan di repo — diisi manual di
+> dashboard Render saat membuat service.
