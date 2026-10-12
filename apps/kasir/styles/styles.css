@@ -1,18 +1,23 @@
 /* KASIR NOVA — Panel Kasir */
 :root {
-  --bg: #f4f6fb;
-  --card: #ffffff;
-  --text: #1c2333;
-  --muted: #6b7280;
-  --border: #e3e7ef;
-  --primary: #1f8a70;
-  --primary-dark: #166b57;
-  --danger: #d33a3a;
-  --ok-bg: #e4f7ea;
-  --ok-fg: #1c7a3e;
-  --off-bg: #fdeaea;
-  --off-fg: #b32626;
-  --shadow: 0 8px 30px rgba(20, 30, 60, 0.08);
+  /* Identitas visual dari file logo resmi "Logo KASIR NOVA.jpeg":
+     latar navy sangat gelap (pokok piksel rgb 0,16,48 ≈ #001030) +
+     aksen cyan-biru (rgb 0,160-176,255 ≈ #00B0FF) + putih. */
+  --bg: #060e22;
+  --card: #0c1a34;
+  --card-2: #0f1f3d;
+  --card-3: #14284c;
+  --text: #e9f1ff;
+  --muted: #8fa2c4;
+  --border: #1d3160;
+  --primary: #00b4ff;
+  --primary-dark: #008fd4;
+  --danger: #ff7b7b;
+  --ok-bg: rgba(64, 224, 160, 0.14);
+  --ok-fg: #43e0a0;
+  --off-bg: rgba(255, 123, 123, 0.14);
+  --off-fg: #ff8f8f;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -23,6 +28,8 @@ body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
   background: var(--bg);
+  background-image: radial-gradient(1100px 600px at 50% -140px, rgba(0, 180, 255, 0.08), transparent 65%);
+  background-attachment: fixed;
   color: var(--text);
   font-size: 15px;
 }
@@ -58,6 +65,7 @@ body {
   display: grid;
   place-items: center;
   padding: 24px;
+  background: radial-gradient(900px 520px at 50% -90px, rgba(0, 180, 255, 0.14), transparent 60%);
 }
 
 .card {
@@ -77,8 +85,31 @@ body {
 
 .brand-title {
   margin: 0;
-  font-size: 22px;
-  letter-spacing: 0.5px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text);
+}
+
+.brand-login {
+  display: grid;
+  gap: 4px;
+}
+
+.brand-login .muted {
+  text-align: center;
+}
+
+.brand-logo-lg {
+  display: block;
+  margin: 0 auto;
+  width: auto;
+  height: 128px;
+  object-fit: contain;
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
 }
 
 .auth-card p {
@@ -100,13 +131,14 @@ body {
 .field input,
 .field select,
 input[type="search"],
+input[type="date"],
 select {
   font: inherit;
   color: var(--text);
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fff;
+  background: #0a1428;
   outline: none;
 }
 
@@ -114,7 +146,7 @@ select {
 input:focus,
 select:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(31, 138, 112, 0.15);
+  box-shadow: 0 0 0 3px rgba(0, 180, 255, 0.22);
 }
 
 /* ---------- Buttons ---------- */
@@ -124,13 +156,13 @@ select:focus {
   padding: 9px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: #fff;
+  background: var(--card-2);
   color: var(--text);
   transition: background 0.15s, border-color 0.15s;
 }
 
 .btn:hover {
-  background: #f2f4fa;
+  background: #14284c;
 }
 
 .btn:disabled {
@@ -150,11 +182,11 @@ select:focus {
 
 .btn.danger {
   color: var(--danger);
-  border-color: #f1c9c9;
+  border-color: rgba(255, 123, 123, 0.35);
 }
 
 .btn.danger:hover {
-  background: #fdeaea;
+  background: rgba(255, 123, 123, 0.12);
 }
 
 .btn.block {
@@ -168,7 +200,7 @@ select:focus {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 22px;
-  background: #fff;
+  background: var(--card);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -176,8 +208,20 @@ select:focus {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
   letter-spacing: 0.4px;
+}
+
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .user {
@@ -220,19 +264,19 @@ select:focus {
   border-radius: 10px;
   margin-bottom: 14px;
   border: 1px solid var(--border);
-  background: #eef2ff;
+  background: rgba(0, 180, 255, 0.1);
   font-size: 14px;
 }
 
 .alert.ok {
   background: var(--ok-bg);
-  border-color: #bfe6cb;
+  border-color: rgba(64, 224, 160, 0.4);
   color: var(--ok-fg);
 }
 
 .alert.error {
   background: var(--off-bg);
-  border-color: #f1c9c9;
+  border-color: rgba(255, 123, 123, 0.4);
   color: var(--off-fg);
 }
 
@@ -340,7 +384,7 @@ select:focus {
   padding: 14px 16px;
   display: grid;
   gap: 10px;
-  background: #fbfcff;
+  background: #0f1f3d;
 }
 
 .outlet-head {
@@ -363,7 +407,7 @@ select:focus {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.45);
+  background: rgba(2, 6, 15, 0.72);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -414,7 +458,7 @@ select:focus {
   padding: 3px 6px 3px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: #f2f4fa;
+  background: #14284c;
   font-size: 12px;
 }
 
@@ -451,7 +495,7 @@ select:focus {
   padding: 14px 16px;
   display: grid;
   gap: 10px;
-  background: #fbfcff;
+  background: #0f1f3d;
 }
 
 .product-head {
@@ -529,14 +573,14 @@ select:focus {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #fbfcff;
+  background: #0f1f3d;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .pos-product:hover:enabled {
   border-color: var(--primary);
-  background: #f0faf6;
+  background: rgba(0, 180, 255, 0.1);
 }
 
 .pos-product.out {
@@ -545,7 +589,7 @@ select:focus {
 }
 
 .pos-product-price {
-  color: var(--primary-dark);
+  color: var(--primary);
   font-weight: 700;
 }
 
@@ -564,7 +608,7 @@ select:focus {
   padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fbfcff;
+  background: #0f1f3d;
 }
 
 .cart-info {
@@ -626,7 +670,7 @@ select:focus {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fbfcff;
+  background: #0f1f3d;
 }
 
 .receipt {
@@ -732,7 +776,7 @@ button.link {
   background: none;
   border: none;
   padding: 0;
-  color: var(--accent, #4f46e5);
+  color: var(--primary);
   font: inherit;
   cursor: pointer;
   text-decoration: underline;
