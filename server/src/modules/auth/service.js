@@ -74,6 +74,7 @@ const findUserWithSecret = async (role, email) => {
 export const getCashierContext = async (cashierId) => {
   const { rows } = await query(
     `SELECT o.id AS outlet_id, o.name AS outlet_name,
+            o.address AS outlet_address, o.phone AS outlet_phone,
             o.tax_rate, o.tax_inclusive,
             b.id AS business_id, b.name AS business_name, b.currency
        FROM cashiers c
@@ -87,6 +88,8 @@ export const getCashierContext = async (cashierId) => {
     outlet: {
       id: rows[0].outlet_id,
       name: rows[0].outlet_name,
+      address: rows[0].outlet_address,
+      phone: rows[0].outlet_phone,
       tax_rate: Number(rows[0].tax_rate),
       tax_inclusive: rows[0].tax_inclusive,
     },

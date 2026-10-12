@@ -98,7 +98,8 @@ roadmap fase.
 
 ## Status
 
-- Fase **0–16 selesai**; suite tes integrasi **173/173**; E2E alur produksi
+- Fase **0–16 selesai** (termasuk penyempurnaan struk thermal **16b**); suite tes
+  integrasi **185/185**; E2E alur produksi
   **26/26** (dijalankan terhadap server lokal sebelum deploy; langkah 20–23
   menguji perbandingan outlet & lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
@@ -114,3 +115,9 @@ roadmap fase.
   **Perbandingan Outlet** dan section **Perbandingan Lintas-Bisnis** (ekspor Excel
   2 sheet), tetap owner-scoped; agregat diperbaiki (anti fan-out) untuk
   transaksi multi-item.
+- **Struk thermal (Fase 16b)**: panel Kasir mencetak struk gaya POS klasik
+  (monospace, garis putus-putus) berisi header toko (nama/outlet/alamat/telepon),
+  info transaksi, item + harga rata kanan, ringkasan TOTAL, dan status pembayaran
+  aktual (LUNAS / BELUM LUNAS / DIBATALKAN / DIKEMBALIKAN / GAGAL). Tersedia
+  tombol **Cetak 58mm** & **80mm** (`@page` dinamis); kembalian hanya untuk tunai
+  yang benar-benar lunas. Builder struk murni: `apps/kasir/src/receipt.js`.

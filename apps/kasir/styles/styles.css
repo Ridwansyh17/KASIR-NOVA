@@ -694,7 +694,7 @@ select:focus {
   }
 }
 
-/* ---------- Struk 58mm (cetak) ---------- */
+/* ---------- Struk thermal POS (cetak) ---------- */
 .print-only {
   display: none;
 }
@@ -704,52 +704,148 @@ select:focus {
   gap: 6px;
 }
 
+/*
+ * Layout struk thermal (POS): monospace, hitam-putih, garis putus-putus.
+ * Semua aturan di bawah HANYA aktif saat mencetak (@media print) dan HANYA
+ * menyasar #print-struk, sehingga tidak memengaruhi tampilan layar kasir.
+ *
+ * Lebar konten mengikuti area cetak halaman (dikurangi margin @page):
+ *   - 58mm → konten ±48mm
+ *   - 80mm → konten ±72mm
+ * Ukuran kertas 58/80mm diatur lewat <style id="print-page-size"> (app.js).
+ */
 @media print {
-  body * {
-    visibility: hidden;
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
   }
 
-  #print-struk,
-  #print-struk * {
-    visibility: visible;
+  /* Sembunyikan seluruh UI layar; hanya struk yang tercetak. */
+  body > *:not(#print-struk) {
+    display: none !important;
   }
 
   #print-struk {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 58mm;
-    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    font-size: 11px;
+    position: static;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: ui-monospace, "Cascadia Mono", "Courier New", Consolas, monospace;
+    font-size: 10px;
     line-height: 1.35;
-    color: #000;
+    color: #000 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #print-struk .struk-logo {
+    display: block;
+    margin: 0 auto 2px auto;
+    max-width: 40px;
+    max-height: 20px;
+    object-fit: contain;
   }
 
   #print-struk .struk-head {
     text-align: center;
     font-weight: 700;
     font-size: 12px;
+    line-height: 1.2;
   }
 
   #print-struk .struk-sub {
     text-align: center;
-    font-size: 10px;
+    font-size: 9px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  #print-struk .struk-divider {
+    border-top: 1px dashed #000;
+    margin: 4px 0;
+  }
+
+  #print-struk .struk-info {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 4px;
+    row-gap: 1px;
+    font-size: 9px;
+  }
+
+  #print-struk .struk-info .label {
+    white-space: nowrap;
+  }
+
+  #print-struk .struk-info .value {
+    text-align: right;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  #print-struk .struk-info .value.status {
+    font-weight: 700;
   }
 
   #print-struk .struk-items {
-    white-space: pre-wrap;
-    margin: 6px 0;
-    font-family: inherit;
+    margin: 0;
+    font-size: 10px;
+  }
+
+  #print-struk .struk-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  #print-struk .struk-item-qty {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  #print-struk .struk-item-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  #print-struk .struk-item-total {
+    flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  #print-struk .struk-item-sub {
+    margin-left: 18px;
+    font-size: 9px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  #print-struk .struk-summary {
+    font-size: 10px;
   }
 
   #print-struk .struk-row {
     display: flex;
     justify-content: space-between;
+    gap: 4px;
+  }
+
+  #print-struk .struk-row > span:last-child {
+    text-align: right;
+    white-space: nowrap;
   }
 
   #print-struk .struk-row.total {
     font-weight: 700;
+    font-size: 11px;
     border-top: 1px dashed #000;
     margin-top: 2px;
     padding-top: 2px;
@@ -757,13 +853,22 @@ select:focus {
 
   #print-struk .struk-foot {
     text-align: center;
-    margin-top: 6px;
+    font-size: 9px;
+  }
+
+  #print-struk .struk-foot.brand {
+    font-weight: 700;
+    margin-top: 2px;
   }
 }
 
+/*
+ * Default: kertas 58mm (konten ±48mm) dengan tinggi otomatis.
+ * app.js menimpanya lewat <style id="print-page-size"> untuk mode 80mm.
+ */
 @page {
   size: 58mm auto;
-  margin: 3mm;
+  margin: 5mm;
 }
 
 /* ---------- Login PIN (Fase 10b) ---------- */

@@ -111,6 +111,28 @@ Info pengguna dari access token. **Butuh access token.**
 { "user": { "id": "uuid", "role": "owner", "email": "owner@nova.test", "fullName": "Owner Demo" } }
 ```
 
+Untuk peran **kasir**, respons juga menyertakan `context` (outlet + bisnis yang
+ditetapkan) yang dipakai panel Kasir — termasuk data header struk:
+
+```json
+{
+  "user": { "id": "…", "email": "kasir.demo@nova.test", "fullName": "Kasir Demo", "role": "cashier" },
+  "context": {
+    "outlet": {
+      "id": "…",
+      "name": "Outlet Utama",
+      "address": "Jl. Melati No. 3",
+      "phone": "021-555",
+      "tax_rate": 11,
+      "tax_inclusive": false
+    },
+    "business": { "id": "…", "name": "Demo Kasir NOVA", "currency": "IDR" }
+  }
+}
+```
+
+Peran lain (owner/admin) mengembalikan `context: null`.
+
 ---
 
 ## GET `/api/auth/cashiers`  *(Pendukung login PIN kasir — Fase 10b)*

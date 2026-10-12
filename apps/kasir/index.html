@@ -191,13 +191,11 @@
           <div class="receipt-head">
             <strong>Transaksi berhasil</strong>
             <div class="btn-row">
-              <button id="print-struk-btn" type="button" class="btn small">Cetak Struk</button>
+              <button id="print-struk-btn" type="button" class="btn small">Cetak Struk 58mm</button>
+              <button id="print-struk-btn-80" type="button" class="btn small">Cetak Struk 80mm</button>
             </div>
           </div>
         </div>
-
-        <!-- Template struk (58mm) untuk pencetakan -->
-        <div id="print-struk" class="print-only" aria-hidden="true"></div>
 
         <!-- Riwayat transaksi outlet (10 terakhir) -->
         <section class="detail card">
@@ -213,6 +211,11 @@
         </section>
       </main>
     </div>
+
+    <!-- Template struk thermal (58mm/80mm) untuk pencetakan.
+         Ditaruh sebagai anak langsung <body> agar CSS @media print cukup
+         menyembunyikan semua elemen lain — dashboard tidak ikut tercetak. -->
+    <div id="print-struk" class="print-only" aria-hidden="true"></div>
 
     <!-- Konfigurasi runtime (API base URL) — dimuat sebelum app.js. -->
     <script src="./config.js"></script>

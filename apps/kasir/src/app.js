@@ -7,6 +7,15 @@
  * hanya perkiraan untuk tampilan. Verifikasi peran/status ditegakkan server.
  */
 import { api, login, logout, loginWithPin, listPinCashiers, tokenStore, ApiError } from './api.js';
+import {
+  escapeHtml,
+  fmtIDR,
+  fmtDate,
+  METHOD_LABELS,
+  paymentStatusLabel,
+  strukPageCss,
+  buildStrukHtml,
+} from './receipt.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -21,19 +30,6 @@ const hide = (el) => el.classList.add('hidden');
 
 // Binding perangkat -> outlet (untuk layar pemilih login PIN).
 const OUTLET_KEY = 'nova_kasir_outlet';
-
-const escapeHtml = (value) =>
-  String(value ?? '').replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
-  );
-
-const fmtIDR = (sen) => `Rp ${((Number(sen) ?? 0) / 100).toLocaleString('id-ID')}`;
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('id-ID');
-};
 
 const debounce = (fn, delay = 300) => {
   let timer = null;
@@ -65,6 +61,7 @@ const guard = async (fn) => {
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       tokenStore.clear();
+      clearReceipt();
       hide($('app-view'));
       show($('login-view'));
       return;
@@ -275,12 +272,8 @@ const resetSaleForm = () => {
   $('payment-amount').value = '';
   $('sale-note').value = '';
   hide($('checkout-error'));
-  // Kosongkan isi struk ringkas (pertahankan header + tombol cetak).
-  const receipt = $('receipt');
-  const info = receipt.querySelectorAll('p.mono, .cart-row, dl.meta');
-  info.forEach((node) => node.remove());
-  lastTx = null;
-  hide($('receipt'));
+  // Catatan: struk terakhir DIBIARKAN tampil (beserta tombol cetak) agar
+  // kasir bisa mencetak ulang; renderReceipt berikutnya yang menggantinya.
   renderCart();
 };
 
@@ -289,6 +282,8 @@ let lastTx = null;
 const renderReceipt = (t) => {
   lastTx = t;
   const el = $('receipt');
+  el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
+
   const rows = t.items
     .map(
       (it) => `
@@ -300,12 +295,14 @@ const renderReceipt = (t) => {
     )
     .join('');
 
-  const methodLabel = { cash: 'Tunai', card: 'Kartu', qr: 'QRIS', wallet: 'E-Wallet' }[
-    t.payments?.[0]?.method
-  ] ?? '-';
+  const method = t.payments?.[0]?.method ?? 'cash';
+  const methodLabel = METHOD_LABELS[method] ?? '-';
+  const statusLabel = paymentStatusLabel(t);
 
-  el.querySelector('.receipt-head strong').textContent = `Transaksi berhasil`;
+  el.querySelector('.receipt-head strong').textContent =
+    statusLabel === 'LUNAS' ? 'Transaksi berhasil' : `Transaksi ${statusLabel.toLowerCase()}`;
   const info = document.createElement('div');
+  info.className = 'receipt-body';
   info.innerHTML = `
     <p class="mono">${escapeHtml(t.invoice_no)}</p>
     ${rows}
@@ -314,8 +311,14 @@ const renderReceipt = (t) => {
       <div><dt>Diskon</dt><dd>${escapeHtml(fmtIDR(t.discount_total))}</dd></div>
       <div><dt>Pajak</dt><dd>${escapeHtml(fmtIDR(t.tax_total))}</dd></div>
       <div><dt><strong>Total</strong></dt><dd class="strong">${escapeHtml(fmtIDR(t.total))}</dd></div>
-      <div><dt>Dibayar (${escapeHtml(methodLabel)})</dt><dd>${escapeHtml(fmtIDR(t.paid_amount))}</dd></div>
-      <div><dt>Kembalian</dt><dd>${escapeHtml(fmtIDR(t.change_amount))}</dd></div>
+      <div><dt>Pembayaran</dt><dd>${escapeHtml(methodLabel)}</dd></div>
+      <div><dt>Status</dt><dd class="strong">${escapeHtml(statusLabel)}</dd></div>
+      ${
+        method === 'cash' && statusLabel === 'LUNAS'
+          ? `<div><dt>Uang Diterima</dt><dd>${escapeHtml(fmtIDR(t.paid_amount))}</dd></div>
+             <div><dt>Kembalian</dt><dd>${escapeHtml(fmtIDR(t.change_amount))}</dd></div>`
+          : ''
+      }
     </dl>
     <p class="muted small">${escapeHtml(fmtDate(t.created_at))}</p>`;
   el.appendChild(info);
@@ -323,38 +326,55 @@ const renderReceipt = (t) => {
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 
-/** Isi template struk 58mm lalu buka dialog cetak. */
-const printStruk = () => {
-  const t = lastTx;
-  if (!t) return;
-  const methodLabel = { cash: 'Tunai', card: 'Kartu', qr: 'QRIS', wallet: 'E-Wallet' }[
-    t.payments?.[0]?.method
-  ] ?? '-';
-  const rows = t.items
-    .map(
-      (it) => `${escapeHtml(it.product_name)}\n  ${it.qty} x ${escapeHtml(fmtIDR(it.unit_price))}  ${escapeHtml(fmtIDR(it.line_total))}`
-    )
-    .join('');
+/** Buang struk terakhir (mis. saat keluar) agar tidak tampil di sesi lain. */
+const clearReceipt = () => {
+  lastTx = null;
+  const el = $('receipt');
+  el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
+  el.querySelector('.receipt-head strong').textContent = 'Transaksi berhasil';
+  hide(el);
+};
 
-  const out = state.context?.business?.name ?? 'KASIR NOVA';
-  const outlet = state.context?.outlet?.name ?? '';
-  $('print-struk').innerHTML =
-    `<div class="struk-head"><strong>${escapeHtml(out)}</strong></div>` +
-    `<div class="struk-sub">${escapeHtml(outlet)} ${escapeHtml(state.user?.fullName ?? '')}</div>` +
-    `<div class="struk-sub mono">${escapeHtml(t.invoice_no)}</div>` +
-    `<div class="struk-sub">${escapeHtml(fmtDate(t.created_at))}</div>` +
-    `<pre class="struk-items">${rows}</pre>` +
-    `<div class="struk-row"><span>Subtotal</span><span>${escapeHtml(fmtIDR(t.subtotal))}</span></div>` +
-    `<div class="struk-row"><span>Diskon</span><span>-${escapeHtml(fmtIDR(t.discount_total))}</span></div>` +
-    `<div class="struk-row"><span>Pajak (${Number(t.tax_rate)}%)</span><span>${escapeHtml(fmtIDR(t.tax_total))}</span></div>` +
-    `<div class="struk-row total"><span>Total</span><span>${escapeHtml(fmtIDR(t.total))}</span></div>` +
-    `<div class="struk-row"><span>Dibayar (${escapeHtml(methodLabel)})</span><span>${escapeHtml(fmtIDR(t.paid_amount))}</span></div>` +
-    `<div class="struk-row"><span>Kembalian</span><span>${escapeHtml(fmtIDR(t.change_amount))}</span></div>` +
-    `<div class="struk-foot">Terima kasih atas kunjungan Anda</div>`;
+/**
+ * Atur ukuran kertas cetak (58mm/80mm) lewat stylesheet dinamis.
+ * Elemen `<style>` di-append ke <head> sehingga berada SETELAH stylesheet utama
+ * dan menang atas aturan `@page` default di styles.css.
+ */
+const setPrintPageSize = (width) => {
+  let el = document.getElementById('print-page-size');
+  if (!el) {
+    el = document.createElement('style');
+    el.id = 'print-page-size';
+    document.head.appendChild(el);
+  }
+  el.textContent = strukPageCss(width);
+};
+
+/**
+ * Isi template struk thermal lalu buka dialog cetak browser.
+ * @param {'58'|'80'} width lebar kertas (mm). Default 58.
+ */
+const printStruk = (width = '58') => {
+  const t = lastTx;
+  if (!t) {
+    alertBox('Belum ada transaksi untuk dicetak.', 'error');
+    return;
+  }
+
+  setPrintPageSize(width);
+  const struk = $('print-struk');
+  struk.innerHTML = buildStrukHtml({
+    transaction: t,
+    context: state.context ?? {},
+    cashier: state.user?.fullName ?? '',
+  });
+
   window.print();
 };
 
-$('print-struk-btn').addEventListener('click', printStruk);
+$('print-struk-btn').addEventListener('click', () => printStruk('58'));
+const btnPrint80 = $('print-struk-btn-80');
+if (btnPrint80) btnPrint80.addEventListener('click', () => printStruk('80'));
 
 $('checkout-btn').addEventListener('click', async () => {
   hide($('checkout-error'));
@@ -559,6 +579,7 @@ $('pin-form').addEventListener('submit', async (event) => {
 
 $('logout-btn').addEventListener('click', async () => {
   await logout();
+  clearReceipt();
   hide($('app-view'));
   show($('login-view'));
 });
