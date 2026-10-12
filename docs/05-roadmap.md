@@ -349,7 +349,7 @@
 > `audit-log.test.js` 6, `session-revoke.test.js` 6). API:
 > `docs/19-api-audit-sesi.md`.
 
-## Fase 12 — Pengujian, Backup, Monitoring, Persiapan Firebase Hosting (estimasi 5–7 hari)
+## Fase 12 — Pengujian, Backup, Monitoring, Persiapan Firebase Hosting (estimasi 5–7 hari) ✅ SELESAI (12 Okt 2026)
 - Tes unit + integrasi + otorisasi (kasus negatif tiap matriks) + e2e.
 - Skrip backup/restore PostgreSQL terjadwal (`pg_dump`/`pg_restore`).
   **✅ Selesai 12 Okt 2026** — `scripts/backup-db.ps1`,
@@ -389,6 +389,23 @@
 > ⚠️ Catatan arsitektur: `rewrites[].destination` Firebase Hosting **hanya**
 > menerima berkas lokal — **bukan URL eksternal**. Backend dinamis = blok
 > `run`/`function` (perlu Blaze).
+
+## Fase 13 — Uji Coba Menyeluruh Online + Data Demo (12 Okt 2026) ✅ SELESAI
+- Menutup **Fase 12**: suite 159/159; backup/restore 17/17; hosting Firebase
+  online; backend **Vercel (Hobby, tanpa kartu)** + **Neon** (lihat `docs/24`).
+- Skrip **`scripts/e2e-online.mjs`** (idempoten) menguji **produksi** end-to-end:
+  health → login owner/admin → bisnis → outlet → langganan → kategori → produk
+  → stok → kasir + PIN → login PIN → katalog → penjualan tunai (total dihitung
+  server) → idempotensi `clientRef` → void (stok balik) → laporan
+  agregat/ringkasan/ekspor → audit log → admin platform → halaman statis.
+- **Hasil: 21/21 PASS** terhadap `https://kasir-nova.vercel.app`
+  (dijalankan 2× — idempotensi terbukti; exit 0).
+- **Data demo** dibuat di Neon: bisnis *Demo Kasir NOVA*, outlet *Outlet Utama*
+  (PPN 11%), 4 produk (Nasi Goreng/Mie Goreng/Es Teh/Jasa Antar), kasir
+  *Kasir Demo* (PIN 0248). Kredensial pengetesan dicatat (tidak di-commit) di
+  `akun kasir-nova-test.txt`.
+- Frontend Firebase `kasir-nova.web.app` kini memanggil API Vercel
+  **cross-origin** (preflight 204; login admin/owner/kasir 200).
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
