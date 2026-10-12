@@ -410,6 +410,21 @@
 - Frontend Firebase `kasir-nova.web.app` kini memanggil API Vercel
   **cross-origin** (preflight 204; login admin/owner/kasir 200).
 
+## Fase 14 - Redesign Frontend sesuai Logo Resmi (12 Okt 2026) - SELESAI
+- Sumber logo: berkas asli di root repo `Logo KASIR NOVA.jpeg` (1092x1440, JPEG).
+  Disalin **byte-identik** (SHA256 sama) ke
+  `apps/{admin,kasir,owner}/assets/logo-kasir-nova.jpeg`. Tidak ada logo yang
+  digambar ulang/diganti; latar JPEG dipertahankan apa adanya.
+- Palet identitas diekstrak dari piksel logo: latar navy gelap (#010F2A /
+  #001030), aksen cyan-biru (#00B0FF), putih. Ketiga panel (Admin, Kasir, Owner)
+  di-restyle: latar, topbar, kartu, tabel, tombol, input, badge, modal, tab.
+- Logo dipasang di **halaman Login** (`brand-logo-lg`) dan **topbar** tiap app
+  (`brand-logo`, `object-fit: contain`, proporsi terjaga, tidak diregangkan).
+- Verifikasi live: aset logo `200 image/jpeg 63750 byte` SHA256 **sama** pada
+  `kasir-nova.web.app` dan `kasir-nova.vercel.app`; HTML memuat `brand-logo`.
+- Build: `node scripts/build-hosting.mjs https://kasir-nova.vercel.app`;
+  Tes: suite server 159/159; E2E online 21/21 PASS.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

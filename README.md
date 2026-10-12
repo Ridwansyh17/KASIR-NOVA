@@ -98,7 +98,9 @@ roadmap fase.
 
 ## Status
 
-- Fase **0–13 selesai**; suite tes integrasi **159/159**, E2E online **26/26 PASS**.
+- Fase **0–14 selesai**; suite tes integrasi **159/159**, E2E online **21/21** (26/26 dengan `E2E_PLATFORM_FLOW=1`).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
-  Firebase Hosting (`kasir-nova.web.app`). Detail: `docs/24-vercel-serverless.md`,
-  roadmap: `docs/05-roadmap.md`.
+  Firebase Hosting (`kasir-nova.web.app`).
+- **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
+  `Logo KASIR NOVA.jpeg` (latar navy gelap + aksen cyan). Logo di login & topbar
+  ketiga panel (Admin/Kasir/Owner). Detail: `docs/05-roadmap.md`.
