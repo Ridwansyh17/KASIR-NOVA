@@ -398,8 +398,11 @@
   → stok → kasir + PIN → login PIN → katalog → penjualan tunai (total dihitung
   server) → idempotensi `clientRef` → void (stok balik) → laporan
   agregat/ringkasan/ekspor → audit log → admin platform → halaman statis.
-- **Hasil: 21/21 PASS** terhadap `https://kasir-nova.vercel.app`
-  (dijalankan 2× — idempotensi terbukti; exit 0).
+- **Hasil: 26/26 PASS** terhadap `https://kasir-nova.vercel.app`
+  (dijalankan 3× — idempotensi terbukti; exit 0). Dengan `E2E_PLATFORM_FLOW=1`
+  ikut teruji alur Admin Platform: buat owner uji → login → isolasi tenant
+  (bisnis demo → **404**) → soft-delete → login ditolak (**403**, dicabut di
+  server). Owner uji dihapus di akhir tes (self-cleaning).
 - **Data demo** dibuat di Neon: bisnis *Demo Kasir NOVA*, outlet *Outlet Utama*
   (PPN 11%), 4 produk (Nasi Goreng/Mie Goreng/Es Teh/Jasa Antar), kasir
   *Kasir Demo* (PIN 0248). Kredensial pengetesan dicatat (tidak di-commit) di

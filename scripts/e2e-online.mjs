@@ -17,6 +17,8 @@
  *   E2E_CASHIER_EMAIL   default kasir.demo@nova.test
  *   E2E_CASHIER_PASSWORD default KasirDemo123!
  *   E2E_CASHIER_PIN     default 0248
+ *   E2E_PLATFORM_FLOW=1   ikut menguji alur Admin Platform (buat owner uji ->
+ *                         login -> isolasi tenant -> soft-delete -> login ditolak).
  *
  * Pemakaian (PowerShell, tanpa menampilkan password):
  *   $env:BASE_URL='https://kasir-nova.vercel.app'
@@ -473,6 +475,52 @@ try {
   step('21. Halaman statis /kasir /admin /owner (200)', ok, results2.map((r) => r.status).join(','));
 } catch (e) {
   step('21. Halaman statis /kasir /admin /owner (200)', false, String(e));
+}
+
+// ------------------------------------------------- Admin Platform flow (opsional)
+// Alur: admin buat owner uji -> login -> isolasi tenant -> soft-delete
+// -> login ditolak. Self-cleaning (owner dihapus di akhir tes).
+if (adminToken && process.env.E2E_PLATFORM_FLOW === '1') {
+  const platformEmail = `e2e.plat.${randomUUID().slice(0, 8)}@nova.test`;
+  const platformPw = 'E2ePlatform!2026';
+  const platformName = 'Owner Uji Platform Online';
+
+  const cr = await api('/api/platform/owners', {
+    method: 'POST',
+    token: adminToken,
+    body: { email: platformEmail, password: platformPw, fullName: platformName, phone: '+6281111000000' },
+  });
+  const oid = cr.json?.owner?.id;
+  step('22. Admin membuat owner uji (soft-delete di akhir tes)', cr.status === 201 && !!oid, `status=${cr.status}`);
+
+  if (oid) {
+    const l = await api('/api/auth/login', {
+      method: 'POST',
+      body: { role: 'owner', email: platformEmail, password: platformPw },
+    });
+    const otk = l.json?.accessToken;
+    step('23. Owner baru bisa login & mendapatkan sesi', l.status === 200 && !!otk, `status=${l.status}`);
+
+    if (otk) {
+      const ownBiz = asList((await api('/api/owner/businesses', { token: otk })).json).filter((b) => b.id === businessId);
+      const hidden = await api(`/api/owner/businesses/${businessId}`, { token: otk });
+      step(
+        '24. Isolasi tenant: owner baru TIDAK melihat bisnis demo (404)',
+        hidden.status === 404 && ownBiz.length === 0,
+        `status=${hidden.status}`
+      );
+    }
+
+    const del = await api(`/api/platform/owners/${oid}`, { method: 'DELETE', token: adminToken });
+    step('25. Admin soft-delete owner uji', del.status === 200, `status=${del.status}`);
+
+    const l2 = await api('/api/auth/login', {
+      method: 'POST',
+      body: { role: 'owner', email: platformEmail, password: platformPw },
+    });
+    step('26. Owner yang dihapus tidak bisa login lagi (401/403)', [401, 403].includes(l2.status), `status=${l2.status}`);
+    note(`owner uji ${platformEmail} dibuat & dihapus (soft-delete) — tersisa di audit trail`);
+  }
 }
 
 // --------------------------------------------------------------- Ringkasan

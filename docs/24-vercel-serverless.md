@@ -134,8 +134,10 @@ firebase deploy --only hosting
 - ✅ **Frontend Firebase dialihkan** ke API Vercel (cross-origin): `kasir-nova.web.app`
   `/kasir` `/admin` `/owner` → 200; login admin & owner cross-origin → 200; preflight CORS 204.
 - ✅ Skill Neon di-commit ke repo (`.agents/skills/` + `skills-lock.json`).
-- ✅ **Fase 13**: E2E online **21/21 PASS** (`scripts/e2e-online.mjs`, idempoten)
-  + data demo di Neon (bisnis/outlet/produk/kasir-PIN) — kredensial di
+- ✅ **Fase 13**: E2E online **26/26 PASS** (`scripts/e2e-online.mjs`, idempoten;
+  dengan `E2E_PLATFORM_FLOW=1` menguji alur Admin Platform: buat owner →
+  login → isolasi tenant 404 → soft-delete → login ditolak 403) + data demo di
+  Neon (bisnis/outlet/produk/kasir-PIN) — kredensial di
   `akun kasir-nova-test.txt` (gitignored).
 
 ### Cara memperbarui (deploy ulang)
