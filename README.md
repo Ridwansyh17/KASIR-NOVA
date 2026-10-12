@@ -52,6 +52,28 @@ npm run dev:server
 
 Backend tersedia di `http://localhost:4000`.
 
+## Uji Coba Online (produksi)
+
+- Frontend (Firebase Hosting): **https://kasir-nova.web.app** (Kasir / Admin / Owner)
+- Backend + API same-origin (Vercel Hobby, gratis, tanpa kartu): **https://kasir-nova.vercel.app**
+- Database: **Neon PostgreSQL** (project *KASIR NOVA*).
+
+Smoke test E2E online (idempoten — aman dijalankan ulang):
+
+```powershell
+$env:OWNER_EMAIL  = <email owner>
+$env:OWNER_PASSWORD = <password owner>
+$env:ADMIN_EMAIL  = <email admin platform>
+$env:ADMIN_PASSWORD = <password admin>
+npm run e2e:online                  # 26/26 langkah
+$env:E2E_PLATFORM_FLOW = '1'        # (opsional) sertakan alur Admin Platform
+npm run e2e:online
+```
+
+Kredensial uji tersedia di `akun kasir-nova-test.txt` (tidak di-commit).
+Runbook deploy/rollback: `docs/24-vercel-serverless.md`; backup/restore:
+`docs/22-backup-restore.md`.
+
 ## Struktur
 
 ```
@@ -76,4 +98,7 @@ roadmap fase.
 
 ## Status
 
-Fase 0 — Fondasi & lingkungan.
+- Fase **0–13 selesai**; suite tes integrasi **159/159**, E2E online **26/26 PASS**.
+- Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
+  Firebase Hosting (`kasir-nova.web.app`). Detail: `docs/24-vercel-serverless.md`,
+  roadmap: `docs/05-roadmap.md`.
