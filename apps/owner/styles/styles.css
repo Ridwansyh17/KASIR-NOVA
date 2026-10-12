@@ -672,3 +672,28 @@ select:focus {
   margin-top: 12px;
   justify-content: flex-end;
 }
+
+/* ---------- Ekspor Excel (Fase 15) ---------- */
+#rep-export-xlsx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 124, 65, 0.16);
+  border-color: rgba(16, 124, 65, 0.55);
+  color: #e9f1ff;
+}
+
+#rep-export-xlsx .icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.report-actions {
+  flex-wrap: wrap;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

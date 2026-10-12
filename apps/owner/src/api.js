@@ -99,6 +99,14 @@ const refreshSession = () => {
   return refreshing;
 };
 
+/** Fetch biner (Blob) dengan header Authorization; tanpa parsing JSON. */
+const fetchBinary = (path, options = {}) => {
+  const headers = { ...(options.headers ?? {}) };
+  const access = tokenStore.access;
+  if (access) headers.Authorization = `Bearer ${access}`;
+  return fetch(apiUrl(path), { ...options, headers });
+};
+
 export const request = async (path, options = {}) => {
   let { res, body } = await raw(path, options);
 
@@ -251,7 +259,7 @@ export const api = {
   },
 
   reports: {
-    /** @param {{groupBy?,from?,to?,outletId?,cashierId?}} params */
+    /** @param {{groupBy?,from?,to?,outletId?,cashierId?,status?,paymentMethod?,paymentStatus?,search?}} params */
     grouped: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports${queryString(params)}`),
     summary: (businessId, params = {}) =>
@@ -259,8 +267,45 @@ export const api = {
     /** @returns {Promise<string|object>} teks CSV atau objek {items}. */
     download: (businessId, params = {}, format = 'csv') => {
       const qs = new URLSearchParams(params);
-      if (format) qs.set('format', format);
+      // Buang nilai kosong agar tidak memicu 422 validasi (enum kosong).
+      for (const [key, value] of [...qs]) {
+        if (value === '') qs.delete(key);
+      }
+      qs.set('format', format);
       return request(`/api/owner/businesses/${businessId}/reports/export?${qs.toString()}`);
+    },
+    /**
+     * Unduh rekapan .xlsx sebagai berkas biner.
+     * @returns {Promise<{blob: Blob, filename: string}>}
+     */
+    downloadXlsx: async (businessId, params = {}) => {
+      const qs = new URLSearchParams(params);
+      for (const [key, value] of [...qs]) {
+        if (value === '') qs.delete(key);
+      }
+      qs.set('format', 'xlsx');
+      const path = `/api/owner/businesses/${businessId}/reports/export?${qs.toString()}`;
+
+      let res = await fetchBinary(path);
+      if (res.status === 401 && tokenStore.refresh) {
+        if (await refreshSession()) res = await fetchBinary(path);
+      }
+      if (!res.ok) {
+        let message = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          message = body?.error?.message ?? message;
+        } catch {
+          // body tidak berupa JSON — abaikan
+        }
+        throw new ApiError(message, res.status);
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = /filename="?([^";]+)"?/i.exec(disposition);
+      const filename = match?.[1] ?? `KASIR_NOVA_Rekapan_Transaksi.xlsx`;
+      return { blob, filename };
     },
   },
 

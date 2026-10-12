@@ -13,13 +13,18 @@
  */
 import { query } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
+import { buildTransactionsWorkbook } from './xlsx.js';
 
 const GROUPED_NUMERIC = ['subtotal', 'discount_total', 'tax_total', 'total', 'voided_total'];
 
-/** Zona waktu + nama bisnis (404 bila bisnis tidak ditemukan / terhapus). */
+/** Escaping wildcard LIKE agar `%`/`_` dari pengguna tidak jadi pola liar. */
+const escapeLike = (value) => String(value).replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/** Zona waktu + identitas bisnis (404 bila bisnis tidak ditemukan / terhapus). */
 const getBusiness = async (businessId) => {
   const { rows } = await query(
-    `SELECT id, name, timezone FROM businesses WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT id, name, business_type, currency, timezone
+       FROM businesses WHERE id = $1 AND deleted_at IS NULL`,
     [businessId]
   );
   if (!rows[0]) throw new NotFoundError('Bisnis tidak ditemukan');
@@ -28,7 +33,11 @@ const getBusiness = async (businessId) => {
 
 /**
  * Bangun nilai/klausa filter. Placeholder tetap: $1 businessId, $2 from,
- * $3 timezone, $4 to; filter tambahan (outlet/kasir) dimulai dari $5.
+ * $3 timezone, $4 to; filter tambahan dimulai dari $5.
+ *
+ * Filter `paymentMethod`/`paymentStatus` memakai EXISTS agar transaksi dengan
+ * pembayaran cocok tetap terpilih tanpa menggandakan baris bila kelak ada
+ * lebih dari satu pembayaran per transaksi.
  */
 const buildStory = (businessId, tz, filters) => {
   const values = [businessId, filters.from ?? null, tz, filters.to ?? null];
@@ -40,6 +49,25 @@ const buildStory = (businessId, tz, filters) => {
   if (filters.cashierId) {
     values.push(filters.cashierId);
     extra += ` AND t.cashier_id = $${values.length}`;
+  }
+  if (filters.status) {
+    values.push(filters.status);
+    extra += ` AND t.status = $${values.length}`;
+  }
+  if (filters.paymentMethod) {
+    values.push(filters.paymentMethod);
+    extra += ` AND EXISTS (SELECT 1 FROM payments p
+                            WHERE p.transaction_id = t.id AND p.method = $${values.length})`;
+  }
+  if (filters.paymentStatus) {
+    values.push(filters.paymentStatus);
+    extra += ` AND EXISTS (SELECT 1 FROM payments p
+                            WHERE p.transaction_id = t.id AND p.status = $${values.length})`;
+  }
+  if (filters.search) {
+    values.push(`%${escapeLike(filters.search)}%`);
+    extra += ` AND (t.invoice_no ILIKE $${values.length} ESCAPE '\\'
+                    OR COALESCE(t.note, '') ILIKE $${values.length} ESCAPE '\\')`;
   }
   return { values, extra };
 };
@@ -151,7 +179,12 @@ export const summary = async ({ businessId, filters }) => {
   };
 };
 
-/** Baris transaksi (tanpa agregasi) untuk kebutuhan ekspor. */
+/**
+ * Baris transaksi (tanpa agregasi) untuk kebutuhan ekspor.
+ *
+ * Menyertakan metode & status pembayaran (pembayaran pertama bila ada),
+ * nama outlet/kasir, serta tanggal & jam lokal bisnis untuk penataan Excel.
+ */
 export const exportRows = async ({ businessId, filters }) => {
   const biz = await getBusiness(businessId);
   const { values, extra } = buildStory(businessId, biz.timezone, filters);
@@ -159,12 +192,23 @@ export const exportRows = async ({ businessId, filters }) => {
   const { rows } = await query(
     `${BOUNDS_CTE}
      SELECT t.invoice_no, t.status, t.subtotal, t.discount_total, t.tax_total,
-            t.total, t.paid_amount, t.change_amount, t.created_at,
-            o.name AS outlet_name, c.full_name AS cashier_name
+            t.total, t.paid_amount, t.change_amount, t.note, t.created_at,
+            to_char(t.created_at AT TIME ZONE $3::text, 'YYYY-MM-DD') AS local_date,
+            to_char(t.created_at AT TIME ZONE $3::text, 'HH24:MI:SS') AS local_time,
+            o.name AS outlet_name, c.full_name AS cashier_name,
+            pay.method AS payment_method, pay.status AS payment_status,
+            pay.reference AS payment_reference
        FROM bounds b
        CROSS JOIN transactions t
        LEFT JOIN outlets o ON o.id = t.outlet_id
        LEFT JOIN cashiers c ON c.id = t.cashier_id
+       LEFT JOIN LATERAL (
+         SELECT method, status, reference
+           FROM payments p
+          WHERE p.transaction_id = t.id
+          ORDER BY p.created_at ASC, p.id ASC
+          LIMIT 1
+       ) pay ON true
       WHERE t.business_id = $1
         AND ${RANGE_PRED}
         ${extra}
@@ -181,6 +225,53 @@ export const exportRows = async ({ businessId, filters }) => {
     paid_amount: Number(r.paid_amount),
     change_amount: Number(r.change_amount),
   }));
+};
+
+/**
+ * Rentang tanggal efektif (mengikuti default `BOUNDS_CTE`, zona bisnis).
+ * @returns {Promise<{from:string,to:string}>} tanggal `YYYY-MM-DD`
+ */
+export const resolvePeriod = async (businessId, timezone, filters) => {
+  const { rows } = await query(
+    `SELECT COALESCE($1::date, (date_trunc('month', now() AT TIME ZONE $2::text))::date)::text AS from_date,
+            COALESCE($3::date, (now() AT TIME ZONE $2::text))::date::text                  AS to_date`,
+    [filters.from ?? null, timezone, filters.to ?? null]
+  );
+  return { from: rows[0].from_date, to: rows[0].to_date };
+};
+
+/** Nama outlet untuk label filter (bila ada). */
+const outletLabel = async (outletId) => {
+  if (!outletId) return null;
+  const { rows } = await query(`SELECT name FROM outlets WHERE id = $1`, [outletId]);
+  return rows[0]?.name ?? 'Outlet tidak ditemukan';
+};
+
+/**
+ * Ekspor rekapan transaksi ke berkas .xlsx (4 sheet).
+ * @returns {Promise<{buffer: Buffer, filename: string}>}
+ */
+export const exportXlsx = async ({ businessId, filters }) => {
+  const business = await getBusiness(businessId);
+  const [rows, summaryData, period, outlet] = await Promise.all([
+    exportRows({ businessId, filters }),
+    summary({ businessId, filters }),
+    resolvePeriod(businessId, business.timezone, filters),
+    outletLabel(filters.outletId),
+  ]);
+
+  const generatedAt = new Date().toLocaleString('id-ID', { timeZone: business.timezone });
+  const buffer = await buildTransactionsWorkbook({
+    business,
+    filters: { ...filters, outletLabel: outlet },
+    rows,
+    summary: summaryData.summary,
+    period,
+    generatedAt,
+  });
+
+  const filename = `KASIR_NOVA_Rekapan_Transaksi_${period.from}_sampai_${period.to}.xlsx`;
+  return { buffer, filename };
 };
 
 const CSV_COLUMNS = [
@@ -207,4 +298,4 @@ export const toCsv = (rows) => {
   return [CSV_COLUMNS.join(','), ...lines].join('\r\n');
 };
 
-export default { groupedReport, summary, exportRows, toCsv };
+export default { groupedReport, summary, exportRows, exportXlsx, resolvePeriod, toCsv };

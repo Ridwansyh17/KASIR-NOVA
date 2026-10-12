@@ -98,9 +98,14 @@ roadmap fase.
 
 ## Status
 
-- Fase **0–14 selesai**; suite tes integrasi **159/159**, E2E online **21/21** (26/26 dengan `E2E_PLATFORM_FLOW=1`).
+- Fase **0–15 selesai**; suite tes integrasi **166/166**; E2E alur produksi **22/22**
+  (dijalankan terhadap server lokal sebelum deploy; langkah ke-19 menguji ekspor Excel).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
   Firebase Hosting (`kasir-nova.web.app`).
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
   `Logo KASIR NOVA.jpeg` (latar navy gelap + aksen cyan). Logo di login & topbar
   ketiga panel (Admin/Kasir/Owner). Detail: `docs/05-roadmap.md`.
+- **Ekspor Excel (Fase 15)**: halaman Owner dapat mengunduh rekapan transaksi
+  `.xlsx` (4 sheet: Ringkasan, Detail, Rekap Harian, Rekap Metode) dengan filter
+  rentang/outlet/status/metode/status pembayaran/pencarian; konsisten dengan
+  dashboard, hanya transaksi nyata. Detail: `docs/16-api-laporan.md`.

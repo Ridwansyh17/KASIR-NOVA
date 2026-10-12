@@ -1,8 +1,15 @@
 /**
- * Skema validasi modul laporan (Fase 9).
+ * Skema validasi modul laporan (Fase 9 + Fase 15 ekspor Excel).
  *
  * Filter `from`/`to` berupa tanggal `YYYY-MM-DD` (interpretasi zona waktu
  * bisnis); bila kosong, default = awal bulan kalender berjalan s.d. hari ini.
+ *
+ * Filter tambahan (opsional, dipakai bersama oleh laporan agregat, ringkasan,
+ * dan ekspor agar konsisten):
+ *   - status        : status transaksi (completed/voided/refunded)
+ *   - paymentMethod : metode pembayaran (cash/card/qr/wallet)
+ *   - paymentStatus : status pembayaran (paid/pending/failed/refunded)
+ *   - search        : cari nomor invoice / catatan transaksi
  */
 import { z } from 'zod';
 
@@ -19,6 +26,18 @@ const rangeRefine = (q, ctx) => {
   }
 };
 
+/** Filter yang berlaku untuk semua endpoint laporan. */
+const reportFilters = {
+  from: dateOnly.optional(),
+  to: dateOnly.optional(),
+  outletId: uuid('outlet').optional(),
+  cashierId: uuid('kasir').optional(),
+  status: z.enum(['completed', 'voided', 'refunded']).optional(),
+  paymentMethod: z.enum(['cash', 'card', 'qr', 'wallet']).optional(),
+  paymentStatus: z.enum(['paid', 'pending', 'failed', 'refunded']).optional(),
+  search: z.string().trim().max(100, 'Pencarian maksimal 100 karakter').optional(),
+};
+
 export const reportBusinessParamSchema = z.object({
   businessId: uuid('bisnis'),
 });
@@ -30,32 +49,19 @@ export const reportQuerySchema = z
         errorMap: () => ({ message: "groupBy harus 'day' | 'week' | 'month' | 'year'" }),
       })
       .default('day'),
-    from: dateOnly.optional(),
-    to: dateOnly.optional(),
-    outletId: uuid('outlet').optional(),
-    cashierId: uuid('kasir').optional(),
+    ...reportFilters,
   })
   .superRefine(rangeRefine);
 
-export const summaryQuerySchema = z
-  .object({
-    from: dateOnly.optional(),
-    to: dateOnly.optional(),
-    outletId: uuid('outlet').optional(),
-    cashierId: uuid('kasir').optional(),
-  })
-  .superRefine(rangeRefine);
+export const summaryQuerySchema = z.object({ ...reportFilters }).superRefine(rangeRefine);
 
 export const exportQuerySchema = z
   .object({
     format: z
-      .enum(['csv', 'json'], {
-        errorMap: () => ({ message: "format harus 'csv' atau 'json'" }),
+      .enum(['csv', 'json', 'xlsx'], {
+        errorMap: () => ({ message: "format harus 'csv', 'json', atau 'xlsx'" }),
       })
       .default('csv'),
-    from: dateOnly.optional(),
-    to: dateOnly.optional(),
-    outletId: uuid('outlet').optional(),
-    cashierId: uuid('kasir').optional(),
+    ...reportFilters,
   })
   .superRefine(rangeRefine);

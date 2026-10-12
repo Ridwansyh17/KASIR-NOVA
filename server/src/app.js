@@ -39,6 +39,8 @@ app.use(
       }
     },
     credentials: true,
+    // Biarkan klien membaca nama file unduhan (Content-Disposition)
+    exposedHeaders: ['Content-Disposition'],
   })
 );
 

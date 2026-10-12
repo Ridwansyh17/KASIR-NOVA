@@ -465,7 +465,11 @@ test('Audit log mencatat transaksi dibuat & dibatalkan', async () => {
 });
 
 test('Filter riwayat: outlet, rentang tanggal, status (Fase 8)', async () => {
-  const today = new Date().toISOString().slice(0, 10);
+  // Tanggal "hari ini" diambil dari DB agar selaras dengan semantik `::date`
+  // pada filter API. `new Date().toISOString()` (UTC) bisa berbeda dari tanggal
+  // zona waktu sesi DB antara pukul 00:00-07:00 WIB.
+  const { rows: todayRows } = await query('SELECT CURRENT_DATE::text AS today');
+  const today = todayRows[0].today;
   const basePath = transactions(businessA);
 
   const byOutlet = await ownerGet(tokenA, basePath + `?outletId=${outletA1}`);

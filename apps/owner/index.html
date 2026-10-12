@@ -252,11 +252,48 @@
           <div class="detail-head">
             <div>
               <h3>Laporan Penjualan</h3>
-              <p class="muted">Agregat per periode + ringkasan + ekspor CSV/JSON</p>
+              <p class="muted">
+                Agregat per periode + ringkasan + ekspor
+                <span id="rep-business-type" class="muted"></span>
+              </p>
             </div>
             <div class="detail-actions">
+              <select id="rep-range" title="Rentang cepat">
+                <option value="">— Pilih rentang —</option>
+                <option value="today">Hari ini</option>
+                <option value="7d">7 hari terakhir</option>
+                <option value="month">Bulan ini</option>
+                <option value="custom">Kustom (atur tanggal)</option>
+              </select>
               <input id="rep-date-from" type="date" title="Dari tanggal" />
               <input id="rep-date-to" type="date" title="Sampai tanggal" />
+              <select id="rep-status" title="Status transaksi">
+                <option value="">Semua status</option>
+                <option value="completed">Selesai</option>
+                <option value="voided">Dibatalkan</option>
+                <option value="refunded">Refund</option>
+              </select>
+              <select id="rep-payment-method" title="Metode pembayaran">
+                <option value="">Semua metode</option>
+                <option value="cash">Tunai</option>
+                <option value="card">Kartu</option>
+                <option value="qr">QRIS</option>
+                <option value="wallet">E-Wallet</option>
+              </select>
+              <select id="rep-payment-status" title="Status pembayaran">
+                <option value="">Semua status pembayaran</option>
+                <option value="paid">Lunas</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Gagal</option>
+                <option value="refunded">Refund</option>
+              </select>
+              <input
+                id="rep-search"
+                type="search"
+                placeholder="Cari no. transaksi / catatan"
+                title="Cari nomor transaksi atau catatan"
+                maxlength="100"
+              />
               <select id="rep-outlet-filter">
                 <option value="">Semua outlet</option>
               </select>
@@ -271,6 +308,12 @@
           </div>
 
           <div class="report-actions">
+            <button id="rep-export-xlsx" class="btn small xlsx" title="Ekspor rekapan ke Microsoft Excel">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#107C41" d="M19 3H7a2 2 0 0 0-2 2v3h-1a1 1 0 0 0 0 2h1v3h-1a1 1 0 0 0 0 2h1v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-6.7 13-2-3-2 3H6.2l3.1-4-3.1-4h2.1l2 3 2-3h2.1l-3.1 4 3.1 4h-2.1Zm4.7 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>
+              </svg>
+              Ekspor Excel (.xlsx)
+            </button>
             <button id="rep-export-csv" class="btn small">Ekspor CSV</button>
             <button id="rep-export-json" class="btn small">Ekspor JSON</button>
           </div>

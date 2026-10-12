@@ -1287,12 +1287,46 @@ $('tx-modal').addEventListener('click', (event) => {
 });
 
 // ------------------------------------------------------------- Laporan --------
+const todayInTz = (timezone) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: timezone || 'Asia/Jakarta' }).format(new Date());
+
+/** Kurangi/tambah hari dari tanggal ISO tanpa efek zona waktu (aritmetika UTC). */
+const shiftIsoDays = (iso, days) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+};
+
 const reportQuery = () => ({
   groupBy: $('rep-group-by').value,
   outletId: $('rep-outlet-filter').value,
   from: $('rep-date-from').value,
   to: $('rep-date-to').value,
+  status: $('rep-status').value,
+  paymentMethod: $('rep-payment-method').value,
+  paymentStatus: $('rep-payment-status').value,
+  search: $('rep-search').value.trim(),
 });
+
+/** Rentang cepat: hari ini / 7 hari / bulan ini / kustom (biarkan tanggal). */
+const applyQuickRange = () => {
+  const b = activeBusiness();
+  if (!b) return;
+  const range = $('rep-range').value;
+  const today = todayInTz(b.timezone);
+  if (range === 'today') {
+    $('rep-date-from').value = today;
+    $('rep-date-to').value = today;
+  } else if (range === '7d') {
+    $('rep-date-from').value = shiftIsoDays(today, -6);
+    $('rep-date-to').value = today;
+  } else if (range === 'month') {
+    $('rep-date-from').value = `${today.slice(0, 7)}-01`;
+    $('rep-date-to').value = today;
+  } else {
+    return; // kustom: pemilik mengatur tanggal sendiri
+  }
+  loadReport();
+};
 
 const renderReport = ({ rows, sum, top }) => {
   // Kartu ringkasan.
@@ -1361,6 +1395,9 @@ const loadReport = async () => {
     return;
   }
   show($('report-section'));
+  $('rep-business-type').textContent = b.business_type
+    ? `• ${b.business_type}`
+    : '';
   const query = reportQuery();
   const rows = await guard(() => api.reports.grouped(b.id, query));
   if (!rows) return;
@@ -1392,11 +1429,43 @@ const downloadReport = async (format) => {
   }
 };
 
+const downloadExcel = async () => {
+  const b = activeBusiness();
+  if (!b) return;
+  const btn = $('rep-export-xlsx');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Menyiapkan…';
+  try {
+    const { blob, filename } = await api.reports.downloadXlsx(b.id, reportQuery());
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    alertBox(`Rekapan Excel berhasil diunduh (${blob.size.toLocaleString('id-ID')} byte).`, 'ok');
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+};
+
 $('rep-refresh-btn').addEventListener('click', loadReport);
+$('rep-range').addEventListener('change', applyQuickRange);
 $('rep-group-by').addEventListener('change', loadReport);
 $('rep-outlet-filter').addEventListener('change', loadReport);
 $('rep-date-from').addEventListener('change', loadReport);
 $('rep-date-to').addEventListener('change', loadReport);
+$('rep-status').addEventListener('change', loadReport);
+$('rep-payment-method').addEventListener('change', loadReport);
+$('rep-payment-status').addEventListener('change', loadReport);
+$('rep-search').addEventListener('input', debounce(loadReport, 350));
+$('rep-export-xlsx').addEventListener('click', downloadExcel);
 $('rep-export-csv').addEventListener('click', () => downloadReport('csv'));
 $('rep-export-json').addEventListener('click', () => downloadReport('json'));
 

@@ -425,6 +425,35 @@
 - Build: `node scripts/build-hosting.mjs https://kasir-nova.vercel.app`;
   Tes: suite server 159/159; E2E online 21/21 PASS.
 
+## Fase 15 — Ekspor Rekapan Transaksi ke Microsoft Excel (13 Okt 2026) — SELESAI
+- **Tujuan:** Owner dapat mengunduh rekapan transaksi pada rentang & filter
+  terpilih sebagai berkas **.xlsx** profesional (4 sheet), konsisten dengan
+  dashboard, hanya dari transaksi nyata.
+- **Backend:** `format=xlsx` pada `/reports/export` (lihat `docs/16`). Modul
+  baru `server/src/modules/report/xlsx.js` (ExcelJS) membangun sheet
+  **Ringkasan**, **Detail Transaksi**, **Rekap Harian**, dan **Rekap Metode
+  Pembayaran**; nominal sen → rupiah (`"Rp"#,##0`), tanggal/jam zona bisnis,
+  proteksi formula injection (awalan apostrof untuk `= + - @`), header beku +
+  autofilter. Filter baru dipakai bersama agregat/ringkasan/ekspor:
+  `status`, `paymentMethod`, `paymentStatus`, `search` (invoice/catatan).
+  CORS kini meng-*expose* `Content-Disposition` agar klien membaca nama file
+  (`KASIR_NOVA_Rekapan_Transaksi_<from>_sampai_<to>.xlsx`).
+- **Frontend `apps/owner`:** tombol **Ekspor Excel (.xlsx)** + ikon, status
+  “Menyiapkan…”, notifikasi hasil; filter rentang cepat (hari ini / 7 hari /
+  bulan ini / kustom), status transaksi, metode, status pembayaran, dan
+  pencarian; parameter kosong tidak lagi dikirim (memperbaiki potensi 422 pada
+  ekspor CSV/JSON lama).
+- **Ketergantungan:** `exceljs@^4.4.0`; `overrides.uuid@^11.1.1` agar
+  `npm audit` tetap **0 kerentanan** (ExcelJS hanya memakai `uuid` v4, advisory
+  menyasar v3/v5/v6).
+- **Pengujian:** `server/tests/report-xlsx.test.js` (7 kasus, berkas di-parse
+  balik dengan ExcelJS) — suite server **166/166**; `scripts/e2e-online.mjs`
+  menambah langkah **19. Ekspor rekap transaksi Excel (.xlsx)** → E2E **22/22**
+  (versi tanpa `E2E_PLATFORM_FLOW`).
+- **Perbaikan menyertaan:** test `transactions.test.js` “Filter riwayat” kini
+  mengambil tanggal “hari ini” dari DB (`CURRENT_DATE`) agar tidak gagal pada
+  pukul 00:00–07:00 WIB (perbedaan tanggal UTC vs zona DB).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

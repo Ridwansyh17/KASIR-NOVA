@@ -52,6 +52,19 @@ async function req(path, options = {}) {
   return { status: res.status, body, headers: res.headers };
 }
 
+async function reqBinary(path, options = {}) {
+  const base = await start();
+  const res = await fetch(`${base}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+  const buffer = Buffer.from(await res.arrayBuffer());
+  return { status: res.status, buffer, headers: res.headers };
+}
+
 export const request = {
   get: (path, opts) => req(path, { ...opts, method: 'GET' }),
   post: (path, data, opts) =>
@@ -61,6 +74,8 @@ export const request = {
   patch: (path, data, opts) =>
     req(path, { ...opts, method: 'PATCH', body: JSON.stringify(data ?? {}) }),
   del: (path, opts) => req(path, { ...opts, method: 'DELETE' }),
+  /** Ambil respons BINARY (mis. .xlsx) sebagai Buffer, tanpa parsing teks. */
+  binary: (path, opts) => reqBinary(path, { ...opts, method: 'GET' }),
   stop,
 };
 
