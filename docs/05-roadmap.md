@@ -352,6 +352,9 @@
 ## Fase 12 — Pengujian, Backup, Monitoring, Persiapan Firebase Hosting (estimasi 5–7 hari)
 - Tes unit + integrasi + otorisasi (kasus negatif tiap matriks) + e2e.
 - Skrip backup/restore PostgreSQL terjadwal (`pg_dump`/`pg_restore`).
+  **✅ Selesai 12 Okt 2026** — `scripts/backup-db.ps1`,
+  `scripts/restore-db.ps1`, `scripts/lib-nova-db.ps1`; uji restore 17/17 tabel
+  cocok. Runbook: `docs/22-backup-restore.md`.
 - Endpoint health check + dasbor monitoring minimal.
 - Persiapan **Firebase Hosting** (site `kasir-nova`, subpath `/admin` `/owner`
   `/kasir`) — scaffold `firebase.json` + `scripts/build-hosting.mjs` +
