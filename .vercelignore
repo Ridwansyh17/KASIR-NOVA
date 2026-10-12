@@ -1,0 +1,16 @@
+.git
+node_modules
+**/node_modules
+backups
+server/tests
+server/scripts
+.agents
+skills-lock.json
+*.log
+.env
+**/.env
+**/.env.*
+!**/.env.example
+*backup-*
+Logo KASIR NOVA.jpeg
+firebase.json.backup-*

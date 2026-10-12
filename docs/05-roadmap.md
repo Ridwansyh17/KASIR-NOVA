@@ -381,10 +381,10 @@
 > Backup/restore PostgreSQL (`scripts/backup-db.ps1`/`restore-db.ps1`) sudah
 > dibuat & diuji (17/17 tabel). Runbook: `docs/20`, `docs/21`, `docs/22`.
 >
-> **Online gratis (uji coba) 12 Okt 2026:** disiapkan jalur **Render (free) +
-> Neon (Postgres gratis)** — `render.yaml` + `docs/23-deploy-gratis-render-neon.md`.
-> Flag `SERVE_STATIC=true` memungkinkan Render menyajikan app+API same-origin
-> (satu URL). Butuh akun GitHub/Render/Neon (tindakan pemilik).
+> **Online gratis (uji coba) 12 Okt 2026:** Render (free) kini **butuh kartu**
+> (HTTP 402) — dialihkan ke **Vercel serverless (Hobby, tanpa kartu)** +
+> **Neon** (Postgres gratis). Lihat `docs/24-vercel-serverless.md`.
+> (`render.yaml` + `docs/23` disimpan sebagai alternatif.)
 >
 > ⚠️ Catatan arsitektur: `rewrites[].destination` Firebase Hosting **hanya**
 > menerima berkas lokal — **bukan URL eksternal**. Backend dinamis = blok

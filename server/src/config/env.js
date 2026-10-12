@@ -43,10 +43,15 @@ export const env = {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    // Render menyediakan URL publik service di RENDER_EXTERNAL_URL. Izinkan
-    // same-origin (frontend yang disajikan Express) tanpa konfigurasi tambahan.
-    const self = process.env.RENDER_EXTERNAL_URL;
-    if (self && !list.includes(self)) list.push(self);
+    // Izinkan same-origin (frontend yang disajikan Express) tanpa konfigurasi
+    // tambahan. Render & Vercel menyediakan URL publik service via env.
+    const render = process.env.RENDER_EXTERNAL_URL;
+    if (render && !list.includes(render)) list.push(render);
+    const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    if (vercel) {
+      const origin = vercel.startsWith('http') ? vercel : `https://${vercel}`;
+      if (!list.includes(origin)) list.push(origin);
+    }
     return list;
   })(),
   isProduction: process.env.NODE_ENV === 'production',
