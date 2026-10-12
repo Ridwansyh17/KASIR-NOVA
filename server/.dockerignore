@@ -1,0 +1,25 @@
+# Konteks build Docker untuk backend KASIR NOVA.
+# .env asli & node_modules tidak boleh masuk image.
+.env
+.env.*
+**/.env
+**/.env.*
+node_modules
+**/node_modules
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs
+*.log
+.DS_Store
+Thumbs.db
+.git
+.gitignore
+.vscode
+.idea
+dist
+coverage
+tests
+__tests__
+*.test.*
+*.spec.*

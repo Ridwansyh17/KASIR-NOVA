@@ -1,11 +1,13 @@
-{
+﻿{
   "hosting": {
+    "site": "kasir-nova",
     "public": "dist/hosting",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "redirects": [
       { "source": "/", "destination": "/kasir", "type": 301 }
     ],
     "rewrites": [
+      { "source": "/api/**", "destination": "https://GANTI-DENGAN-CLOUD-RUN-URL/api/**" },
       { "source": "/admin/**", "destination": "/admin/index.html" },
       { "source": "/owner/**", "destination": "/owner/index.html" },
       { "source": "/kasir/**", "destination": "/kasir/index.html" }
@@ -21,11 +23,15 @@
       },
       {
         "source": "**/*.@(js|css)",
-        "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=3600" }
+        ]
       },
       {
         "source": "**/index.html",
-        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
       }
     ]
   }

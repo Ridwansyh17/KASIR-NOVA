@@ -37,3 +37,16 @@ backups/
 .firebase/
 firebase-debug.log*
 .firebaserc
+
+# Cloudflare DINONAKTIFKAN (tidak dipakai sebagai dependency proyek).
+# File tetap ada untuk arsip, tetapi tidak di-commit.
+cloudflared.yml
+.cloudflared/
+api cludflare.txt
+
+# Catatan akun uji lokal & snapshot konfigurasi (jangan di-commit)
+akun kasir-nova-test.txt
+akun-kasir-nova.txt
+AKUN_TEST.txt
+TEST-ACCOUNT-KASIR-NOVA.txt
+firebase.json.backup-*

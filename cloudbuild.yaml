@@ -1,0 +1,58 @@
+# Cloud Build: build image backend KASIR NOVA -> push Artifact Registry -> deploy Cloud Run.
+#
+# PENTING:
+# - Deployment ini MEMERLUKAN project GCP dengan BILLING AKTIF (Cloud Run + Cloud SQL).
+#   Jangan jalankan tanpa persetujuan pemilik.
+# - Secret (DATABASE_URL, JWT) diambil dari Secret Manager, bukan ditulis di file ini.
+#
+# Jalankan (setelah gcloud auth login & project dipilih):
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_CLOUD_SQL_INSTANCE=PROJECT:REGION:INSTANCE
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '-f'
+      - 'server/Dockerfile'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_NAME}:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run deploy ${_SERVICE_NAME} \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_NAME}:$COMMIT_SHA \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --min-instances=0 \
+          --max-instances=5 \
+          --memory=512Mi \
+          --cpu=1 \
+          --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE} \
+          --set-secrets=DATABASE_URL=${_SECRET_DB_URL}:latest,JWT_ACCESS_SECRET=${_SECRET_JWT_ACCESS}:latest,JWT_REFRESH_SECRET=${_SECRET_JWT_REFRESH}:latest \
+          --set-env-vars=NODE_ENV=production,PORT=4000,CORS_ORIGIN=${_CORS_ORIGIN},JWT_ACCESS_EXPIRES_IN=15m,JWT_REFRESH_EXPIRES_IN=7d
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_ARTIFACT_REPO}/${_SERVICE_NAME}:$COMMIT_SHA'
+
+substitutions:
+  _SERVICE_NAME: 'nova-server'
+  _ARTIFACT_REPO: 'nova-repo'
+  _REGION: 'us-central1'
+  _CLOUD_SQL_INSTANCE: 'PROJECT:REGION:INSTANCE'
+  _CORS_ORIGIN: 'https://kasir-nova.web.app'
+  _SECRET_DB_URL: 'nova-db-url'
+  _SECRET_JWT_ACCESS: 'nova-jwt-access'
+  _SECRET_JWT_REFRESH: 'nova-jwt-refresh'
+
+timeout: '1200s'
