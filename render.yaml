@@ -1,0 +1,44 @@
+# ============================================================================
+# KASIR NOVA — Render Blueprint (paket GRATIS)
+# ============================================================================
+# Satu web service Node yang menyajikan API + (opsional) app statis same-origin.
+# Database memakai PostgreSQL gratis (Neon / Supabase) — isi DATABASE_URL manual
+# di dashboard (sync: false), JANGAN disimpan di repo.
+#
+# Cara pakai: hubungkan repo GitHub ke Render → Render membaca berkas ini
+# ("Blueprint"). Lihat docs/23-deploy-gratis-render-neon.md.
+#
+# Catatan paket gratis Render: service "tidur" setelah ~15 menit idle; permintaan
+# pertama setelah tidur lambat (cold start). DB eksternal (Neon) tetap hidup.
+
+services:
+  - type: web
+    name: nova-server
+    runtime: node
+    plan: free
+    region: singapore          # terdekat dengan Indonesia
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Sajikan app admin/owner/kasir dari Express juga (satu URL same-origin
+      # untuk uji coba). Bila ingin API-only (frontend Firebase), set "false".
+      - key: SERVE_STATIC
+        value: "true"
+      # Rahasia DIISI MANUAL di dashboard Render (jangan di repo):
+      - key: DATABASE_URL          # Neon: sertakan ?sslmode=require
+        sync: false
+      # Dibuat otomatis oleh Render (acak, kuat):
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      # Origin frontend Firebase untuk skenario cross-origin (opsional):
+      - key: CORS_ORIGIN
+        value: https://kasir-nova.web.app

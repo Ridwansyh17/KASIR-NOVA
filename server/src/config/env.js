@@ -38,11 +38,21 @@ export const env = {
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
-  corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean),
+  corsOrigin: (() => {
+    const list = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    // Render menyediakan URL publik service di RENDER_EXTERNAL_URL. Izinkan
+    // same-origin (frontend yang disajikan Express) tanpa konfigurasi tambahan.
+    const self = process.env.RENDER_EXTERNAL_URL;
+    if (self && !list.includes(self)) list.push(self);
+    return list;
+  })(),
   isProduction: process.env.NODE_ENV === 'production',
+  // Opsional: paksa penyajian app statis dari Express walau di produksi.
+  // Berguna untuk host yang menyajikan app + API same-origin (mis. Render).
+  serveStatic: process.env.SERVE_STATIC === 'true',
 };
 
 export default env;

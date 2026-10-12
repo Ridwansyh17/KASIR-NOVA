@@ -63,8 +63,9 @@ app.use('/api/owner', ownerRouter);
 app.use('/api/cashier', cashierAreaRouter);
 
 // Panel Admin Platform. Di dev disajikan statis oleh Express agar mudah diuji.
-// Di produksi frontend disajikan Firebase Hosting (backend tidak melayani file).
-if (!env.isProduction) {
+// Di produksi frontend disajikan Firebase Hosting (backend tidak melayani file),
+// KECUALI bila SERVE_STATIC=true (mis. host yang menyajikan app+API same-origin).
+if (!env.isProduction || env.serveStatic) {
   app.use('/admin', express.static(join(__dirname, '../../apps/admin')));
   app.use('/owner', express.static(join(__dirname, '../../apps/owner')));
   app.use('/kasir', express.static(join(__dirname, '../../apps/kasir')));
