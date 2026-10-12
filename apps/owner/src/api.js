@@ -151,6 +151,41 @@ export const logout = async () => {
   }
 };
 
+/**
+ * Unduh berkas .xlsx dari `basePath`: menambahkan `format=xlsx`, membuang
+ * parameter kosong, dan mencoba refresh token SEKALI saat 401.
+ * @returns {Promise<{blob: Blob, filename: string}>}
+ */
+const downloadXlsx = async (basePath, params = {}, fallbackName) => {
+  const qs = new URLSearchParams(params);
+  for (const [key, value] of [...qs]) {
+    if (value === '') qs.delete(key);
+  }
+  qs.set('format', 'xlsx');
+  const path = `${basePath}?${qs.toString()}`;
+
+  let res = await fetchBinary(path);
+  if (res.status === 401 && tokenStore.refresh) {
+    if (await refreshSession()) res = await fetchBinary(path);
+  }
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body?.error?.message ?? message;
+    } catch {
+      // body tidak berupa JSON — abaikan
+    }
+    throw new ApiError(message, res.status);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const match = /filename="?([^";]+)"?/i.exec(disposition);
+  const filename = match?.[1] ?? fallbackName;
+  return { blob, filename };
+};
+
 export const api = {
   me: () => request('/api/auth/me'),
 
@@ -264,6 +299,11 @@ export const api = {
       request(`/api/owner/businesses/${businessId}/reports${queryString(params)}`),
     summary: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports/summary${queryString(params)}`),
+    /** Perbandingan agregat tiap outlet dalam satu bisnis (Fase 16). */
+    outlets: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/reports/outlets${queryString(params)}`),
+    /** Perbandingan agregat tiap bisnis milik Owner (Fase 16). */
+    businesses: (params = {}) => request(`/api/owner/reports/businesses${queryString(params)}`),
     /** @returns {Promise<string|object>} teks CSV atau objek {items}. */
     download: (businessId, params = {}, format = 'csv') => {
       const qs = new URLSearchParams(params);
@@ -275,38 +315,29 @@ export const api = {
       return request(`/api/owner/businesses/${businessId}/reports/export?${qs.toString()}`);
     },
     /**
-     * Unduh rekapan .xlsx sebagai berkas biner.
+     * Unduh rekapan transaksi .xlsx sebagai berkas biner.
      * @returns {Promise<{blob: Blob, filename: string}>}
      */
-    downloadXlsx: async (businessId, params = {}) => {
-      const qs = new URLSearchParams(params);
-      for (const [key, value] of [...qs]) {
-        if (value === '') qs.delete(key);
-      }
-      qs.set('format', 'xlsx');
-      const path = `/api/owner/businesses/${businessId}/reports/export?${qs.toString()}`;
-
-      let res = await fetchBinary(path);
-      if (res.status === 401 && tokenStore.refresh) {
-        if (await refreshSession()) res = await fetchBinary(path);
-      }
-      if (!res.ok) {
-        let message = `HTTP ${res.status}`;
-        try {
-          const body = await res.json();
-          message = body?.error?.message ?? message;
-        } catch {
-          // body tidak berupa JSON — abaikan
-        }
-        throw new ApiError(message, res.status);
-      }
-
-      const blob = await res.blob();
-      const disposition = res.headers.get('Content-Disposition') ?? '';
-      const match = /filename="?([^";]+)"?/i.exec(disposition);
-      const filename = match?.[1] ?? `KASIR_NOVA_Rekapan_Transaksi.xlsx`;
-      return { blob, filename };
-    },
+    downloadXlsx: (businessId, params = {}) =>
+      downloadXlsx(
+        `/api/owner/businesses/${businessId}/reports/export`,
+        params,
+        'KASIR_NOVA_Rekapan_Transaksi.xlsx'
+      ),
+    /** Unduh perbandingan outlet .xlsx (Fase 16). */
+    outletsXlsx: (businessId, params = {}) =>
+      downloadXlsx(
+        `/api/owner/businesses/${businessId}/reports/outlets/export`,
+        params,
+        'KASIR_NOVA_Perbandingan_Outlet.xlsx'
+      ),
+    /** Unduh perbandingan lintas-bisnis .xlsx (Fase 16). */
+    businessesXlsx: (params = {}) =>
+      downloadXlsx(
+        '/api/owner/reports/businesses/export',
+        params,
+        'KASIR_NOVA_Perbandingan_Bisnis.xlsx'
+      ),
   },
 
   categories: {

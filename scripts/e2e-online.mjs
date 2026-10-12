@@ -471,14 +471,85 @@ if (ownerToken && businessId) {
   }
 }
 
-// ------------------------------------------------------- 20. Audit log owner
+// --------------------- 20-23. Perbandingan outlet & lintas-bisnis (Fase 16)
+if (ownerToken && businessId) {
+  try {
+    // +1 hari agar hari berjalan (zona bisnis, mis. Asia/Jakarta) tetap ikut.
+    const to = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const range = `from=2000-01-01&to=${to}`;
+
+    const oc = await api(
+      `/api/owner/businesses/${businessId}/reports/outlets?${range}`,
+      { token: ownerToken }
+    );
+    const ocItems = asList(oc.json);
+    const ocOk =
+      oc.status === 200 &&
+      ocItems.length >= 1 &&
+      ocItems.every((i) => typeof i.outlet_id === 'string') &&
+      typeof oc.json?.totals?.total === 'number' &&
+      Number(oc.json?.totals?.total) >= 3_330_000;
+    step(
+      '20. Perbandingan outlet (JSON) per bisnis',
+      ocOk,
+      `status=${oc.status} outlets=${ocItems.length} total=${oc.json?.totals?.total}`
+    );
+
+    const ores = await fetch(
+      `${BASE}/api/owner/businesses/${businessId}/reports/outlets/export?format=xlsx&${range}`,
+      { headers: { Authorization: `Bearer ${ownerToken}` } }
+    );
+    const obuf = Buffer.from(await ores.arrayBuffer());
+    const owb = new ExcelJS.Workbook();
+    await owb.xlsx.load(obuf);
+    const onames = owb.worksheets.map((s) => s.name);
+    step(
+      '21. Ekspor perbandingan outlet Excel (.xlsx)',
+      ores.status === 200 &&
+        obuf.length > 1000 &&
+        onames.includes('Ringkasan') &&
+        onames.includes('Perbandingan Outlet'),
+      `status=${ores.status} sheets=${onames.join(',')} bytes=${obuf.length}`
+    );
+
+    const bc = await api(`/api/owner/reports/businesses?${range}`, { token: ownerToken });
+    const bcItems = asList(bc.json);
+    const hasDemoBiz = bcItems.some((i) => i.name === DEMO.business);
+    step(
+      '22. Perbandingan lintas-bisnis (JSON) milik Owner',
+      bc.status === 200 && bcItems.length >= 1 && hasDemoBiz,
+      `status=${bc.status} bisnis=${bcItems.length}`
+    );
+
+    const bres = await fetch(
+      `${BASE}/api/owner/reports/businesses/export?format=xlsx&${range}`,
+      { headers: { Authorization: `Bearer ${ownerToken}` } }
+    );
+    const bbuf = Buffer.from(await bres.arrayBuffer());
+    const bwb = new ExcelJS.Workbook();
+    await bwb.xlsx.load(bbuf);
+    const bnames = bwb.worksheets.map((s) => s.name);
+    step(
+      '23. Ekspor perbandingan lintas-bisnis Excel (.xlsx)',
+      bres.status === 200 &&
+        bbuf.length > 1000 &&
+        bnames.includes('Ringkasan') &&
+        bnames.includes('Perbandingan Bisnis'),
+      `status=${bres.status} sheets=${bnames.join(',')} bytes=${bbuf.length}`
+    );
+  } catch (e) {
+    step('20-23. Perbandingan outlet & lintas-bisnis (Fase 16)', false, String(e));
+  }
+}
+
+// ------------------------------------------------------- 24. Audit log owner
 if (ownerToken && businessId) {
   try {
     const r = await api(`/api/owner/businesses/${businessId}/audit-logs`, { token: ownerToken });
     const actions = asList(r.json).map((a) => a.action);
-    step('20. Audit log owner mencatat transaksi', r.status === 200 && actions.includes('transaction.create'), `${actions.length} entri`);
+    step('24. Audit log owner mencatat transaksi', r.status === 200 && actions.includes('transaction.create'), `${actions.length} entri`);
   } catch (e) {
-    step('20. Audit log owner mencatat transaksi', false, String(e));
+    step('24. Audit log owner mencatat transaksi', false, String(e));
   }
 }
 
@@ -490,9 +561,9 @@ if (adminToken) {
     const hasDemo = names.includes(DEMO.business);
     const a = await api('/api/platform/audit-logs?limit=5', { token: adminToken });
     const s = await api('/api/platform/sessions', { token: adminToken });
-    step('21. Admin: daftar bisnis + audit-log + sesi kasir', b.status === 200 && hasDemo && a.status === 200 && s.status === 200, `businesses=${b.status} audit=${a.status} sessions=${s.status}`);
+    step('25. Admin: daftar bisnis + audit-log + sesi kasir', b.status === 200 && hasDemo && a.status === 200 && s.status === 200, `businesses=${b.status} audit=${a.status} sessions=${s.status}`);
   } catch (e) {
-    step('21. Admin: daftar bisnis + audit-log + sesi kasir', false, String(e));
+    step('25. Admin: daftar bisnis + audit-log + sesi kasir', false, String(e));
   }
 }
 
@@ -501,9 +572,9 @@ try {
   const paths = ['/kasir/', '/admin/', '/owner/'];
   const results2 = await Promise.all(paths.map((p) => fetch(`${BASE}${p}`)));
   const ok = results2.every((r) => r.status === 200);
-  step('22. Halaman statis /kasir /admin /owner (200)', ok, results2.map((r) => r.status).join(','));
+  step('26. Halaman statis /kasir /admin /owner (200)', ok, results2.map((r) => r.status).join(','));
 } catch (e) {
-  step('22. Halaman statis /kasir /admin /owner (200)', false, String(e));
+  step('26. Halaman statis /kasir /admin /owner (200)', false, String(e));
 }
 
 // ------------------------------------------------- Admin Platform flow (opsional)
@@ -520,7 +591,7 @@ if (adminToken && process.env.E2E_PLATFORM_FLOW === '1') {
     body: { email: platformEmail, password: platformPw, fullName: platformName, phone: '+6281111000000' },
   });
   const oid = cr.json?.owner?.id;
-  step('23. Admin membuat owner uji (soft-delete di akhir tes)', cr.status === 201 && !!oid, `status=${cr.status}`);
+  step('27. Admin membuat owner uji (soft-delete di akhir tes)', cr.status === 201 && !!oid, `status=${cr.status}`);
 
   if (oid) {
     const l = await api('/api/auth/login', {
@@ -528,26 +599,26 @@ if (adminToken && process.env.E2E_PLATFORM_FLOW === '1') {
       body: { role: 'owner', email: platformEmail, password: platformPw },
     });
     const otk = l.json?.accessToken;
-    step('24. Owner baru bisa login & mendapatkan sesi', l.status === 200 && !!otk, `status=${l.status}`);
+    step('28. Owner baru bisa login & mendapatkan sesi', l.status === 200 && !!otk, `status=${l.status}`);
 
     if (otk) {
       const ownBiz = asList((await api('/api/owner/businesses', { token: otk })).json).filter((b) => b.id === businessId);
       const hidden = await api(`/api/owner/businesses/${businessId}`, { token: otk });
       step(
-        '25. Isolasi tenant: owner baru TIDAK melihat bisnis demo (404)',
+        '29. Isolasi tenant: owner baru TIDAK melihat bisnis demo (404)',
         hidden.status === 404 && ownBiz.length === 0,
         `status=${hidden.status}`
       );
     }
 
     const del = await api(`/api/platform/owners/${oid}`, { method: 'DELETE', token: adminToken });
-    step('26. Admin soft-delete owner uji', del.status === 200, `status=${del.status}`);
+    step('30. Admin soft-delete owner uji', del.status === 200, `status=${del.status}`);
 
     const l2 = await api('/api/auth/login', {
       method: 'POST',
       body: { role: 'owner', email: platformEmail, password: platformPw },
     });
-    step('27. Owner yang dihapus tidak bisa login lagi (401/403)', [401, 403].includes(l2.status), `status=${l2.status}`);
+    step('31. Owner yang dihapus tidak bisa login lagi (401/403)', [401, 403].includes(l2.status), `status=${l2.status}`);
     note(`owner uji ${platformEmail} dibuat & dihapus (soft-delete) — tersisa di audit trail`);
   }
 }

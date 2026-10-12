@@ -3,6 +3,8 @@
  * `/businesses/:businessId/reports` (Owner) dan nama sama pada Admin
  * (baca saja lintas platform). Otorisasi + cakupan tenant via
  * `requireBusinessAccess`.
+ *
+ * Fase 16 menambah perbandingan OUTLET (satu bisnis) di `/outlets`.
  */
 import { Router } from 'express';
 import * as controller from './controller.js';
@@ -13,6 +15,8 @@ import {
   reportQuerySchema,
   summaryQuerySchema,
   exportQuerySchema,
+  outletComparisonQuerySchema,
+  outletComparisonExportQuerySchema,
 } from './schema.js';
 
 export const reportRoutes = Router({ mergeParams: true });
@@ -29,6 +33,20 @@ reportRoutes.get(
   ...validate({ params: reportBusinessParamSchema, query: summaryQuerySchema }),
   requireBusinessAccess(),
   controller.summary
+);
+
+reportRoutes.get(
+  '/outlets',
+  ...validate({ params: reportBusinessParamSchema, query: outletComparisonQuerySchema }),
+  requireBusinessAccess(),
+  controller.outletComparison
+);
+
+reportRoutes.get(
+  '/outlets/export',
+  ...validate({ params: reportBusinessParamSchema, query: outletComparisonExportQuerySchema }),
+  requireBusinessAccess(),
+  controller.outletComparisonExport
 );
 
 reportRoutes.get(

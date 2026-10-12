@@ -13,9 +13,25 @@
  */
 import { query } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
-import { buildTransactionsWorkbook } from './xlsx.js';
+import { buildTransactionsWorkbook, buildComparisonWorkbook } from './xlsx.js';
 
-const GROUPED_NUMERIC = ['subtotal', 'discount_total', 'tax_total', 'total', 'voided_total'];
+const GROUPED_NUMERIC = [
+  'subtotal',
+  'discount_total',
+  'tax_total',
+  'total',
+  'voided_total',
+  'refunded_total',
+];
+
+/**
+ * Jumlah item terjual (hanya transaksi selesai) sebagai SUBQUERY berkorelasi,
+ * bukan `JOIN transaction_items`. JOIN akan menggandakan baris transaksi
+ * sebanyak jumlah item sehingga `SUM(t.total)` ikut berlipat (bug fan-out).
+ */
+const ITEMS_SOLD = `COALESCE(SUM((SELECT COUNT(*) FROM transaction_items ti
+                                    WHERE ti.transaction_id = t.id))
+                            FILTER (WHERE t.status = 'completed'), 0)::int`;
 
 /** Escaping wildcard LIKE agar `%`/`_` dari pengguna tidak jadi pola liar. */
 const escapeLike = (value) => String(value).replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -32,15 +48,15 @@ const getBusiness = async (businessId) => {
 };
 
 /**
- * Bangun nilai/klausa filter. Placeholder tetap: $1 businessId, $2 from,
- * $3 timezone, $4 to; filter tambahan dimulai dari $5.
+ * Tambahkan klausa filter transaksi ke `values` (placeholder melanjutkan
+ * `values.length`) dan kembalikan potongan SQL `extra` (diawali ` AND ...`).
  *
+ * Dipakai bersama laporan per-bisnis (`buildStory`) dan lintas-bisnis.
  * Filter `paymentMethod`/`paymentStatus` memakai EXISTS agar transaksi dengan
  * pembayaran cocok tetap terpilih tanpa menggandakan baris bila kelak ada
  * lebih dari satu pembayaran per transaksi.
  */
-const buildStory = (businessId, tz, filters) => {
-  const values = [businessId, filters.from ?? null, tz, filters.to ?? null];
+const appendFilters = (filters, values) => {
   let extra = '';
   if (filters.outletId) {
     values.push(filters.outletId);
@@ -69,7 +85,16 @@ const buildStory = (businessId, tz, filters) => {
     extra += ` AND (t.invoice_no ILIKE $${values.length} ESCAPE '\\'
                     OR COALESCE(t.note, '') ILIKE $${values.length} ESCAPE '\\')`;
   }
-  return { values, extra };
+  return extra;
+};
+
+/**
+ * Bangun nilai/klausa filter untuk SATU bisnis. Placeholder tetap: $1
+ * businessId, $2 from, $3 timezone, $4 to; filter tambahan dimulai dari $5.
+ */
+const buildStory = (businessId, tz, filters) => {
+  const values = [businessId, filters.from ?? null, tz, filters.to ?? null];
+  return { values, extra: appendFilters(filters, values) };
 };
 
 /** CTE batas tanggal (default: awal bulan ini s.d. hari ini, zona bisnis). */
@@ -98,15 +123,15 @@ export const groupedReport = async ({ businessId, filters }) => {
     `${BOUNDS_CTE}
      SELECT to_char(DATE_TRUNC($${groupIdx}::text, t.created_at AT TIME ZONE $3::text), 'YYYY-MM-DD') AS period_start,
             COUNT(*) FILTER (WHERE t.status = 'completed')::int                  AS transactions,
-            COALESCE(COUNT(ti.id) FILTER (WHERE t.status = 'completed'), 0)::int AS items_sold,
+            ${ITEMS_SOLD}                                                        AS items_sold,
             COALESCE(SUM(t.subtotal) FILTER (WHERE t.status = 'completed'), 0)   AS subtotal,
             COALESCE(SUM(t.discount_total) FILTER (WHERE t.status = 'completed'), 0) AS discount_total,
             COALESCE(SUM(t.tax_total) FILTER (WHERE t.status = 'completed'), 0)  AS tax_total,
             COALESCE(SUM(t.total) FILTER (WHERE t.status = 'completed'), 0)      AS total,
-            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'voided'), 0)         AS voided_total
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'voided'), 0)         AS voided_total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'refunded'), 0)       AS refunded_total
        FROM bounds b
        CROSS JOIN transactions t
-       LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
       WHERE t.business_id = $1
         AND ${RANGE_PRED}
         ${extra}
@@ -176,6 +201,144 @@ export const summary = async ({ businessId, filters }) => {
       qty: p.qty,
       revenue: Number(p.revenue),
     })),
+  };
+};
+
+const COMPARISON_NUMERIC = ['subtotal', 'discount_total', 'tax_total', 'total', 'voided_total', 'refunded_total'];
+
+/** Konversi kolom BIGINT/NUMERIC (string) menjadi Number() dan jumlahkan total. */
+const tallyComparison = (rows, extraKeys) => {
+  const items = rows.map((r) => {
+    const out = { ...extraKeys(r) };
+    out.transactions = r.transactions;
+    out.items_sold = r.items_sold;
+    for (const k of COMPARISON_NUMERIC) out[k] = Number(r[k]);
+    return out;
+  });
+  const totals = { transactions: 0, items_sold: 0 };
+  for (const k of COMPARISON_NUMERIC) totals[k] = 0;
+  for (const it of items) {
+    totals.transactions += it.transactions;
+    totals.items_sold += it.items_sold;
+    for (const k of COMPARISON_NUMERIC) totals[k] += it[k];
+  }
+  return { items, totals };
+};
+
+/**
+ * Perbandingan agregat tiap OUTLET dalam SATU bisnis (menyertakan outlet yang
+ * belum punya transaksi pada rentang, agar terlihat outlet yang kosong).
+ * Filter sama dengan laporan lain; rentang mengikuti zona waktu bisnis.
+ * @returns {{business, period, items, totals}}
+ */
+export const outletComparison = async ({ businessId, filters }) => {
+  const biz = await getBusiness(businessId);
+  const { values, extra } = buildStory(businessId, biz.timezone, filters);
+
+  const { rows } = await query(
+    `${BOUNDS_CTE}
+     SELECT o.id AS outlet_id, o.name AS outlet_name, o.status AS outlet_status,
+            COUNT(t.id) FILTER (WHERE t.status = 'completed')::int              AS transactions,
+            ${ITEMS_SOLD}                                                       AS items_sold,
+            COALESCE(SUM(t.subtotal) FILTER (WHERE t.status = 'completed'), 0)  AS subtotal,
+            COALESCE(SUM(t.discount_total) FILTER (WHERE t.status = 'completed'), 0) AS discount_total,
+            COALESCE(SUM(t.tax_total) FILTER (WHERE t.status = 'completed'), 0) AS tax_total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'completed'), 0)     AS total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'voided'), 0)        AS voided_total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'refunded'), 0)      AS refunded_total
+       FROM bounds b
+       CROSS JOIN outlets o
+       LEFT JOIN transactions t
+         ON t.outlet_id = o.id
+        AND t.business_id = $1
+        AND ${RANGE_PRED}
+        ${extra}
+      WHERE o.business_id = $1 AND o.deleted_at IS NULL
+      GROUP BY o.id, o.name, o.status
+      ORDER BY total DESC, o.name ASC`,
+    values
+  );
+
+  const period = await resolvePeriod(businessId, biz.timezone, filters);
+  const { items, totals } = tallyComparison(rows, (r) => ({
+    outlet_id: r.outlet_id,
+    outlet_name: r.outlet_name,
+    outlet_status: r.outlet_status,
+  }));
+  totals.outlets = items.length;
+  return {
+    business: {
+      id: biz.id,
+      name: biz.name,
+      business_type: biz.business_type,
+      currency: biz.currency,
+      timezone: biz.timezone,
+    },
+    period,
+    items,
+    totals,
+  };
+};
+
+/**
+ * Perbandingan agregat LINTAS-BISNIS untuk SATU Owner (semua bisnis miliknya,
+ * termasuk yang belum punya transaksi pada rentang). Setiap bisnis memakai
+ * ZONA WAKTUNYA SENDIRI untuk batas rentang; `from`/`to` adalah tanggal
+ * `YYYY-MM-DD` yang diterapkan pada zona masing-masing.
+ * @returns {{period, items, totals}}
+ */
+export const businessComparison = async ({ ownerId, filters }) => {
+  const values = [ownerId, filters.from ?? null, filters.to ?? null];
+  const extra = appendFilters(
+    {
+      status: filters.status,
+      paymentMethod: filters.paymentMethod,
+      paymentStatus: filters.paymentStatus,
+      search: filters.search,
+    },
+    values
+  );
+
+  const { rows } = await query(
+    `SELECT bu.id AS business_id, bu.name, bu.business_type, bu.currency, bu.timezone,
+            COUNT(t.id) FILTER (WHERE t.status = 'completed')::int              AS transactions,
+            ${ITEMS_SOLD}                                                       AS items_sold,
+            COALESCE(SUM(t.subtotal) FILTER (WHERE t.status = 'completed'), 0)  AS subtotal,
+            COALESCE(SUM(t.discount_total) FILTER (WHERE t.status = 'completed'), 0) AS discount_total,
+            COALESCE(SUM(t.tax_total) FILTER (WHERE t.status = 'completed'), 0) AS tax_total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'completed'), 0)     AS total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'voided'), 0)        AS voided_total,
+            COALESCE(SUM(t.total) FILTER (WHERE t.status = 'refunded'), 0)      AS refunded_total,
+            COUNT(DISTINCT t.outlet_id) FILTER (WHERE t.status = 'completed')::int AS active_outlets
+       FROM businesses bu
+       LEFT JOIN transactions t
+         ON t.business_id = bu.id
+        AND t.created_at >= (COALESCE($2::date,
+              (date_trunc('month', now() AT TIME ZONE bu.timezone))::date))::timestamp
+              AT TIME ZONE bu.timezone
+        AND t.created_at <  ((COALESCE($3::date,
+              (now() AT TIME ZONE bu.timezone))::date)::timestamp + interval '1 day')
+              AT TIME ZONE bu.timezone
+        ${extra}
+      WHERE bu.owner_id = $1 AND bu.deleted_at IS NULL
+      GROUP BY bu.id, bu.name, bu.business_type, bu.currency, bu.timezone
+      ORDER BY total DESC, bu.name ASC`,
+    values
+  );
+
+  const { items, totals } = tallyComparison(rows, (r) => ({
+    business_id: r.business_id,
+    name: r.name,
+    business_type: r.business_type,
+    currency: r.currency,
+    timezone: r.timezone,
+    active_outlets: r.active_outlets,
+  }));
+  totals.businesses = items.length;
+  return {
+    period: { from: filters.from ?? null, to: filters.to ?? null },
+    items,
+    totals,
   };
 };
 
@@ -274,6 +437,51 @@ export const exportXlsx = async ({ businessId, filters }) => {
   return { buffer, filename };
 };
 
+/**
+ * Ekspor perbandingan outlet (satu bisnis) ke .xlsx (2 sheet).
+ * @returns {Promise<{buffer: Buffer, filename: string}>}
+ */
+export const exportOutletComparisonXlsx = async ({ businessId, filters }) => {
+  const data = await outletComparison({ businessId, filters });
+  const generatedAt = new Date().toLocaleString('id-ID', {
+    timeZone: data.business.timezone,
+  });
+  const buffer = await buildComparisonWorkbook({
+    kind: 'outlet',
+    title: 'KASIR NOVA — Perbandingan Outlet',
+    business: data.business,
+    filters,
+    rows: data.items,
+    totals: data.totals,
+    period: data.period,
+    generatedAt,
+  });
+  const filename = `KASIR_NOVA_Perbandingan_Outlet_${data.period.from}_sampai_${data.period.to}.xlsx`;
+  return { buffer, filename };
+};
+
+/**
+ * Ekspor perbandingan lintas-bisnis (satu Owner) ke .xlsx (2 sheet).
+ * @returns {Promise<{buffer: Buffer, filename: string}>}
+ */
+export const exportBusinessComparisonXlsx = async ({ ownerId, filters }) => {
+  const data = await businessComparison({ ownerId, filters });
+  const generatedAt = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+  const buffer = await buildComparisonWorkbook({
+    kind: 'business',
+    title: 'KASIR NOVA — Perbandingan Lintas-Bisnis',
+    filters,
+    rows: data.items,
+    totals: data.totals,
+    period: data.period,
+    generatedAt,
+  });
+  const from = data.period.from ?? 'awal-bulan';
+  const to = data.period.to ?? 'hari-ini';
+  const filename = `KASIR_NOVA_Perbandingan_Bisnis_${from}_sampai_${to}.xlsx`;
+  return { buffer, filename };
+};
+
 const CSV_COLUMNS = [
   'invoice_no',
   'status',
@@ -298,4 +506,15 @@ export const toCsv = (rows) => {
   return [CSV_COLUMNS.join(','), ...lines].join('\r\n');
 };
 
-export default { groupedReport, summary, exportRows, exportXlsx, resolvePeriod, toCsv };
+export default {
+  groupedReport,
+  summary,
+  outletComparison,
+  businessComparison,
+  exportRows,
+  exportXlsx,
+  exportOutletComparisonXlsx,
+  exportBusinessComparisonXlsx,
+  resolvePeriod,
+  toCsv,
+};

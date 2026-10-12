@@ -1,4 +1,4 @@
-# KASIR NOVA — API Laporan Penjualan (Fase 9 + Fase 15 ekspor Excel)
+# KASIR NOVA — API Laporan Penjualan (Fase 9 + Fase 15 ekspor Excel + Fase 16 perbandingan)
 
 > Kontrak API modul `report`. Semua angka sen (integer)/BIGINT dikonversi
 > `Number()` oleh server; UI/test tidak perlu `Number()` lagi pada respons
@@ -12,6 +12,10 @@
 | GET | `/api/owner/businesses/:businessId/reports` | owner | Agregat per periode (day/week/month/year) |
 | GET | `/api/owner/businesses/:businessId/reports/summary` | owner | Ringkasan rentang + top 5 produk |
 | GET | `/api/owner/businesses/:businessId/reports/export` | owner | Ekspor CSV (default) / JSON / **XLSX** |
+| GET | `/api/owner/businesses/:businessId/reports/outlets` | owner | **Perbandingan tiap outlet** dalam bisnis (Fase 16) |
+| GET | `/api/owner/businesses/:businessId/reports/outlets/export` | owner | Ekspor perbandingan outlet (JSON / **XLSX**) |
+| GET | `/api/owner/reports/businesses` | owner | **Perbandingan lintas-bisnis** milik Owner (Fase 16) |
+| GET | `/api/owner/reports/businesses/export` | owner | Ekspor perbandingan lintas-bisnis (JSON / **XLSX**) |
 | GET | `/api/platform/businesses/:businessId/reports[...]` | platform_admin | Sama persis, **baca saja** lintas platform |
 
 Kasir **tidak** memiliki endpoint laporan (403).
@@ -126,6 +130,67 @@ Aturan penting:
 - Data besar diproses di server (satu query terurut per rentang); tidak ada
   perulangan request dari klien.
 
+## Perbandingan outlet & lintas-bisnis (Fase 16)
+
+Dua laporan perbandingan **khusus peran Owner** (tetap owner-scoped).
+
+### GET /reports/outlets — perbandingan outlet (satu bisnis)
+
+Membandingkan tiap outlet **milik bisnis** tersebut pada rentang & filter yang
+sama dengan laporan per-bisnis. Query = filter laporan biasa (tanpa `groupBy`).
+**Outlet tanpa transaksi tetap tampil** (LEFT JOIN) bernilai nol.
+
+```jsonc
+{
+  "items": [
+    { "outlet_id": "…", "outlet_name": "Outlet Utama", "outlet_status": "active",
+      "transactions": 3, "items_sold": 6,
+      "subtotal": 3000000, "discount_total": 0, "tax_total": 290000,
+      "total": 3190000, "voided_total": 50000, "refunded_total": 0 }
+  ],
+  "totals": { "transactions": 3, "items_sold": 6, "total": 3190000,
+              "voided_total": 50000, "refunded_total": 0, "outlets": 1 }
+}
+```
+
+### GET /api/owner/reports/businesses — lintas-bisnis
+
+Membandingkan **seluruh bisnis milik Owner** pada rentang yang sama. Filter:
+`from`, `to`, `status`, `paymentMethod`, `paymentStatus`, `search` (tanpa
+`outletId`/`cashierId`).
+
+- Batas rentang `from`/`to` (`YYYY-MM-DD`) diinterpretasikan **per zona waktu
+  masing-masing bisnis** (`businesses.timezone`), sehingga hari lokal setiap
+  bisnis dihitung dengan benar.
+- Bisnis tanpa transaksi tetap tampil bernilai nol.
+
+```jsonc
+{
+  "items": [
+    { "business_id": "…", "name": "Demo Kasir NOVA", "business_type": "Retail",
+      "currency": "IDR", "timezone": "Asia/Jakarta", "active_outlets": 1,
+      "transactions": 3, "items_sold": 6, "total": 3190000,
+      "voided_total": 50000, "refunded_total": 0 }
+  ],
+  "totals": { "transactions": 3, "items_sold": 6, "total": 3190000,
+              "voided_total": 50000, "refunded_total": 0, "businesses": 1 }
+}
+```
+
+### Ekspor perbandingan
+
+`/reports/outlets/export` dan `/api/owner/reports/businesses/export` menerima
+`format=xlsx` (default) atau `format=json`, dengan filter yang sama seperti
+endpoint JSON-nya. Berkas XLSX berisi **2 sheet**: `Ringkasan` dan
+`Perbandingan Outlet` / `Perbandingan Bisnis`. Nominal sen → rupiah,
+`"Rp"#,##0`, proteksi formula injection, dan **omzet hanya transaksi
+`completed`** — definisi yang sama dengan dashboard.
+
+> Catatan perbaikan (Fase 16): agregat omzet memakai subquery korelatif untuk
+> `items_sold` sehingga **tidak** ada fan-out dari JOIN `transaction_items`
+> (sebelumnya `SUM(t.total)` berlipat sejumlah baris item). Berlaku untuk
+> `groupedReport`, `outletComparison`, dan `businessComparison`.
+
 ## Aturan & keamanan
 
 - Seluruh agregat dilarang dihitung klien; server membaca langsung dari
@@ -150,4 +215,15 @@ Aturan penting:
   formula injection, akses (kasir 403 / owner lain 404), validasi 422, dan CSV
   tetap berfungsi. Berkas hasil di-*parse balik* dengan ExcelJS, bukan sekadar
   dicek status HTTP.
-- Total suite server: **166/166** (Fase 9 = 133; Fase 15 menambah 7 dari 159).
+- `node --test tests/report-comparison.test.js` — 7 kasus (Fase 16):
+  1. perbandingan outlet (agregat per outlet, outlet kosong ikut tampil);
+  2. rentang tanggal mempersempit (transaksi lampau keluar);
+  3. `groupedReport` tidak berlipat untuk transaksi multi-item (perbaikan
+     fan-out: `SUM(total)` dihitung sekali per transaksi, bukan per item);
+  4. perbandingan lintas-bisnis + isolasi tenant (owner B tidak bocor);
+  5. ekspor XLSX perbandingan outlet (2 sheet, sanitasi formula, total rupiah);
+  6. ekspor XLSX lintas-bisnis (2 sheet) + nama bisnis berbahaya disanitasi;
+  7. akses & validasi: kasir 403, owner lain 404, format/rentang buruk 422,
+     `format=json`.
+- Total suite server: **173/173** (Fase 9 = 133; Fase 15 menambah 7 dari 159;
+  Fase 16 menambah 7 dari 166).

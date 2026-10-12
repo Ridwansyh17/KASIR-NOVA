@@ -98,8 +98,9 @@ roadmap fase.
 
 ## Status
 
-- Fase **0–15 selesai**; suite tes integrasi **166/166**; E2E alur produksi **22/22**
-  (dijalankan terhadap server lokal sebelum deploy; langkah ke-19 menguji ekspor Excel).
+- Fase **0–16 selesai**; suite tes integrasi **173/173**; E2E alur produksi
+  **26/26** (dijalankan terhadap server lokal sebelum deploy; langkah 20–23
+  menguji perbandingan outlet & lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
   Firebase Hosting (`kasir-nova.web.app`).
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
@@ -109,3 +110,7 @@ roadmap fase.
   `.xlsx` (4 sheet: Ringkasan, Detail, Rekap Harian, Rekap Metode) dengan filter
   rentang/outlet/status/metode/status pembayaran/pencarian; konsisten dengan
   dashboard, hanya transaksi nyata. Detail: `docs/16-api-laporan.md`.
+- **Perbandingan laporan (Fase 16)**: halaman Owner menambahkan tabel
+  **Perbandingan Outlet** dan section **Perbandingan Lintas-Bisnis** (ekspor Excel
+  2 sheet), tetap owner-scoped; agregat diperbaiki (anti fan-out) untuk
+  transaksi multi-item.

@@ -454,6 +454,33 @@
   mengambil tanggal “hari ini” dari DB (`CURRENT_DATE`) agar tidak gagal pada
   pukul 00:00–07:00 WIB (perbedaan tanggal UTC vs zona DB).
 
+## Fase 16 — Laporan Lintas-Bisnis & Perbandingan Outlet (13 Okt 2026) — SELESAI
+- **Tujuan:** Owner dapat membandingkan **outlet dalam satu bisnis** dan
+  **seluruh bisnis miliknya** pada rentang terpilih — tetap owner-scoped dan
+  konsisten dengan dashboard.
+- **Backend (modul `report`):**
+  - `GET /api/owner/businesses/:id/reports/outlets` + `/outlets/export` —
+    perbandingan tiap outlet (LEFT JOIN: outlet tanpa transaksi tetap tampil
+    bernilai nol).
+  - `GET /api/owner/reports/businesses` + `/businesses/export` — perbandingan
+    lintas-bisnis; batas rentang `from`/`to` diinterpretasikan **per zona waktu
+    masing-masing bisnis**.
+  - `server/src/modules/report/xlsx.js`: `buildComparisonWorkbook` (2 sheet:
+    `Ringkasan` + `Perbandingan Outlet`/`Perbandingan Bisnis`).
+- **Perbaikan bug (fan-out):** `groupedReport` sebelumnya JOIN
+  `transaction_items` sehingga `SUM(t.total)` **berlipat** sejumlah baris item.
+  Kini `items_sold` dihitung lewat **subquery korelatif**; omzet dihitung sekali
+  per transaksi. Diverifikasi empiris (multi-item: 50.000 benar vs 100.000 saat
+  JOIN) dan dijaga tes baru.
+- **Frontend `apps/owner`:** tabel **Perbandingan Outlet** + tombol ekspor di
+  bagian Laporan; **section baru Perbandingan Lintas-Bisnis** (rentang cepat +
+  tanggal, kartu ringkasan, tabel, tombol Ekspor Excel). Helper unduh .xlsx
+  dengan status tombol + notifikasi dipakai bersama.
+- **Pengujian:** `server/tests/report-comparison.test.js` (7 kasus) → suite
+  server **173/173**; `scripts/e2e-online.mjs` menambah langkah **20–23**
+  (perbandingan outlet & lintas-bisnis JSON + XLSX, 2 sheet) → E2E **26/26**
+  (versi tanpa `E2E_PLATFORM_FLOW`).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

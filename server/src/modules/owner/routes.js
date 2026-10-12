@@ -22,6 +22,7 @@ import cashierRoutes from '../cashier/routes.js';
 import { categoryRoutes, productRoutes } from '../product/routes.js';
 import { transactionRoutes } from '../transaction/routes.js';
 import { reportRoutes } from '../report/routes.js';
+import { crossReportRoutes } from '../report/comparison-routes.js';
 import { createAuditRouter } from '../audit/routes.js';
 import { ownerSessionRouter } from '../session/routes.js';
 import {
@@ -85,6 +86,9 @@ router.use('/businesses/:businessId/transactions', transactionRoutes);
 
 // Laporan penjualan: agregat per periode, ringkasan, ekspor CSV/JSON.
 router.use('/businesses/:businessId/reports', reportRoutes);
+
+// Laporan lintas-bisnis (Fase 16): perbandingan tiap bisnis milik Owner.
+router.use('/reports', crossReportRoutes);
 
 // Audit log bisnisnya (read-only, scoped tenant).
 router.use('/businesses/:businessId/audit-logs', createAuditRouter({ scoped: true }));

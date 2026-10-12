@@ -67,6 +67,60 @@
 
         <div id="alert" class="alert hidden"></div>
 
+        <!-- Perbandingan lintas-bisnis (semua bisnis milik Owner) — Fase 16 -->
+        <section id="cross-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Perbandingan Lintas-Bisnis</h3>
+              <p class="muted">Ringkasan omzet seluruh bisnis milik Anda</p>
+            </div>
+            <div class="detail-actions">
+              <select id="cross-range" title="Rentang cepat">
+                <option value="">— Pilih rentang —</option>
+                <option value="today">Hari ini</option>
+                <option value="7d">7 hari terakhir</option>
+                <option value="month" selected>Bulan ini</option>
+                <option value="year">Tahun ini</option>
+                <option value="custom">Kustom (atur tanggal)</option>
+              </select>
+              <input id="cross-date-from" type="date" title="Dari tanggal" />
+              <input id="cross-date-to" type="date" title="Sampai tanggal" />
+              <button id="cross-refresh-btn" class="btn">Muat ulang</button>
+              <button
+                id="cross-export-xlsx"
+                class="btn small xlsx"
+                title="Ekspor perbandingan ke Microsoft Excel"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#107C41" d="M19 3H7a2 2 0 0 0-2 2v3h-1a1 1 0 0 0 0 2h1v3h-1a1 1 0 0 0 0 2h1v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-6.7 13-2-3-2 3H6.2l3.1-4-3.1-4h2.1l2 3 2-3h2.1l-3.1 4 3.1 4h-2.1Zm4.7 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>
+                </svg>
+                Ekspor Excel (.xlsx)
+              </button>
+            </div>
+          </div>
+
+          <div class="cards" id="cross-summary"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Bisnis</th>
+                  <th>Jenis Usaha</th>
+                  <th class="right">Transaksi</th>
+                  <th class="right">Item</th>
+                  <th class="right">Omzet</th>
+                  <th class="right">Void</th>
+                  <th class="right">Refund</th>
+                  <th class="right">Outlet Aktif</th>
+                </tr>
+              </thead>
+              <tbody id="cross-body"></tbody>
+            </table>
+            <p id="cross-empty" class="empty hidden">Belum ada bisnis untuk dibandingkan.</p>
+          </div>
+        </section>
+
         <!-- Detail bisnis aktif -->
         <section id="business-detail" class="detail card hidden">
           <div class="detail-head">
@@ -314,6 +368,16 @@
               </svg>
               Ekspor Excel (.xlsx)
             </button>
+            <button
+              id="rep-export-outlet-xlsx"
+              class="btn small xlsx"
+              title="Ekspor perbandingan outlet ke Microsoft Excel"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#107C41" d="M19 3H7a2 2 0 0 0-2 2v3h-1a1 1 0 0 0 0 2h1v3h-1a1 1 0 0 0 0 2h1v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-6.7 13-2-3-2 3H6.2l3.1-4-3.1-4h2.1l2 3 2-3h2.1l-3.1 4 3.1 4h-2.1Zm4.7 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>
+              </svg>
+              Ekspor Perbandingan Outlet (.xlsx)
+            </button>
             <button id="rep-export-csv" class="btn small">Ekspor CSV</button>
             <button id="rep-export-json" class="btn small">Ekspor JSON</button>
           </div>
@@ -342,6 +406,25 @@
               <tbody id="rep-body"></tbody>
             </table>
             <p id="rep-empty" class="empty hidden">Belum ada data penjualan pada rentang ini.</p>
+          </div>
+
+          <h4>Perbandingan Outlet</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Outlet</th>
+                  <th>Status</th>
+                  <th class="right">Transaksi</th>
+                  <th class="right">Item</th>
+                  <th class="right">Omzet</th>
+                  <th class="right">Void</th>
+                  <th class="right">Refund</th>
+                </tr>
+              </thead>
+              <tbody id="rep-outlet-body"></tbody>
+            </table>
+            <p id="rep-outlet-empty" class="empty hidden">Belum ada outlet pada bisnis ini.</p>
           </div>
         </section>
 

@@ -65,3 +65,46 @@ export const exportQuerySchema = z
     ...reportFilters,
   })
   .superRefine(rangeRefine);
+
+// --------------------------------------------------------------- Fase 16 ---
+// Perbandingan outlet (satu bisnis) & lintas-bisnis (semua bisnis Owner).
+
+/** Perbandingan outlet: filter sama dengan laporan per-bisnis. */
+export const outletComparisonQuerySchema = z.object({ ...reportFilters }).superRefine(rangeRefine);
+
+/** Filter lintas-bisnis: rentang, status, metode/status pembayaran, pencarian. */
+const comparisonFilters = {
+  from: dateOnly.optional(),
+  to: dateOnly.optional(),
+  status: z.enum(['completed', 'voided', 'refunded']).optional(),
+  paymentMethod: z.enum(['cash', 'card', 'qr', 'wallet']).optional(),
+  paymentStatus: z.enum(['paid', 'pending', 'failed', 'refunded']).optional(),
+  search: z.string().trim().max(100, 'Pencarian maksimal 100 karakter').optional(),
+};
+
+export const businessComparisonQuerySchema = z
+  .object({ ...comparisonFilters })
+  .superRefine(rangeRefine);
+
+/** Ekspor perbandingan (default xlsx; json untuk data mentah). */
+export const outletComparisonExportQuerySchema = z
+  .object({
+    format: z
+      .enum(['xlsx', 'json'], {
+        errorMap: () => ({ message: "format harus 'xlsx' atau 'json'" }),
+      })
+      .default('xlsx'),
+    ...reportFilters,
+  })
+  .superRefine(rangeRefine);
+
+export const businessComparisonExportQuerySchema = z
+  .object({
+    format: z
+      .enum(['xlsx', 'json'], {
+        errorMap: () => ({ message: "format harus 'xlsx' atau 'json'" }),
+      })
+      .default('xlsx'),
+    ...comparisonFilters,
+  })
+  .superRefine(rangeRefine);

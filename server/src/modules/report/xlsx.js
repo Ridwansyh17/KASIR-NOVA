@@ -89,6 +89,29 @@ const applyCurrency = (ws, colKey, startRow) => {
   }
 };
 
+/** Helper baris sheet Ringkasan: judul seksi, info, uang, cacah. */
+const summaryParts = (ws) => ({
+  section: (text) => {
+    const r = ws.addRow([text, '']);
+    r.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    r.eachCell((c) => {
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+    });
+  },
+  info: (label, value) => {
+    ws.addRow([label, sanitizeText(value)]);
+  },
+  money: (label, sen, bold = false) => {
+    const r = ws.addRow([label, senToRupiah(sen)]);
+    r.getCell(2).numFmt = CURRENCY_FMT;
+    if (bold) r.getCell(2).font = { bold: true };
+  },
+  count: (label, value, bold = false) => {
+    const r = ws.addRow([label, Number(value ?? 0)]);
+    if (bold) r.getCell(2).font = { bold: true };
+  },
+});
+
 // ------------------------------------------------------------------ Sheets ---
 
 const buildSummarySheet = (wb, { business, filters, rows, summary, period, generatedAt }) => {
@@ -105,25 +128,7 @@ const buildSummarySheet = (wb, { business, filters, rows, summary, period, gener
   ws.getCell('A2').value = `Dibuat: ${generatedAt}`;
   ws.getCell('A2').font = { italic: true, color: { argb: 'FF5A6B85' } };
 
-  const section = (text) => {
-    const r = ws.addRow([text, '']);
-    r.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-    r.eachCell((c) => {
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-    });
-  };
-  const info = (label, value) => {
-    ws.addRow([label, sanitizeText(value)]);
-  };
-  const money = (label, sen, bold = false) => {
-    const r = ws.addRow([label, senToRupiah(sen)]);
-    r.getCell(2).numFmt = CURRENCY_FMT;
-    if (bold) r.getCell(2).font = { bold: true };
-  };
-  const count = (label, value, bold = false) => {
-    const r = ws.addRow([label, Number(value ?? 0)]);
-    if (bold) r.getCell(2).font = { bold: true };
-  };
+  const { section, info, money, count } = summaryParts(ws);
 
   ws.addRow([]);
   section('INFORMASI LAPORAN');
@@ -350,4 +355,155 @@ export const buildTransactionsWorkbook = async ({
   return Buffer.from(buffer);
 };
 
-export default { buildTransactionsWorkbook, sanitizeText };
+// ------------------------------------------ Perbandingan (Fase 16) ---
+
+const buildComparisonSummarySheet = (
+  wb,
+  { title, kind, business, filters, totals, period, generatedAt }
+) => {
+  const ws = wb.addWorksheet('Ringkasan');
+  ws.columns = [
+    { key: 'label', width: 42 },
+    { key: 'value', width: 34 },
+  ];
+
+  ws.mergeCells('A1:B1');
+  const heading = ws.getCell('A1');
+  heading.value = title;
+  heading.font = { bold: true, size: 15, color: { argb: NAVY } };
+  ws.getCell('A2').value = `Dibuat: ${generatedAt}`;
+  ws.getCell('A2').font = { italic: true, color: { argb: 'FF5A6B85' } };
+
+  const { section, info, money, count } = summaryParts(ws);
+
+  ws.addRow([]);
+  section('INFORMASI LAPORAN');
+  if (kind === 'outlet') {
+    info('Nama Bisnis', business?.name ?? '—');
+    info('Jenis Usaha', business?.business_type || 'Tidak diisi');
+  } else {
+    info('Cakupan', 'Semua bisnis milik Owner');
+  }
+  info(
+    'Periode',
+    period.from
+      ? `${formatDateID(period.from)} s.d. ${formatDateID(period.to)}`
+      : 'Bulan berjalan (per zona waktu bisnis)'
+  );
+  info('Filter Status Transaksi', filterLabel(TRANSACTION_STATUS_LABELS, filters.status, 'Semua status'));
+  info('Filter Metode Pembayaran', filterLabel(PAYMENT_METHOD_LABELS, filters.paymentMethod, 'Semua metode'));
+  info('Filter Status Pembayaran', filterLabel(PAYMENT_STATUS_LABELS, filters.paymentStatus, 'Semua status'));
+  info('Kata Kunci Pencarian', filters.search || '—');
+
+  ws.addRow([]);
+  section('TOTAL');
+  count(
+    kind === 'outlet' ? 'Jumlah outlet' : 'Jumlah bisnis',
+    kind === 'outlet' ? totals.outlets : totals.businesses
+  );
+  count('Transaksi selesai', totals.transactions);
+  count('Item terjual', totals.items_sold);
+  money('Total omzet (selesai)', totals.total, true);
+  money('Nilai transaksi dibatalkan (void)', totals.voided_total);
+  money('Nilai transaksi refund', totals.refunded_total);
+};
+
+const statusLabel = (status) =>
+  status === 'active' ? 'Aktif' : status === 'inactive' ? 'Nonaktif' : status ?? '—';
+
+const buildComparisonTableSheet = (wb, { kind, rows, totals }) => {
+  const isOutlet = kind === 'outlet';
+  const ws = wb.addWorksheet(isOutlet ? 'Perbandingan Outlet' : 'Perbandingan Bisnis', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+
+  const base = [
+    { header: 'No', key: 'no', width: 6 },
+    { header: isOutlet ? 'Outlet' : 'Bisnis', key: 'name', width: isOutlet ? 26 : 28 },
+    ...(isOutlet ? [{ header: 'Status', key: 'status', width: 12 }] : [{ header: 'Jenis Usaha', key: 'type', width: 18 }]),
+    { header: 'Transaksi', key: 'transactions', width: 12 },
+    { header: 'Item', key: 'items', width: 10 },
+    { header: 'Subtotal', key: 'subtotal', width: 14 },
+    { header: 'Diskon', key: 'discount', width: 13 },
+    { header: 'Pajak', key: 'tax', width: 13 },
+    { header: 'Total (Omzet)', key: 'total', width: 15 },
+    { header: 'Void', key: 'voided', width: 13 },
+    { header: 'Refund', key: 'refunded', width: 13 },
+    ...(isOutlet ? [] : [{ header: 'Outlet Aktif', key: 'activeOutlets', width: 13 }]),
+  ];
+  ws.columns = base;
+  const lastCol = String.fromCharCode(64 + base.length);
+  styleHeader(ws.getRow(1));
+
+  const rowOf = (r, no) => {
+    const common = {
+      no,
+      transactions: r.transactions,
+      items: r.items_sold,
+      subtotal: senToRupiah(r.subtotal),
+      discount: senToRupiah(r.discount_total),
+      tax: senToRupiah(r.tax_total),
+      total: senToRupiah(r.total),
+      voided: senToRupiah(r.voided_total),
+      refunded: senToRupiah(r.refunded_total),
+    };
+    return isOutlet
+      ? { ...common, name: sanitizeText(r.outlet_name), status: statusLabel(r.outlet_status) }
+      : {
+          ...common,
+          name: sanitizeText(r.name),
+          type: sanitizeText(r.business_type || '—'),
+          activeOutlets: r.active_outlets,
+        };
+  };
+
+  rows.forEach((r, i) => ws.addRow(rowOf(r, i + 1)));
+
+  const totalRow = ws.addRow({
+    name: 'TOTAL',
+    transactions: totals.transactions,
+    items: totals.items_sold,
+    subtotal: senToRupiah(totals.subtotal),
+    discount: senToRupiah(totals.discount_total),
+    tax: senToRupiah(totals.tax_total),
+    total: senToRupiah(totals.total),
+    voided: senToRupiah(totals.voided_total),
+    refunded: senToRupiah(totals.refunded_total),
+  });
+  totalRow.font = { bold: true };
+  totalRow.eachCell((c) => {
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LIGHT } };
+  });
+
+  ['subtotal', 'discount', 'tax', 'total', 'voided', 'refunded'].forEach((k) =>
+    applyCurrency(ws, k, 2)
+  );
+  ws.autoFilter = { from: 'A1', to: `${lastCol}1` };
+};
+
+/**
+ * Bangun berkas perbandingan (.xlsx) — 2 sheet: Ringkasan + tabel perbandingan.
+ * Dipakai untuk perbandingan outlet (satu bisnis) dan lintas-bisnis (Owner).
+ * @returns {Promise<Buffer>}
+ */
+export const buildComparisonWorkbook = async ({
+  kind,
+  title,
+  business,
+  filters,
+  rows,
+  totals,
+  period,
+  generatedAt,
+}) => {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'KASIR NOVA';
+  wb.created = new Date();
+
+  buildComparisonSummarySheet(wb, { title, kind, business, filters, totals, period, generatedAt });
+  buildComparisonTableSheet(wb, { kind, rows, totals });
+
+  return Buffer.from(await wb.xlsx.writeBuffer());
+};
+
+export default { buildTransactionsWorkbook, buildComparisonWorkbook, sanitizeText };

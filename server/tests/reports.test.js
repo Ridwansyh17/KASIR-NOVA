@@ -214,11 +214,12 @@ const dbGrouped = async (businessId, groupBy) => {
   const { rows } = await query(
     `SELECT to_char(DATE_TRUNC($2::text, t.created_at AT TIME ZONE $3::text), 'YYYY-MM-DD') AS period_start,
             COUNT(*) FILTER (WHERE t.status = 'completed')::int                  AS transactions,
-            COALESCE(COUNT(ti.id) FILTER (WHERE t.status = 'completed'), 0)::int AS items_sold,
+            COALESCE(SUM((SELECT COUNT(*) FROM transaction_items ti
+                            WHERE ti.transaction_id = t.id))
+                     FILTER (WHERE t.status = 'completed'), 0)::int             AS items_sold,
             COALESCE(SUM(t.total) FILTER (WHERE t.status = 'completed'), 0)      AS total,
             COALESCE(SUM(t.total) FILTER (WHERE t.status = 'voided'), 0)         AS voided_total
        FROM transactions t
-       LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
       WHERE t.business_id = $1
       GROUP BY 1
       ORDER BY 1`,

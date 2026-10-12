@@ -616,6 +616,9 @@ const loadBusinesses = async () => {
     renderDetail();
     await refreshContext();
   }
+
+  // Perbandingan lintas-bisnis independen dari bisnis aktif (Fase 16).
+  await loadCrossReport();
 };
 
 /** Muat ulang data yang bergantung pada bisnis aktif (langganan + outlet + produk). */
@@ -1388,6 +1391,45 @@ const renderReport = ({ rows, sum, top }) => {
   }
 };
 
+/** Perbandingan agregat per outlet (Fase 16) — filter sama dengan laporan. */
+const renderOutletComparison = ({ items, totals }) => {
+  const statusLabel = (s) => (s === 'active' ? 'Aktif' : s === 'inactive' ? 'Nonaktif' : s ?? '—');
+  const body = $('rep-outlet-body');
+  body.innerHTML = '';
+  hide($('rep-outlet-empty'));
+
+  if (!items.length) {
+    show($('rep-outlet-empty'));
+    return;
+  }
+  for (const it of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(it.outlet_name)}</strong></td>
+      <td>${escapeHtml(statusLabel(it.outlet_status))}</td>
+      <td class="right">${it.transactions}</td>
+      <td class="right">${it.items_sold}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(it.total))}</td>
+      <td class="right">${it.voided_total ? escapeHtml(fmtIDR(it.voided_total)) : '—'}</td>
+      <td class="right">${it.refunded_total ? escapeHtml(fmtIDR(it.refunded_total)) : '—'}</td>`;
+    body.appendChild(tr);
+  }
+  void totals;
+};
+
+/** Filter untuk perbandingan outlet (tanpa groupBy). */
+const outletReportQuery = () => {
+  const q = reportQuery();
+  delete q.groupBy;
+  return q;
+};
+
+const loadOutletComparison = async (businessId) => {
+  const data = await guard(() => api.reports.outlets(businessId, outletReportQuery()));
+  if (!data) return;
+  renderOutletComparison(data);
+};
+
 const loadReport = async () => {
   const b = activeBusiness();
   if (!b) {
@@ -1406,6 +1448,7 @@ const loadReport = async () => {
   );
   if (!sum) return;
   renderReport({ rows, sum, top });
+  await loadOutletComparison(b.id);
 };
 
 const downloadReport = async (format) => {
@@ -1429,15 +1472,14 @@ const downloadReport = async (format) => {
   }
 };
 
-const downloadExcel = async () => {
-  const b = activeBusiness();
-  if (!b) return;
-  const btn = $('rep-export-xlsx');
+/** Unduh .xlsx dengan status tombol sibuk + notifikasi (dipakai beberapa ekspor). */
+const runXlsxDownload = async ({ buttonId, loader, successLabel }) => {
+  const btn = $(buttonId);
   const original = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = 'Menyiapkan…';
   try {
-    const { blob, filename } = await api.reports.downloadXlsx(b.id, reportQuery());
+    const { blob, filename } = await loader();
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1446,13 +1488,33 @@ const downloadExcel = async () => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    alertBox(`Rekapan Excel berhasil diunduh (${blob.size.toLocaleString('id-ID')} byte).`, 'ok');
+    alertBox(`${successLabel} (${blob.size.toLocaleString('id-ID')} byte).`, 'ok');
   } catch (err) {
     alertBox(describeError(err), 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = original;
   }
+};
+
+const downloadExcel = () => {
+  const b = activeBusiness();
+  if (!b) return;
+  return runXlsxDownload({
+    buttonId: 'rep-export-xlsx',
+    loader: () => api.reports.downloadXlsx(b.id, reportQuery()),
+    successLabel: 'Rekapan Excel berhasil diunduh',
+  });
+};
+
+const downloadOutletExcel = () => {
+  const b = activeBusiness();
+  if (!b) return;
+  return runXlsxDownload({
+    buttonId: 'rep-export-outlet-xlsx',
+    loader: () => api.reports.outletsXlsx(b.id, outletReportQuery()),
+    successLabel: 'Perbandingan outlet berhasil diunduh',
+  });
 };
 
 $('rep-refresh-btn').addEventListener('click', loadReport);
@@ -1466,8 +1528,116 @@ $('rep-payment-method').addEventListener('change', loadReport);
 $('rep-payment-status').addEventListener('change', loadReport);
 $('rep-search').addEventListener('input', debounce(loadReport, 350));
 $('rep-export-xlsx').addEventListener('click', downloadExcel);
+$('rep-export-outlet-xlsx').addEventListener('click', downloadOutletExcel);
 $('rep-export-csv').addEventListener('click', () => downloadReport('csv'));
 $('rep-export-json').addEventListener('click', () => downloadReport('json'));
+
+// ------------------------------------------------ Lintas-bisnis (Fase 16) -----
+const crossQuery = () => ({
+  from: $('cross-date-from').value,
+  to: $('cross-date-to').value,
+});
+
+/** Zona acuan tanggal untuk lintas-bisnis (pakai zona bisnis aktif bila ada). */
+const crossRangeToday = () => todayInTz(activeBusiness()?.timezone);
+
+/** Isi tanggal default (bulan berjalan) bila belum diatur. */
+const ensureCrossDefaults = () => {
+  if ($('cross-date-from').value && $('cross-date-to').value) return;
+  const today = crossRangeToday();
+  $('cross-date-from').value = `${today.slice(0, 7)}-01`;
+  $('cross-date-to').value = today;
+};
+
+const applyCrossQuickRange = () => {
+  const range = $('cross-range').value;
+  const today = crossRangeToday();
+  if (range === 'today') {
+    $('cross-date-from').value = today;
+    $('cross-date-to').value = today;
+  } else if (range === '7d') {
+    $('cross-date-from').value = shiftIsoDays(today, -6);
+    $('cross-date-to').value = today;
+  } else if (range === 'month') {
+    $('cross-date-from').value = `${today.slice(0, 7)}-01`;
+    $('cross-date-to').value = today;
+  } else if (range === 'year') {
+    $('cross-date-from').value = `${today.slice(0, 4)}-01-01`;
+    $('cross-date-to').value = today;
+  } else {
+    return; // kustom: pemilik mengatur tanggal sendiri
+  }
+  loadCrossReport();
+};
+
+const renderCrossReport = ({ items, totals }) => {
+  const cards = [
+    {
+      label: 'Total omzet (semua bisnis)',
+      value: fmtIDR(totals.total),
+      sub: `${totals.transactions} transaksi`,
+    },
+    { label: 'Item terjual', value: String(totals.items_sold), sub: '' },
+    { label: 'Dibatalkan (void)', value: fmtIDR(totals.voided_total), sub: '' },
+    { label: 'Refund', value: fmtIDR(totals.refunded_total), sub: '' },
+  ];
+  $('cross-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(c.value)}</strong>
+        ${c.sub ? `<span class="muted small">${escapeHtml(c.sub)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+
+  const body = $('cross-body');
+  body.innerHTML = '';
+  hide($('cross-empty'));
+  if (!items.length) {
+    show($('cross-empty'));
+    return;
+  }
+  for (const it of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(it.name)}</strong></td>
+      <td>${escapeHtml(it.business_type || '—')}</td>
+      <td class="right">${it.transactions}</td>
+      <td class="right">${it.items_sold}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(it.total))}</td>
+      <td class="right">${it.voided_total ? escapeHtml(fmtIDR(it.voided_total)) : '—'}</td>
+      <td class="right">${it.refunded_total ? escapeHtml(fmtIDR(it.refunded_total)) : '—'}</td>
+      <td class="right">${it.active_outlets}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadCrossReport = async () => {
+  if (!state.businesses.length) {
+    hide($('cross-section'));
+    return;
+  }
+  show($('cross-section'));
+  ensureCrossDefaults();
+  const data = await guard(() => api.reports.businesses(crossQuery()));
+  if (!data) return;
+  renderCrossReport(data);
+};
+
+const downloadCrossExcel = () =>
+  runXlsxDownload({
+    buttonId: 'cross-export-xlsx',
+    loader: () => api.reports.businessesXlsx(crossQuery()),
+    successLabel: 'Perbandingan lintas-bisnis berhasil diunduh',
+  });
+
+$('cross-refresh-btn').addEventListener('click', loadCrossReport);
+$('cross-range').addEventListener('change', applyCrossQuickRange);
+$('cross-date-from').addEventListener('change', loadCrossReport);
+$('cross-date-to').addEventListener('change', loadCrossReport);
+$('cross-export-xlsx').addEventListener('click', downloadCrossExcel);
 
 // ------------------------------------------------------------- Bootstrap -----
 const boot = async () => {
