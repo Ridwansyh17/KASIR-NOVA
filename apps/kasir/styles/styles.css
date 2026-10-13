@@ -688,8 +688,157 @@ select:focus {
   margin-bottom: 14px;
 }
 
+/* ---------- Printer thermal (Bluetooth) ---------- */
+.printer-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.printer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.printer-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.checkbox-row input {
+  width: 18px;
+  height: 18px;
+}
+
+.printer-devices {
+  display: grid;
+  gap: 8px;
+}
+
+.printer-device {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0f1f3d;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.printer-device:hover {
+  border-color: var(--primary);
+  background: rgba(0, 180, 255, 0.1);
+}
+
+.printer-device-name {
+  font-weight: 600;
+}
+
+.printer-device-meta {
+  color: var(--muted);
+  font-family: ui-monospace, "Cascadia Mono", "Courier New", Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+/* ---------- Responsif: tablet ---------- */
+/* <=860px: POS satu kolom agar nyaman di tablet potret & HP. */
 @media (max-width: 860px) {
   .pos {
+    grid-template-columns: 1fr;
+  }
+
+  .container.wide {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* ---------- Responsif: HP ---------- */
+@media (max-width: 600px) {
+  .topbar {
+    gap: 10px;
+    padding: 10px 14px;
+  }
+
+  .container,
+  .container.wide {
+    padding: 14px 12px 48px;
+  }
+
+  .detail {
+    padding: 14px;
+  }
+
+  .receipt {
+    padding: 16px;
+  }
+
+  .auth-card {
+    padding: 20px;
+  }
+
+  .detail-head h3 {
+    font-size: 18px;
+  }
+
+  /* Grid produk tetap dua kolom agar mudah disentuh jari. */
+  .pos-products {
+    grid-template-columns: repeat(auto-fill, minmax(46%, 1fr));
+    gap: 8px;
+  }
+
+  .pos-product {
+    padding: 14px 12px;
+  }
+
+  .pos-fields .field,
+  .field.inline {
+    min-width: 0;
+    width: 100%;
+  }
+
+  /* Target sentuh lebih besar. */
+  .btn,
+  input,
+  select {
+    min-height: 44px;
+  }
+
+  .btn.small {
+    min-height: 38px;
+  }
+
+  .receipt-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+/* ---------- Responsif: HP sangat kecil ---------- */
+@media (max-width: 380px) {
+  .pos-products {
     grid-template-columns: 1fr;
   }
 }

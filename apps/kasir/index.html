@@ -2,7 +2,9 @@
 <html lang="id">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#060e22" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="robots" content="noindex, nofollow" />
     <title>KASIR NOVA — Kasir</title>
     <link rel="stylesheet" href="./styles/styles.css" />
@@ -112,6 +114,47 @@
           </dl>
         </section>
 
+        <!-- ================= PRINTER THERMAL (Bluetooth) ================= -->
+        <section id="printer-card" class="detail card">
+          <div class="detail-head">
+            <div>
+              <h3>Printer Thermal</h3>
+              <p class="muted">Cetak struk ke printer Bluetooth (Classic SPP / BLE)</p>
+            </div>
+            <span id="printer-status" class="badge">Memeriksa…</span>
+          </div>
+
+          <p id="printer-web-note" class="muted small hidden">
+            Cetak thermal hanya tersedia di <strong>aplikasi Android KASIR NOVA</strong>. Di
+            peramban, gunakan tombol “Cetak Struk” biasa.
+          </p>
+
+          <div id="printer-panel" class="printer-panel hidden">
+            <div class="printer-actions">
+              <button id="printer-scan-btn" type="button" class="btn small">Pindai &amp; Hubungkan</button>
+              <button id="printer-disconnect-btn" type="button" class="btn small">Putuskan</button>
+              <button id="printer-test-btn" type="button" class="btn small">Uji Cetak</button>
+            </div>
+
+            <div class="printer-settings">
+              <label class="field inline grow">
+                <span>Ukuran kertas</span>
+                <select id="printer-width">
+                  <option value="58">58 mm</option>
+                  <option value="80">80 mm</option>
+                </select>
+              </label>
+              <label class="checkbox-row">
+                <input id="printer-autoprint" type="checkbox" />
+                <span>Cetak otomatis setelah transaksi</span>
+              </label>
+            </div>
+
+            <p id="printer-hint" class="muted small"></p>
+            <div id="printer-devices" class="printer-devices"></div>
+          </div>
+        </section>
+
         <!-- ================= TITIK PENJUALAN ================= -->
         <section class="detail card">
           <div class="detail-head">
@@ -191,6 +234,9 @@
           <div class="receipt-head">
             <strong>Transaksi berhasil</strong>
             <div class="btn-row">
+              <button id="print-struk-thermal" type="button" class="btn small primary hidden">
+                Cetak Thermal
+              </button>
               <button id="print-struk-btn" type="button" class="btn small">Cetak Struk 58mm</button>
               <button id="print-struk-btn-80" type="button" class="btn small">Cetak Struk 80mm</button>
             </div>

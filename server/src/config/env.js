@@ -52,6 +52,13 @@ export const env = {
       const origin = vercel.startsWith('http') ? vercel : `https://${vercel}`;
       if (!list.includes(origin)) list.push(origin);
     }
+    // Aplikasi Android (APK) berjalan di WebView Capacitor dengan origin
+    // https://localhost (server.androidScheme = 'https'); iOS memakai
+    // capacitor://localhost. Origin lokal ini diizinkan default agar APK dapat
+    // memanggil API tanpa konfigurasi CORS tambahan. Bukan origin publik.
+    for (const localOrigin of ['https://localhost', 'capacitor://localhost', 'http://localhost']) {
+      if (!list.includes(localOrigin)) list.push(localOrigin);
+    }
     return list;
   })(),
   isProduction: process.env.NODE_ENV === 'production',

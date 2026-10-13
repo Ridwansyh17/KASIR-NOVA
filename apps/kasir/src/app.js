@@ -16,6 +16,8 @@ import {
   strukPageCss,
   buildStrukHtml,
 } from './receipt.js';
+import { buildStrukEscPos, buildTestEscPos } from './escpos.js';
+import * as printer from './printer.js';
 
 const $ = (id) => document.getElementById(id);
 const state = {
@@ -323,6 +325,7 @@ const renderReceipt = (t) => {
     <p class="muted small">${escapeHtml(fmtDate(t.created_at))}</p>`;
   el.appendChild(info);
   show(el);
+  updateThermalButton();
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 
@@ -376,6 +379,205 @@ $('print-struk-btn').addEventListener('click', () => printStruk('58'));
 const btnPrint80 = $('print-struk-btn-80');
 if (btnPrint80) btnPrint80.addEventListener('click', () => printStruk('80'));
 
+// ------------------------------------------------------- Printer thermal ----
+// Cetak langsung ke printer Bluetooth (Classic SPP / BLE) di aplikasi Android.
+// Di web biasa panel disembunyikan dan fungsi-fungsi ini tidak dipakai.
+const printerState = { devices: [], connected: null, busy: false };
+
+const setPrinterStatus = (text, kind = '') => {
+  const el = $('printer-status');
+  if (!el) return;
+  el.textContent = text;
+  el.className = `badge${kind ? ` ${kind}` : ''}`;
+};
+
+const updateThermalButton = () => {
+  const btn = $('print-struk-thermal');
+  if (!btn) return;
+  btn.classList.toggle('hidden', !(printer.isNative() && printerState.connected));
+};
+
+const renderPrinterDevices = () => {
+  const wrap = $('printer-devices');
+  wrap.innerHTML = '';
+  for (const d of printerState.devices) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'printer-device';
+    row.dataset.address = d.address;
+    row.dataset.transport = d.transport || 'spp';
+    row.dataset.name = d.name || '';
+    const kind = d.transport === 'ble' ? 'BLE' : 'Classic';
+    row.innerHTML =
+      `<span class="printer-device-name">${escapeHtml(d.name || d.address)}</span>` +
+      `<span class="printer-device-meta">${escapeHtml(kind)} · ${escapeHtml(d.address)}</span>`;
+    wrap.appendChild(row);
+  }
+};
+
+const describePrinterError = (err) => err?.message ?? 'Terjadi kesalahan pada printer.';
+
+const scanPrinters = async () => {
+  if (printerState.busy) return;
+  printerState.busy = true;
+  const btn = $('printer-scan-btn');
+  const hint = $('printer-hint');
+  btn.disabled = true;
+  hint.textContent = 'Meminta izin & memindai printer…';
+  let bluetoothOff = false;
+  try {
+    await printer.requestPermissions();
+    const avail = await printer.checkAvailability();
+    bluetoothOff = avail.enabled === false;
+    const [bonded, ble] = await Promise.all([
+      printer.listBonded().catch(() => []),
+      printer.scanBle({ timeoutMs: 8000 }).catch(() => []),
+    ]);
+    const map = new Map();
+    for (const d of [
+      ...bonded.map((x) => ({ ...x, transport: 'spp' })),
+      ...ble.map((x) => ({ ...x, transport: 'ble' })),
+    ]) {
+      if (!d.address) continue;
+      if (!map.has(d.address) || d.transport === 'spp') map.set(d.address, d);
+    }
+    printerState.devices = [...map.values()];
+    renderPrinterDevices();
+    if (bluetoothOff) {
+      hint.textContent =
+        'Bluetooth sedang mati. Aktifkan Bluetooth di pengaturan Android, lalu pindai lagi.';
+    } else {
+      hint.textContent = printerState.devices.length
+        ? 'Pilih printer pada daftar di bawah untuk menyambungkan.'
+        : 'Tidak ada printer ditemukan. Nyalakan printer & pasangkan (pair) dulu di pengaturan Bluetooth Android.';
+    }
+  } catch (err) {
+    hint.textContent = describePrinterError(err);
+  } finally {
+    printerState.busy = false;
+    btn.disabled = false;
+  }
+};
+
+const connectPrinter = async (device) => {
+  printerState.busy = true;
+  const hint = $('printer-hint');
+  hint.textContent = `Menyambungkan ke ${device.name || device.address}…`;
+  try {
+    const connected = await printer.connect(device);
+    printerState.connected = device;
+    setPrinterStatus(`Tersambung: ${connected.name || connected.address}`, 'ok');
+    updateThermalButton();
+    hint.textContent = 'Printer siap. Gunakan "Uji Cetak" untuk memastikan.';
+  } catch (err) {
+    printerState.connected = null;
+    setPrinterStatus('Gagal menyambung', 'off');
+    hint.textContent = describePrinterError(err);
+    updateThermalButton();
+  } finally {
+    printerState.busy = false;
+  }
+};
+
+const disconnectPrinter = async () => {
+  await printer.disconnect();
+  printerState.connected = null;
+  setPrinterStatus('Belum tersambung', '');
+  updateThermalButton();
+  $('printer-hint').textContent = 'Printer diputuskan.';
+};
+
+const sendThermal = async (transaction, { silent = false } = {}) => {
+  const t = transaction ?? lastTx;
+  if (!t) {
+    if (!silent) alertBox('Belum ada transaksi untuk dicetak.', 'error');
+    return;
+  }
+  if (!printerState.connected) {
+    if (!silent) alertBox('Printer belum tersambung.', 'error');
+    return;
+  }
+  const bytes = buildStrukEscPos({
+    transaction: t,
+    context: state.context ?? {},
+    cashier: state.user?.fullName,
+    width: printer.getSettings().width,
+  });
+  await printer.printBytes(bytes);
+};
+
+const testPrint = async () => {
+  const hint = $('printer-hint');
+  if (!printerState.connected) {
+    hint.textContent = 'Sambungkan printer terlebih dahulu.';
+    return;
+  }
+  try {
+    await printer.printBytes(
+      buildTestEscPos({ context: state.context ?? {}, width: printer.getSettings().width })
+    );
+    hint.textContent = 'Uji cetak terkirim ke printer.';
+  } catch (err) {
+    hint.textContent = describePrinterError(err);
+  }
+};
+
+const initPrinter = async () => {
+  const native = printer.isNative();
+  $('printer-web-note').classList.toggle('hidden', native);
+  $('printer-panel').classList.toggle('hidden', !native);
+  updateThermalButton();
+  if (!native) {
+    setPrinterStatus('Hanya di aplikasi Android', '');
+    return;
+  }
+  const settings = printer.getSettings();
+  $('printer-width').value = settings.width;
+  $('printer-autoprint').checked = Boolean(settings.autoPrint);
+  const avail = await printer.checkAvailability();
+  if (avail.enabled === false) {
+    setPrinterStatus('Bluetooth mati', 'off');
+    $('printer-hint').textContent =
+      'Aktifkan Bluetooth di pengaturan Android, lalu tekan "Pindai & Hubungkan".';
+    return;
+  }
+  const saved = printer.getSavedDevice();
+  const st = await printer.connectionStatus();
+  if (st?.connected && saved) {
+    printerState.connected = saved;
+    setPrinterStatus(`Tersambung: ${st.name || saved.name || saved.address}`, 'ok');
+  } else {
+    setPrinterStatus('Belum tersambung', '');
+    $('printer-hint').textContent =
+      'Tekan "Pindai & Hubungkan" untuk mencari printer Bluetooth.';
+  }
+  updateThermalButton();
+};
+
+$('printer-scan-btn').addEventListener('click', scanPrinters);
+$('printer-disconnect-btn').addEventListener('click', () => {
+  disconnectPrinter().catch((err) => alertBox(describePrinterError(err), 'error'));
+});
+$('printer-test-btn').addEventListener('click', testPrint);
+$('printer-devices').addEventListener('click', (event) => {
+  const row = event.target.closest('.printer-device');
+  if (!row) return;
+  connectPrinter({
+    address: row.dataset.address,
+    transport: row.dataset.transport,
+    name: row.dataset.name,
+  }).catch((err) => alertBox(describePrinterError(err), 'error'));
+});
+$('printer-width').addEventListener('change', () => {
+  printer.saveSettings({ width: $('printer-width').value });
+});
+$('printer-autoprint').addEventListener('change', () => {
+  printer.saveSettings({ autoPrint: $('printer-autoprint').checked });
+});
+$('print-struk-thermal').addEventListener('click', () => {
+  sendThermal(null).catch((err) => alertBox(describePrinterError(err), 'error'));
+});
+
 $('checkout-btn').addEventListener('click', async () => {
   hide($('checkout-error'));
   if (!state.cart.size) {
@@ -423,6 +625,11 @@ $('checkout-btn').addEventListener('click', async () => {
     const { transaction } = await guard(() => api.createTransaction(payload));
     renderReceipt(transaction);
     alertBox(`Transaksi ${transaction.invoice_no} berhasil.`, 'ok');
+    if (printer.getSettings().autoPrint && printerState.connected) {
+      sendThermal(transaction, { silent: true }).catch((err) =>
+        alertBox(`Cetak otomatis gagal: ${describePrinterError(err)}`, 'error')
+      );
+    }
     resetSaleForm();
     await loadProducts();
     await loadHistory();
@@ -481,6 +688,7 @@ const enterApp = async () => {
   await fetchCurrentUser();
   hide($('login-view'));
   show($('app-view'));
+  await initPrinter().catch(() => {});
   await loadProducts();
   await loadHistory();
 };
@@ -601,6 +809,7 @@ if (tokenStore.access) {
       show($('app-view'));
       await loadProducts();
       await loadHistory();
+      await initPrinter().catch(() => {});
     })
     .catch(() => {
       // guard() sudah menangani 401; error lain cukup dibiarkan ke login.

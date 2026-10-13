@@ -58,7 +58,14 @@ nova-kasir/
 │   ├── owner/                # Panel Owner (multi-bisnis, outlet, kasir, laporan)
 │   │   └── (struktur sama)
 │   └── kasir/                # Aplikasi Kasir (POS, 1 outlet)
-│       └── (struktur sama)
+│       ├── index.html
+│       ├── src/ (app.js, escpos.js, printer.js, dll.)
+│       └── styles/
+│   └── kasir-mobile/         # Pembungkus Capacitor panel Kasir → APK Android
+│       ├── capacitor.config.json
+│       ├── scripts/ (build-www.mjs, setup-android.mjs)
+│       ├── android-templates/ (MainActivity.java, NovaPrinterPlugin.java)
+│       └── android/          # dihasilkan `cap add android` (tidak di-commit)
 │
 ├── packages/                 # Kode yang dipakai bersama server & 3 apps
 │   └── shared/

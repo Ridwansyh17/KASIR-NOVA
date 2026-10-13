@@ -52,3 +52,19 @@ TEST-ACCOUNT-KASIR-NOVA.txt
 firebase.json.backup-*
 .neon
 .vercel
+
+# Android / Capacitor (Fase 17: APK)
+apps/kasir-mobile/www/
+apps/kasir-mobile/android/.gradle/
+apps/kasir-mobile/android/build/
+apps/kasir-mobile/android/app/build/
+apps/kasir-mobile/android/app/src/main/assets/public/
+apps/kasir-mobile/android/local.properties
+apps/kasir-mobile/android/key.properties
+apps/kasir-mobile/android/app/google-services.json
+*.keystore
+*.jks
+*.apk
+*.aab
+*.apks
+android/key.properties

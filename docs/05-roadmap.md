@@ -360,7 +360,8 @@
   `/kasir`) — scaffold `firebase.json` + `scripts/build-hosting.mjs` +
   `NOVA_API_BASE` per app; **sudah di-deploy** 11 Okt 2026 dan terverifikasi
   end-to-end (3 app 200, CORS 204, login + audit via tunnel cloudflared).
-  **APK/Capacitor dibatalkan** atas keputusan pemilik.
+  **APK/Capacitor dibatalkan** atas keputusan pemilik. *(Dibalik pada Fase 17 —
+  panel Kasir kini dibungkus APK Capacitor; lihat Fase 17 di bawah.)*
 - **Selesai jika:** seluruh suite lulus, backup teruji bisa direstore, dan
   ketiga app dapat disajikan lewat Firebase Hosting serta terhubung ke backend.
 
@@ -480,6 +481,60 @@
   server **173/173**; `scripts/e2e-online.mjs` menambah langkah **20–23**
   (perbandingan outlet & lintas-bisnis JSON + XLSX, 2 sheet) → E2E **26/26**
   (versi tanpa `E2E_PLATFORM_FLOW`).
+
+## Fase 17 — APK Android Panel Kasir + Cetak Struk Thermal Bluetooth (13 Okt 2026) ✅ SELESAI
+- **Revisi keputusan Fase 12:** distribusi klien tetap **web (Firebase Hosting)**
+  untuk Admin & Owner, tetapi panel **Kasir** kini juga dibungkus menjadi **APK
+  Android** agar dapat mencetak struk ke **printer thermal Bluetooth**
+  (Classic SPP/RFCOMM **dan** BLE) langsung dari perangkat.
+  Runbook lengkap: **`docs/25-apk-android-cetak-bluetooth.md`**.
+- **Identitas app:** `appId = id.kasirnova.kasir`, nama **KASIR NOVA**,
+  versi **`1.0.0-beta.1`** (versionCode 1); minSdk 23, compile/target 35.
+- **Pembungkus:** Capacitor 7 (`@capacitor/core|cli|android@^7`),
+  `webDir=www`, `androidScheme=https` → origin WebView `https://localhost`.
+  CORS backend (`server/src/config/env.js`) **selalu** mengizinkan
+  `https://localhost`, `capacitor://localhost`, `http://localhost`.
+- **ESC/POS murni di JS:** `apps/kasir/src/escpos.js` (58 mm = 32 kolom,
+  80 mm = 48 kolom; init/bold/center/tinggi-ganda TOTAL/potong; ASCII-only).
+- **Transport di JS:** `apps/kasir/src/printer.js` (plugin `NovaPrinter`,
+  preferensi lokal perangkat & pengaturan, `PrinterError` `not_native` di web).
+- **UI Kasir:** kartu *Printer Thermal* (pindai → sambung → simpan → uji cetak →
+  cetak struk), tombol cetak thermal, opsi cetak otomatis; tetap mendukung
+  cetak browser/PDF/e-receipt lama; responsif ponsel & tablet.
+- **Plugin Android kustom** `apps/kasir-mobile/android-templates/NovaPrinterPlugin.java`
+  (SPP via `BluetoothSocket` RFCOMM, BLE via `BluetoothGatt` + pemilihan
+  karakteristik writable), izin Bluetooth Classic+BLE di `AndroidManifest.xml`,
+  didaftarkan di `MainActivity.java`. Penerapan otomatis (idempoten):
+  `apps/kasir-mobile/scripts/setup-android.mjs`.
+- **Pengujian:**
+  - `server/tests/printer-escpos.test.js` (encoder ESC/POS) +
+    `server/tests/cors.test.js` (allowlist WebView) → suite server lulus (0 gagal).
+  - **Build APK debug** `gradlew assembleDebug` → **BERHASIL**:
+    `apps/kasir-mobile/android/app/build/outputs/apk/debug/app-debug.apk`
+    (~3,97 MB). Terverifikasi via `aapt2 dump badging`: package
+    `id.kasirnova.kasir`, versionName `1.0.0-beta.1`, minSdk 23 / targetSdk 35,
+    izin Bluetooth (BLUETOOTH, BLUETOOTH_ADMIN, BLUETOOTH_CONNECT,
+    BLUETOOTH_SCAN, ACCESS_FINE_LOCATION) ada; kelas `NovaPrinterPlugin`
+    ter-*dex*; aset web (`assets/public/src/escpos.js`, `printer.js`) terpaket.
+  - **Tanda tangan rilis:** `apps/kasir-mobile/key.properties.example` +
+    konfigurasi `signingConfigs.release` (via `setup-android.mjs`); tanpa
+    `key.properties`, `assembleRelease` memakai debug signing. Rahasia
+    (`*.jks`, `key.properties`, `google-services.json`) diabaikan git.
+  - **Firebase App Distribution (project `kasir-nova`):** aplikasi Android
+    `id.kasirnova.kasir` terdaftar (App ID
+    `1:1057858530498:android:7091503841af1c892a9f5b`), grup penguji
+    `kasir-beta` dibuat, dan APK `1.0.0-beta.1` **sudah didistribusikan**
+    (Release ID `3a2dio0hk110`, penguji `ridwansyarifuddin110@gmail.com`).
+    Berkas siap pasang: `dist/apk/KASIR-NOVA-1.0.0-beta.1.apk`.
+  - **Backend produksi di-deploy ulang** (Vercel) agar allowlist CORS memuat
+    origin WebView APK (`https://localhost`, `capacitor://localhost`,
+    `http://localhost`). Verifikasi: `GET /api/health` dengan
+    `Origin: https://localhost` → `200` + `Access-Control-Allow-Origin:
+    https://localhost`; origin web `https://kasir-nova.web.app` tetap `200`.
+- **Belum terverifikasi:** cetak **runtime ke printer fisik** (SPP/BLE) —
+  tidak ada perangkat printer pada lingkungan pengembangan.
+- **Selesai jika:** sebagai aplikasi Android, panel Kasir berjalan pada perangkat
+  (ponsel/tablet) dan fitur cetak thermal tersedia.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —

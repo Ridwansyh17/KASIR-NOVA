@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">KASIR NOVA</string>
+    <string name="title_activity_main">KASIR NOVA</string>
+    <string name="package_name">id.kasirnova.kasir</string>
+    <string name="custom_url_scheme">id.kasirnova.kasir</string>
+</resources>

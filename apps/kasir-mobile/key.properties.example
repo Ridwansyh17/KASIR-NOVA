@@ -1,0 +1,13 @@
+# Contoh kredensial keystore rilis KASIR NOVA (Fase 17) — JANGAN diisi asli di sini.
+#
+# Cara pakai:
+#   1. Salin berkas ini menjadi:  apps/kasir-mobile/android/key.properties
+#   2. Isi dengan data keystore Anda sendiri.
+#   3. JANGAN commit `key.properties`, `*.jks`, atau `*.keystore`.
+#
+# `storeFile` diresolusi relatif terhadap modul `android/app/`.
+# Jadi `../nova-release.jks` menunjuk ke apps/kasir-mobile/android/nova-release.jks
+storeFile=../nova-release.jks
+storePassword=GANTI_PASSWORD_KEYSTORE
+keyAlias=nova-kasir
+keyPassword=GANTI_PASSWORD_KEY

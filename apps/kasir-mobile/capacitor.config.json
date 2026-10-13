@@ -1,0 +1,14 @@
+{
+  "appId": "id.kasirnova.kasir",
+  "appName": "KASIR NOVA",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {}
+}

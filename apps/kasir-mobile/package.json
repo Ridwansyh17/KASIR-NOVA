@@ -1,0 +1,23 @@
+{
+  "name": "@nova/kasir-mobile",
+  "version": "1.0.0-beta.1",
+  "private": true,
+  "description": "APK Android KASIR NOVA (panel Kasir) — pembungkus Capacitor + plugin printer thermal Bluetooth",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs",
+    "sync": "node scripts/build-www.mjs && cap sync android",
+    "open": "cap open android",
+    "android:add": "cap add android",
+    "android:prepare": "node scripts/setup-android.mjs",
+    "apk:debug": "cd android && gradlew.bat assembleDebug",
+    "apk:release": "cd android && gradlew.bat assembleRelease",
+    "distribute": "node scripts/distribute.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}
