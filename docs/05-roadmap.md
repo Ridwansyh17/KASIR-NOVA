@@ -606,10 +606,18 @@
   Admin/Owner/Kasir serta ikon launcher Android (adaptive, latar navy `#02102B`)
   dihasilkan dari logo sumber via `scripts/generate-icons.ps1`.
 - **APK Android:** versi dinaikkan ke `1.0.0-beta.3` (versionCode `3`); ikon
-  launcher diganti dengan ikon **KASIR NOVA**. Distribusi beta ke penguji belum
-  dilakukan (menunggu persetujuan).
-- **Tertunda:** verifikasi cetak ke printer fisik, distribusi APK beta, dan
-  keputusan gateway pembayaran & perpanjangan otomatis.
+  launcher diganti dengan ikon **KASIR NOVA**. APK rilis terbangun & terverifikasi
+  (`assembleRelease`; `aapt2`/`apksigner`: `id.kasirnova.kasir`, `v1+v2`, DN
+  *KASIR NOVA*) dan **didistribusikan** ke grup penguji `kasir-beta` via Firebase
+  App Distribution (13 Okt 2026).
+- **Deploy frontend:** `dist/hosting` dibangun dengan
+  `NOVA_API_BASE=https://kasir-nova.vercel.app` lalu **di-deploy** ke Firebase
+  Hosting (`kasir-nova.web.app`). Sebelumnya config produksi keliru same-origin
+  (`''`) sehingga `/api/**` **404** di domain Hosting — kini **diperbaiki**
+  (halaman Kasir/Owner/Admin `200`, preflight `OPTIONS` → `204`). Verifikasi UI
+  statis (3 panel) + smoke bundel Hosting: `npm run verify:ui`.
+- **Tertunda:** verifikasi cetak ke printer fisik, dan keputusan gateway
+  pembayaran & perpanjangan otomatis.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —

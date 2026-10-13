@@ -121,12 +121,15 @@ roadmap fase.
 
 ## Status
 
-- Fase **0–17 selesai** (termasuk penyempurnaan struk thermal **16b** dan APK
-  Android **17**); suite tes integrasi **206/206**; E2E alur produksi
-  **26/26** (dijalankan terhadap server lokal sebelum deploy; langkah 20–23
-  menguji perbandingan outlet & lintas-bisnis JSON + XLSX).
-- Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
-  Firebase Hosting (`kasir-nova.web.app`).
+- Fase **0–18 selesai** (termasuk penyempurnaan struk thermal **16b**, APK
+  Android **17**, dan **V0.3** HPP/stok/pengeluaran/laporan **18**); suite tes
+  integrasi **220/220**; E2E alur produksi **26/26** (dijalankan terhadap server
+  lokal sebelum deploy; langkah 20–23 menguji perbandingan outlet &
+  lintas-bisnis JSON + XLSX).
+- Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend
+  **V0.3** ter-deploy di Firebase Hosting (`kasir-nova.web.app`, API cross-origin
+  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.3`** dibagikan ke penguji
+  beta via Firebase App Distribution (grup `kasir-beta`).
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
   `Logo KASIR NOVA.jpeg` (latar navy gelap + aksen cyan). Logo di login & topbar
   ketiga panel (Admin/Kasir/Owner). Detail: `docs/05-roadmap.md`.

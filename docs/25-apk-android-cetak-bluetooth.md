@@ -273,8 +273,8 @@ Status (13 Okt 2026, sudah dilakukan):
   ikon PWA + `site.webmanifest`, dan seluruh fitur V0.3. Ditandatangani
   **keystore rilis yang sama** seperti beta.2 (`v1+v2`, DN *KASIR NOVA*),
   sehingga dapat dipasang **di atas** beta.2. Berkas:
-  `dist/apk/KASIR-NOVA-1.0.0-beta.3.apk`. **Belum diunggah** ke Firebase App
-  Distribution (menunggu persetujuan).
+  `dist/apk/KASIR-NOVA-1.0.0-beta.3.apk`. **Telah didistribusikan** ke grup
+  `kasir-beta` via Firebase App Distribution (13 Okt 2026).
 
 > **Penting saat beralih beta.1 → beta.2:** beta.1 ditandatangani *debug
 > keystore*, beta.2 dengan *keystore rilis* — tanda tangannya berbeda, jadi
@@ -426,7 +426,8 @@ cmd /c "npm run apk:release"
 | Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (~3,62 MB), v`1.0.0-beta.3`/code 3, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2 sebelumnya juga terverifikasi) |
 | CORS produksi untuk APK | `GET /api/health` + `Origin: https://localhost` | ✅ `200` + `Access-Control-Allow-Origin: https://localhost` |
 | CORS produksi web (regresi) | `GET /api/health` + `Origin: https://kasir-nova.web.app` | ✅ `200` + header sesuai |
-| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (1 penguji, rilis `1.0.0-beta.2`; **beta.3 belum diunggah**) |
+| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, lalu `1.0.0-beta.3` pada 13 Okt 2026) |
+| Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204` |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 

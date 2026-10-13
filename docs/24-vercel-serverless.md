@@ -118,6 +118,12 @@ firebase deploy --only hosting
 > `/api/**` **tidak** di-rewrite di `firebase.json` (butuh paket Blaze), sehingga
 > frontend memakai panggilan absolut ke origin Vercel.
 
+> ⚠️ **Jangan deploy Hosting dengan `NOVA_API_BASE` kosong.** Karena `/api/**`
+> tidak di-rewrite, base kosong membuat frontend memanggil
+> `https://kasir-nova.web.app/api/**` → **404**. Ini sempat terjadi (produksi
+> keliru same-origin) dan **diperbaiki 13 Okt 2026** dengan men-deploy ulang
+> memakai `node scripts/build-hosting.mjs https://kasir-nova.vercel.app`.
+
 ---
 
 ## Status (12 Okt 2026)
