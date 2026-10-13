@@ -697,3 +697,38 @@ select:focus {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ---------- V0.3: ekspor keuangan, Δ stok, & pratinjau foto ---------- */
+.btn.xlsx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 124, 65, 0.16);
+  border-color: rgba(16, 124, 65, 0.55);
+  color: #e9f1ff;
+}
+
+.btn.xlsx .icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.ok-text {
+  color: #43e0a0;
+}
+
+.danger-text {
+  color: #ff8f8f;
+}
+
+.photo-preview {
+  margin: 4px 0 10px;
+}
+
+.photo-preview img {
+  max-width: 100%;
+  max-height: 170px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}

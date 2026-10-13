@@ -6,6 +6,10 @@
     <meta name="theme-color" content="#060e22" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
     <title>KASIR NOVA — Kasir</title>
     <link rel="stylesheet" href="./styles/styles.css" />
   </head>
@@ -96,8 +100,17 @@
 
         <div id="alert" class="alert hidden"></div>
 
+        <!-- Navigasi modul kasir (Fase 1/2/4/5) -->
+        <nav id="main-tabs" class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="kasir" role="tab">Kasir</button>
+          <button type="button" class="tab" data-tab="produk" role="tab">Produk</button>
+          <button type="button" class="tab" data-tab="pendapatan" role="tab">Pendapatan</button>
+          <button type="button" class="tab" data-tab="pengeluaran" role="tab">Pengeluaran</button>
+          <button type="button" class="tab" data-tab="stok" role="tab">Riwayat Stok</button>
+        </nav>
+
         <!-- Profil kasir + konteks outlet -->
-        <section class="detail card">
+        <section class="detail card pane" data-pane="kasir">
           <div class="detail-head">
             <div>
               <h3 id="profile-name">—</h3>
@@ -115,7 +128,7 @@
         </section>
 
         <!-- ================= PRINTER THERMAL (Bluetooth) ================= -->
-        <section id="printer-card" class="detail card">
+        <section id="printer-card" class="detail card pane" data-pane="kasir">
           <div class="detail-head">
             <div>
               <h3>Printer Thermal</h3>
@@ -156,7 +169,7 @@
         </section>
 
         <!-- ================= TITIK PENJUALAN ================= -->
-        <section class="detail card">
+        <section class="detail card pane" data-pane="kasir">
           <div class="detail-head">
             <div>
               <h3>Transaksi Baru</h3>
@@ -244,7 +257,7 @@
         </div>
 
         <!-- Riwayat transaksi outlet (10 terakhir) -->
-        <section class="detail card">
+        <section class="detail card pane" data-pane="kasir">
           <div class="detail-head">
             <div>
               <h3>Transaksi Terakhir</h3>
@@ -255,6 +268,155 @@
           <div class="tx-list" id="history-list"></div>
           <p id="history-empty" class="empty hidden">Belum ada transaksi.</p>
         </section>
+
+        <!-- ================= PRODUK & STOK (Fase 1/2) ================= -->
+        <section class="detail card pane hidden" data-pane="produk">
+          <div class="detail-head">
+            <div>
+              <h3>Produk &amp; Stok</h3>
+              <p class="muted">Kelola katalog produk &amp; stok outlet Anda</p>
+            </div>
+            <button id="mprod-new-btn" class="btn primary">+ Produk</button>
+          </div>
+
+          <div class="filter-bar">
+            <input id="mprod-search" type="search" placeholder="Cari nama / SKU…" />
+            <select id="mprod-availability">
+              <option value="all">Semua ketersediaan</option>
+              <option value="available">Tersedia</option>
+              <option value="out_of_stock">HABIS</option>
+            </select>
+            <select id="mprod-sort">
+              <option value="name">Urut: Nama</option>
+              <option value="stock_asc">Stok terkecil</option>
+              <option value="stock_desc">Stok terbesar</option>
+              <option value="recent">Terbaru</option>
+            </select>
+            <button id="mprod-refresh-btn" class="btn">Muat ulang</button>
+          </div>
+
+          <div class="product-list" id="mprod-list"></div>
+          <p id="mprod-empty" class="empty hidden">Belum ada produk di outlet ini.</p>
+        </section>
+
+        <!-- ================= PENDAPATAN HARIAN (Fase 4) ================= -->
+        <section class="detail card pane hidden" data-pane="pendapatan">
+          <div class="detail-head">
+            <div>
+              <h3>Pendapatan Harian</h3>
+              <p class="muted">Ringkasan penjualan &amp; laba outlet Anda</p>
+            </div>
+            <div class="detail-actions">
+              <select id="fin-range" title="Rentang">
+                <option value="today" selected>Hari ini</option>
+                <option value="yesterday">Kemarin</option>
+                <option value="week">7 hari terakhir</option>
+                <option value="month">Bulan ini</option>
+                <option value="custom">Kustom</option>
+              </select>
+              <input id="fin-date" type="date" title="Tanggal (mode kustom)" />
+              <button id="fin-refresh-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div class="cards" id="fin-summary"></div>
+          <p id="fin-range-label" class="muted small"></p>
+
+          <h4>Per Metode Pembayaran</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Metode</th>
+                  <th class="right">Transaksi</th>
+                  <th class="right">Pendapatan</th>
+                  <th class="right">Biaya</th>
+                </tr>
+              </thead>
+              <tbody id="fin-methods"></tbody>
+            </table>
+            <p id="fin-methods-empty" class="empty hidden">
+              Belum ada pendapatan pada periode ini.
+            </p>
+          </div>
+        </section>
+
+        <!-- ================= PENGELUARAN OUTLET (Fase 5) ================= -->
+        <section class="detail card pane hidden" data-pane="pengeluaran">
+          <div class="detail-head">
+            <div>
+              <h3>Pengeluaran Outlet</h3>
+              <p class="muted">Catat &amp; koreksi pengeluaran (tidak dihapus, hanya dibatalkan)</p>
+            </div>
+            <button id="exp-new-btn" class="btn primary">+ Pengeluaran</button>
+          </div>
+
+          <div class="filter-bar">
+            <select id="exp-category-filter">
+              <option value="">Semua kategori</option>
+              <option value="operational">Operasional</option>
+              <option value="utilities">Utilitas</option>
+              <option value="supplies">Perlengkapan</option>
+              <option value="transport">Transport</option>
+              <option value="maintenance">Pemeliharaan</option>
+              <option value="inventory_purchase">Beli Persediaan</option>
+              <option value="other">Lain-lain</option>
+            </select>
+            <select id="exp-status-filter">
+              <option value="recorded" selected>Tercatat</option>
+              <option value="voided">Dibatalkan</option>
+            </select>
+            <input id="exp-date-from" type="date" title="Dari tanggal" />
+            <input id="exp-date-to" type="date" title="Sampai tanggal" />
+            <button id="exp-refresh-btn" class="btn">Muat ulang</button>
+          </div>
+
+          <div class="cards" id="exp-summary"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Kategori</th>
+                  <th>Metode</th>
+                  <th class="right">Nominal</th>
+                  <th>Catatan</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="exp-body"></tbody>
+            </table>
+            <p id="exp-empty" class="empty hidden">Belum ada pengeluaran pada periode ini.</p>
+          </div>
+        </section>
+
+        <!-- ================= RIWAYAT PERGERAKAN STOK (Fase 2) ================= -->
+        <section class="detail card pane hidden" data-pane="stok">
+          <div class="detail-head">
+            <div>
+              <h3>Riwayat Pergerakan Stok</h3>
+              <p class="muted">Catatan append-only (tidak dapat diubah/dihapus)</p>
+            </div>
+            <button id="mov-refresh-btn" class="btn">Muat ulang</button>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Produk</th>
+                  <th>Jenis</th>
+                  <th class="right">Perubahan</th>
+                  <th class="right">Sisa</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody id="mov-body"></tbody>
+            </table>
+            <p id="mov-empty" class="empty hidden">Belum ada pergerakan stok.</p>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -262,6 +424,173 @@
          Ditaruh sebagai anak langsung <body> agar CSS @media print cukup
          menyembunyikan semua elemen lain — dashboard tidak ikut tercetak. -->
     <div id="print-struk" class="print-only" aria-hidden="true"></div>
+
+    <!-- ================= MODAL PRODUK (Kasir, Fase 1/2) ================= -->
+    <div id="mprod-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="mprod-modal-title">Produk Baru</h3>
+        <form id="mprod-form" novalidate>
+          <input type="hidden" id="mprod-id" />
+
+          <label class="field">
+            <span>Nama produk</span>
+            <input id="mprod-name" type="text" required maxlength="120" />
+          </label>
+          <label class="field">
+            <span>Harga jual (Rp)</span>
+            <input id="mprod-price" type="number" min="0" step="1" required />
+          </label>
+          <label class="field" id="mprod-cost-field">
+            <span>Harga modal / HPP (Rp)</span>
+            <input id="mprod-cost" type="number" min="0" step="1" />
+          </label>
+          <label class="field">
+            <span>Satuan (opsional)</span>
+            <input id="mprod-unit" type="text" maxlength="20" placeholder="mis. pcs, kg, botol" />
+          </label>
+          <label class="field">
+            <span>SKU (opsional)</span>
+            <input id="mprod-sku" type="text" maxlength="64" />
+          </label>
+          <label class="field">
+            <span>Barcode (opsional)</span>
+            <input id="mprod-barcode" type="text" maxlength="64" />
+          </label>
+          <label class="field">
+            <span>Kategori (opsional)</span>
+            <select id="mprod-category">
+              <option value="">— tanpa kategori —</option>
+            </select>
+          </label>
+          <label class="field checkbox">
+            <input id="mprod-track" type="checkbox" checked />
+            <span>Lacak stok</span>
+          </label>
+          <label class="field" id="mprod-initial-field">
+            <span>Stok awal di outlet Anda (opsional)</span>
+            <input id="mprod-initial" type="number" min="0" step="1" />
+          </label>
+          <label class="field" id="mprod-status-field">
+            <span>Status</span>
+            <select id="mprod-status">
+              <option value="active">Aktif</option>
+              <option value="suspended">Nonaktif</option>
+            </select>
+          </label>
+          <label class="field checkbox" id="mprod-oos-field">
+            <input id="mprod-oos" type="checkbox" />
+            <span>Tandai stok HABIS (tidak bisa dijual)</span>
+          </label>
+          <label class="field">
+            <span>Foto produk (opsional)</span>
+            <input id="mprod-photo" type="file" accept="image/*" />
+          </label>
+          <div id="mprod-photo-preview" class="photo-preview"></div>
+          <label class="field checkbox" id="mprod-photo-clear-field">
+            <input id="mprod-photo-clear" type="checkbox" />
+            <span>Hapus foto yang ada</span>
+          </label>
+
+          <p id="mprod-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="mprod-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL STOK (Kasir) ================= -->
+    <div id="cstock-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Atur Stok</h3>
+        <p id="cstock-product" class="muted"></p>
+        <form id="cstock-form" novalidate>
+          <label class="field">
+            <span>Jumlah stok di outlet Anda</span>
+            <input id="cstock-qty" type="number" min="0" step="1" required />
+          </label>
+          <label class="field">
+            <span>Catatan (opsional)</span>
+            <input id="cstock-reason" type="text" maxlength="200" />
+          </label>
+          <p id="cstock-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="cstock-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL PENGELUARAN (Fase 5) ================= -->
+    <div id="exp-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Pengeluaran Baru</h3>
+        <form id="exp-form" novalidate>
+          <label class="field">
+            <span>Kategori</span>
+            <select id="exp-category">
+              <option value="operational">Operasional</option>
+              <option value="utilities">Utilitas</option>
+              <option value="supplies">Perlengkapan</option>
+              <option value="transport">Transport</option>
+              <option value="maintenance">Pemeliharaan</option>
+              <option value="inventory_purchase">Beli Persediaan (tidak dihitung laba)</option>
+              <option value="other">Lain-lain</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Nominal (Rp)</span>
+            <input id="exp-amount" type="number" min="1" step="1" required />
+          </label>
+          <label class="field">
+            <span>Metode</span>
+            <select id="exp-method">
+              <option value="cash">Tunai</option>
+              <option value="transfer">Transfer</option>
+              <option value="qr">QRIS</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Tanggal</span>
+            <input id="exp-date" type="date" required />
+          </label>
+          <label class="field">
+            <span>Keterangan (opsional)</span>
+            <input id="exp-note" type="text" maxlength="300" />
+          </label>
+          <label class="field">
+            <span>Bukti foto (opsional)</span>
+            <input id="exp-receipt" type="file" accept="image/*" />
+          </label>
+          <p id="exp-form-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="exp-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL VOID PENGELUARAN ================= -->
+    <div id="void-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Batalkan Pengeluaran</h3>
+        <p id="void-info" class="muted"></p>
+        <form id="void-form" novalidate>
+          <label class="field">
+            <span>Alasan pembatalan (min. 3 karakter)</span>
+            <input id="void-reason" type="text" maxlength="200" required />
+          </label>
+          <p id="void-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="void-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn danger">Batalkan</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Konfigurasi runtime (API base URL) — dimuat sebelum app.js. -->
     <script src="./config.js"></script>

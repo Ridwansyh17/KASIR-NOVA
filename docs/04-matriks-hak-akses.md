@@ -66,11 +66,28 @@
 | Operasi | A | O | K |
 |---|---|---|---|
 | CRUD kategori | ❌ | ✅ | ❌ |
-| CRUD produk & harga | ❌ | ✅ | ❌ |
-| Lihat produk | ❌ | ✅ | ✅ (hanya outletnya) |
-| Ubah harga jual | ❌ | ✅ | ❌ |
-| Adjust stok (opname) | ❌ | ✅ | ❌ |
+| Melihat produk | ❌ | ✅ | ✅ (hanya outletnya) |
+| Membuat / mengubah produk & harga | ❌ | ✅ | ✅ (di outletnya) |
+| Hapus produk (soft delete) | ❌ | ✅ | ❌ (tidak ada endpoint hapus di area kasir) |
+| Lihat/ubah **HPP** (`cost_price`) | ❌ | ✅ (selalu) | ✅ **hanya bila** `can_view_profit` |
+| Memberi/mencabut izin HPP kasir | ❌ | ✅ | ❌ |
+| Adjust stok (opname) | ❌ | ✅ (per outlet) | ✅ (outletnya saja) |
+| Tandai HABIS / aktifkan kembali | ❌ | ✅ | ✅ (produk ber-`track_stock`) |
 | Lihat stok outletnya | ❌ | ➖ | ✅ |
+| Lihat riwayat pergerakan stok | ❌ | ✅ (bisnisnya) | ✅ (outletnya) |
+
+> **V0.3 (migrasi `0009`, `docs/14` & `docs/18`):**
+> - **HPP** hanya dikembalikan/diubah di server bila pemanggil berizin. Owner
+>   **selalu** berizin; Kasir **hanya** bila Owner menyalakan
+>   `cashiers.can_view_profit`. Kasir mencoba mengisi HPP tanpa izin → **403**.
+> - **HABIS bersifat turunan** = `manual_out_of_stock` ATAU
+>   (`track_stock` DAN `Σ stok ≤ 0`). Menandai HABIS tidak mengubah saldo.
+>   Produk HABIS **diblokir server** saat dijual (409); aktivasi kembali
+>   membutuhkan stok > 0.
+> - Kasir dapat **membuat/mengubah produk & mengatur stok outletnya**; **tidak
+>   ada** endpoint hapus produk di area kasir (hapus = Owner, soft delete).
+> - Setiap perubahan saldo menulis `inventory_movements` (append-only) di
+>   transaksi DB yang sama.
 
 ## 7. Transaksi Penjualan
 
@@ -94,7 +111,10 @@
 |---|---|---|---|
 | Laporan harian/mingguan/bulanan/tahunan | ✅ (semua bisnis) | ✅ (bisnisnya) | ❌ |
 | Ringkasan omzet outlet | ✅ (semua bisnis) | ✅ (bisnisnya) | ❌ |
-| Export laporan (CSV/JSON) | ✅ (baca saja, semua bisnis) | ✅ (bisnisnya) | ❌ |
+| **Laporan pendapatan harian outletnya** (V0.3) | ❌ | ➖ | ✅ (outletnya; HPP/laba disembunyikan tanpa izin) |
+| **Laporan keuangan & laba** (HPP, biaya, pengeluaran, laba kotor/bersih) | ➖ (tidak disediakan) | ✅ (bisnisnya) | ✅ **hanya** bila `can_view_profit` |
+| Ekspor laporan keuangan (.xlsx) | ➖ | ✅ | ❌ |
+| Export laporan (CSV/JSON/Excel rekapan transaksi) | ✅ (baca saja, semua bisnis) | ✅ (bisnisnya) | ❌ |
 
 > Fase 9 (implementasi `docs/16-api-laporan.md`): seluruh agregat dan ekspor
 > dihitung **di server** memakai zona waktu bisnis; fokus kriteria selesai
@@ -104,6 +124,32 @@
 > lintas bisnis; karena ekspor adalah penyajian data baca (tanpa perubahan
 > data), admin diberi akses ekspor *read-only* agar konsisten dengan perannya
 > pada baris "Laporan … = ✅ (semua bisnis)".
+>
+> **V0.3 (`docs/16`, `docs/18`):** `GET .../reports/finance` menghitung
+> pendapatan per metode, HPP (snapshot item), biaya transaksi
+> (`payments.fee_amount`), pengeluaran operasional, lalu **laba kotor**
+> (pendapatan − HPP) dan **laba bersih** (laba kotor − operasional − biaya).
+> Kategori `inventory_purchase` **dikecualikan** dari laba. Endpoint laporan
+> harian kasir (`/api/cashier/reports/daily`) juga menyertakan perbandingan
+> HPP/laba **hanya** bila kasir berizin; server menghapus field tersebut
+> sebaliknya.
+
+## 8b. Pengeluaran & Pergerakan Stok (V0.3)
+
+| Operasi | A | O | K |
+|---|---|---|---|
+| Mencatat pengeluaran outlet | ❌ | ✅ (outlet bisnisnya) | ✅ (outletnya) |
+| Melihat daftar pengeluaran | ❌ | ✅ (bisnisnya, filter outlet/kategori/tanggal) | ✅ (outletnya) |
+| Mengoreksi pengeluaran | ❌ | ✅ (void + alasan) | ✅ (hanya yang ia catat) |
+| Menghapus pengeluaran | ❌ | ❌ | ❌ |
+| Melihat pergerakan stok | ❌ | ✅ (bisnisnya) | ✅ (outletnya) |
+| Mengubah/menghapus pergerakan stok | ❌ | ❌ | ❌ |
+
+> **V0.3 (migrasi `0009`, `docs/18`):** koreksi = **void** (`recorded` →
+> `voided` + `void_reason`), bukan hapus; `inventory_movements` bersifat
+> **append-only**. Nominal pengeluaran dalam **sen** di API. Kategori
+> `inventory_purchase` tetap dicatat sebagai pengeluaran tetapi **tidak**
+> mengurangi laba bersih.
 
 ## 9. Audit Log
 

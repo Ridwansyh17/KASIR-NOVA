@@ -16,9 +16,14 @@
 | GET | `/api/owner/businesses/:businessId/reports/outlets/export` | owner | Ekspor perbandingan outlet (JSON / **XLSX**) |
 | GET | `/api/owner/reports/businesses` | owner | **Perbandingan lintas-bisnis** milik Owner (Fase 16) |
 | GET | `/api/owner/reports/businesses/export` | owner | Ekspor perbandingan lintas-bisnis (JSON / **XLSX**) |
+| GET | `/api/owner/businesses/:businessId/reports/finance` | owner | **Ringkasan keuangan & laba (V0.3)** |
+| GET | `/api/owner/businesses/:businessId/reports/finance/export` | owner | **Ekspor XLSX keuangan (V0.3)** |
+| GET | `/api/cashier/reports/daily` | cashier | **Pendapatan harian outlet kasir (V0.3)** |
 | GET | `/api/platform/businesses/:businessId/reports[...]` | platform_admin | Sama persis, **baca saja** lintas platform |
 
-Kasir **tidak** memiliki endpoint laporan (403).
+Kasir **tidak** memiliki endpoint laporan penjualan (403), kecuali
+`/api/cashier/reports/daily` (pendapatan outletnya sendiri) yang ditambahkan
+V0.3.
 
 ## Query bersama (opsional)
 
@@ -190,6 +195,65 @@ endpoint JSON-nya. Berkas XLSX berisi **2 sheet**: `Ringkasan` dan
 > `items_sold` sehingga **tidak** ada fan-out dari JOIN `transaction_items`
 > (sebelumnya `SUM(t.total)` berlipat sejumlah baris item). Berlaku untuk
 > `groupedReport`, `outletComparison`, dan `businessComparison`.
+
+## Laporan Keuangan & Laba (V0.3)
+
+`GET /api/owner/businesses/:businessId/reports/finance` (owner) — ringkasan
+pendapatan, HPP, biaya transaksi, pengeluaran, dan laba pada satu rentang.
+
+**Query:** `period` (`today`|`yesterday`|`week`|`month`|`custom`) **atau**
+`date` (satu hari) **atau** `from`/`to`; plus `outletId` opsional. Rentang
+dihitung di server memakai zona waktu bisnis (tanpa argumen → `today`).
+
+```jsonc
+{
+  "business": { "id": "…", "name": "…", "currency": "IDR", "timezone": "Asia/Jakarta" },
+  "period": { "from": "2026-10-01", "to": "2026-10-13", "preset": "month" },
+  "scope": { "outlet_id": null },
+  "income": { "cash": 100000, "qris": 50000, "card": 0, "wallet": 0,
+              "other": 0, "total": 150000, "transaction_fees": 1000 },
+  "payment_methods": [ { "method": "cash", "total": 100000, "fees": 0, "transactions": 2 },
+                       { "method": "qr",   "total": 50000,  "fees": 1000, "transactions": 1 } ],
+  "transactions": { "completed": 3, "voided": 1, "refunded": 0,
+                    "items_sold": 6, "voided_total": 50000, "refunded_total": 0 },
+  "hpp": 60000,
+  "expenses": { "operating_total": 20000, "inventory_total": 15000, "total": 35000,
+    "entries": 2,
+    "by_category": [ { "category": "utilities", "total": 20000, "entries": 1,
+                       "counts_as_operating": true },
+                     { "category": "inventory_purchase", "total": 15000, "entries": 1,
+                       "counts_as_operating": false } ] },
+  "gross_profit": 90000,   // income.total − hpp
+  "net_profit": 69000,     // gross_profit − expenses.operating_total − income.transaction_fees
+  "outlets": [ { "outlet_id": "…", "outlet_name": "Pusat", "transactions": 3,
+                 "income": 150000, "hpp": 60000, "operating_expense": 20000,
+                 "transaction_fees": 1000, "gross_profit": 90000, "net_profit": 69000 } ]
+}
+```
+
+- **Laba kotor** = `income.total − hpp`; **laba bersih** =
+  `gross_profit − expenses.operating_total − transaction_fees`.
+- HPP = Σ `transaction_items.cost_price × qty` (**snapshot** saat penjualan),
+  bukan `products.cost_price` terkini.
+- Pengeluaran (`expenses`) hanya status `recorded`, berbasis `spent_on`;
+  `inventory_purchase` **dikecualikan** dari `operating_total`.
+- `income` per metode: `cash`, `qr` (QRIS), `card`, `wallet`, `other`.
+- Outlet tanpa penjualan tetap tampil (nol).
+
+### Kasir — `GET /api/cashier/reports/daily`
+
+Bentuk respons **sama** dengan di atas, tetapi outlet terpaku pada akun kasir
+dan hanya memuat satu outlet. Bila `can_view_profit = false`, server
+**menghapus** field `hpp`, `gross_profit`, `net_profit` (dan yang setara di
+`outlets`) serta menambahkan `can_view_profit: false`.
+
+### Ekspor
+
+- `GET /reports/finance/export` → XLSX `Laporan Keuangan` dengan **3 sheet**:
+  `Ringkasan Keuangan`, `Per Outlet`, dan `Pengeluaran Outlet`. Nominal
+  sen → rupiah (`"Rp"#,##0`), proteksi formula injection, dan angka yang
+  **sama** dengan dashboard (memakai `financeSummary`). Nama berkas
+  `KASIR_NOVA_Laporan_Keuangan_<from>_sampai_<to>.xlsx`.
 
 ## Aturan & keamanan
 

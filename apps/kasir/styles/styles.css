@@ -1040,3 +1040,138 @@ button.link {
 button.link:hover {
   opacity: 0.8;
 }
+
+/* ==========================================================================
+   V0.3 — Tab, ringkasan statistik, tabel, dan pratinjau foto.
+   ========================================================================== */
+
+/* ---------- Navigasi tab modul kasir ---------- */
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2px;
+}
+
+.tab {
+  font: inherit;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--text);
+  background: #0f1f3d;
+  border-color: var(--border);
+}
+
+/* Kartu ringkasan (grid) */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.card.stat {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+/* Tabel data */
+.table-wrap {
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.table .right {
+  text-align: right;
+}
+
+.table .strong {
+  font-weight: 600;
+}
+
+.ok-text {
+  color: #37d67a;
+}
+
+.danger-text {
+  color: #ff6b6b;
+}
+
+/* Pratinjau foto produk */
+.photo-preview {
+  margin: 4px 0 10px;
+}
+
+.photo-preview img {
+  max-width: 100%;
+  max-height: 170px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+/* Konteks outlet pada kartu produk */
+.outlet-meta {
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+
+.btn.danger {
+  border-color: #7a2130;
+  color: #ff9a9a;
+}
+
+.btn.danger:hover {
+  background: #3a1420;
+}
+

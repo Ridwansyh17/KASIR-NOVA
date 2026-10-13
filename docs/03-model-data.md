@@ -16,10 +16,12 @@ platform_admins                owners
                                       │        │
                                       │        └──> stock (per product per outlet)
                                       ├──> categories ──> products
-                                      │
-                                      └──> transactions ──> transaction_items
-                                                │
-                                                └──> payments
+                                      │                       │
+                                      │                       └──> inventory_movements
+                                      ├──> transactions ──> transaction_items
+                                      │         │
+                                      │         └──> payments
+                                      └──> expenses  (pengeluaran outlet)
 audit_logs  (mencatat semua aktor)
 refresh_tokens (sesi, per peran)
 ```
@@ -76,7 +78,9 @@ refresh_tokens (sesi, per peran)
 | password_hash | TEXT | scrypt (format `scrypt:N:r:p:salt:hash`) |
 | pin_hash | TEXT | opsional, scrypt (`pin:N:r:p:salt:hash`), 4–6 digit |
 | full_name | TEXT | |
-| status | TEXT | `account_status` (`active`/`suspended`), default `active` |
+| status | TEXT | `account_status` (`active`/`suspended`/`locked`), default `active` |
+| pin_set_at, pin_failed_attempts, pin_locked_until | TIMESTAMPTZ / INT | Fase 10b (PIN) |
+| can_view_profit | BOOLEAN | default FALSE; **opt-in Owner** untuk melihat HPP/laba (V0.3) |
 | created_by | UUID | FK `owners.id`, ON DELETE SET NULL |
 
 > Penegakan "1 Kasir = 1 outlet": email UNIQUE case-insensitive + `outlet_id`
@@ -99,8 +103,14 @@ refresh_tokens (sesi, per peran)
 | | name | TEXT (UNIQUE per bisnis untuk produk aktif, `lower(name)`) |
 | | sku, barcode | TEXT (UNIQUE per bisnis bila diisi) |
 | | price | BIGINT (SEN, non-negatif) |
+| | cost_price | BIGINT (SEN, default 0, CHECK ≥ 0) — HPP/modal (V0.3) |
+| | unit | TEXT (nullable, mis. `pcs`/`kg`/`botol`) (V0.3) |
+| | photo_url | TEXT (URL http(s) atau data URL gambar) (V0.3) |
 | | track_stock | BOOLEAN (default TRUE; jasa dapat `false`) |
 | | status | `account_status` (`active`/`suspended`) |
+| | manual_out_of_stock | BOOLEAN (default FALSE, V0.3) — HABIS manual |
+| | stock_note, stock_status_changed_at/_by_role/_by_id | TEXT / TIMESTAMPTZ / user_role / UUID (V0.3) |
+| | created_by_role/_id, updated_by_role/_id | `user_role` + UUID — jejak pengubah (V0.3) |
 | | deleted_at | TIMESTAMPTZ (soft delete) |
 | | created_at, updated_at | TIMESTAMPTZ |
 
@@ -117,6 +127,47 @@ refresh_tokens (sesi, per peran)
 > konsisten dengan `subscription_plans.price`. Kategori & produk dihapus
 > dengan soft delete untuk produk; penghapusan kategori diblokir (409) bila
 > masih dipakai produk aktif. (Fase 6.)
+>
+> **V0.3 (migrasi `0009`):** `cost_price` (HPP) **hanya** dikembalikan/diubah
+> bila pemanggil berizin (Owner selalu; Kasir bila `cashiers.can_view_profit`);
+> `unit`/`photo_url` untuk tampilan katalog. **Ketersediaan (HABIS) bersifat
+> turunan:** `manual_out_of_stock = true` **ATAU** (`track_stock = true` DAN
+> `Σ total_stock ≤ 0`). Menandai HABIS tidak mengubah saldo stok.
+
+### `inventory_movements` (append-only, migrasi `0009`)
+| id | UUID PK | |
+| business_id, outlet_id | UUID FK → businesses/outlets, ON DELETE CASCADE | tenant + indeks |
+| product_id | UUID FK → products, ON DELETE SET NULL (nullable) | snapshot nama dipertahankan |
+| product_name | TEXT | snapshot nama produk |
+| type | `inventory_movement_type` | `initial`/`adjustment`/`sale`/`void`/`refund`/`mark_out`/`restore` |
+| qty_delta, qty_before, qty_after | INT (CHECK ≥ 0 untuk before/after) | perubahan & saldo |
+| reason, ref_type, ref_id | TEXT / UUID | catatan & rujukan (mis. transaksi) |
+| actor_role, actor_id | `user_role` + UUID | pelaku |
+| created_at | TIMESTAMPTZ | |
+
+> Histori stok **tidak pernah diubah/dihapus**. Setiap perubahan saldo
+> (stok awal, opname, penjualan, void, tandai HABIS/aktifkan) menulis satu
+> baris di sini, di **transaksi DB yang sama** dengan mutasi `product_stocks`.
+> Indeks `(business_id, created_at DESC)` & `(outlet_id, created_at DESC)`.
+
+### `expenses` (pengeluaran outlet, migrasi `0009`)
+| id | UUID PK | |
+| business_id, outlet_id | UUID FK, ON DELETE CASCADE | tenant |
+| category | `expense_category` | `operational`/`utilities`/`supplies`/`transport`/`maintenance`/`inventory_purchase`/`other` |
+| amount | BIGINT (SEN, CHECK > 0) | |
+| method | `expense_method` | `cash`/`transfer`/`qr` |
+| note, receipt_url | TEXT | catatan & bukti (URL/data URL) |
+| status | `expense_status` | `recorded`/`voided` |
+| spent_on | DATE | tanggal pengeluaran (zona waktu bisnis) |
+| cashier_id | UUID FK → cashiers, SET NULL | bila dicatat kasir |
+| created_by_role/_id | `user_role` + UUID | pelaku (NOT NULL) |
+| voided_at, voided_by_role/_id, void_reason | TIMESTAMPTZ / user_role / UUID / TEXT | koreksi tanpa hapus |
+| created_at, updated_at | TIMESTAMPTZ | trigger `set_updated_at` |
+
+> **Tanpa hard delete.** Koreksi dilakukan dengan mengubah `status` menjadi
+> `voided` + alasan. Kategori `inventory_purchase` **dikecualikan** dari laba
+> bersih agar pembelian persediaan tidak dihitung ganda (nilainya sudah masuk
+> HPP saat barang terjual).
 
 ### `transactions`
 | id | UUID PK | |
@@ -147,6 +198,7 @@ refresh_tokens (sesi, per peran)
 | qty | INT (CHECK > 0) | |
 | discount_amount, tax_amount | BIGINT (sen) | alokasi proporsional (jumlah = nilai transaksi) |
 | line_total | BIGINT (sen) | harga×qty − diskon + pajak (atau tanpa pajak bila inklusif) |
+| cost_price | BIGINT (sen, default 0) | **snapshot HPP** saat transaksi (V0.3) — laba historis tidak berubah walau HPP produk diubah |
 | created_at | TIMESTAMPTZ | |
 
 ### `payments`
@@ -154,6 +206,7 @@ refresh_tokens (sesi, per peran)
 | transaction_id | UUID FK → transactions, CASCADE | |
 | method | TEXT | `cash`/`card`/`qr`/`wallet` (CHECK) |
 | amount | BIGINT (sen) | |
+| fee_amount | BIGINT (sen, default 0) | biaya transaksi/biaya payment gateway (V0.3) |
 | reference, provider | TEXT | referensi manual; `provider` siap gateway digital (modul ditangguhkan) |
 | status | TEXT | `paid`/`pending`/`failed`/`refunded` |
 

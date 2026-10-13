@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
     <title>KASIR NOVA — Owner</title>
     <link rel="stylesheet" href="./styles/styles.css" />
   </head>
@@ -236,6 +239,7 @@
                   <th>Outlet</th>
                   <th>Status</th>
                   <th>PIN</th>
+                  <th>Lihat Laba</th>
                   <th class="right">Aksi</th>
                 </tr>
               </thead>
@@ -428,6 +432,196 @@
           </div>
         </section>
 
+        <!-- Ringkasan keuangan & laba (Fase 4/6) -->
+        <section id="finance-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Laporan Keuangan &amp; Laba</h3>
+              <p class="muted">
+                Pendapatan, HPP, biaya transaksi, pengeluaran operasional, laba kotor &amp; bersih
+              </p>
+            </div>
+            <div class="detail-actions">
+              <select id="fin-range" title="Rentang cepat">
+                <option value="today">Hari ini</option>
+                <option value="week">7 hari terakhir</option>
+                <option value="month" selected>Bulan ini</option>
+                <option value="custom">Kustom (atur tanggal)</option>
+              </select>
+              <input id="fin-date-from" type="date" title="Dari tanggal" />
+              <input id="fin-date-to" type="date" title="Sampai tanggal" />
+              <select id="fin-outlet-filter">
+                <option value="">Semua outlet</option>
+              </select>
+              <button id="fin-refresh-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div class="report-actions">
+            <button
+              id="fin-export-xlsx"
+              class="btn small xlsx"
+              title="Ekspor laporan keuangan ke Microsoft Excel"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#107C41" d="M19 3H7a2 2 0 0 0-2 2v3h-1a1 1 0 0 0 0 2h1v3h-1a1 1 0 0 0 0 2h1v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-6.7 13-2-3-2 3H6.2l3.1-4-3.1-4h2.1l2 3 2-3h2.1l-3.1 4 3.1 4h-2.1Zm4.7 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>
+              </svg>
+              Ekspor Laporan Keuangan (.xlsx)
+            </button>
+          </div>
+
+          <p id="fin-period-label" class="muted small"></p>
+          <div class="cards" id="fin-summary"></div>
+
+          <h4>Pendapatan per Metode</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Metode</th>
+                  <th class="right">Transaksi</th>
+                  <th class="right">Pendapatan</th>
+                  <th class="right">Biaya</th>
+                </tr>
+              </thead>
+              <tbody id="fin-method-body"></tbody>
+            </table>
+            <p id="fin-method-empty" class="empty hidden">Belum ada pendapatan pada periode ini.</p>
+          </div>
+
+          <h4>Pengeluaran per Kategori</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Kategori</th>
+                  <th class="right">Catatan</th>
+                  <th class="right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="fin-expense-body"></tbody>
+            </table>
+            <p id="fin-expense-empty" class="empty hidden">Belum ada pengeluaran pada periode ini.</p>
+          </div>
+
+          <h4>Perbandingan Outlet (Keuangan)</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Outlet</th>
+                  <th class="right">Transaksi</th>
+                  <th class="right">Pendapatan</th>
+                  <th class="right">HPP</th>
+                  <th class="right">Operasional</th>
+                  <th class="right">Laba Kotor</th>
+                  <th class="right">Laba Bersih</th>
+                </tr>
+              </thead>
+              <tbody id="fin-outlet-body"></tbody>
+            </table>
+            <p id="fin-outlet-empty" class="empty hidden">Belum ada data outlet pada periode ini.</p>
+          </div>
+        </section>
+
+        <!-- Pengeluaran outlet (Fase 5) -->
+        <section id="expense-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Pengeluaran Outlet</h3>
+              <p class="muted">
+                Catat &amp; koreksi pengeluaran operasional (append-only; void ber-alasan)
+              </p>
+            </div>
+            <div class="detail-actions">
+              <input id="exp-date-from" type="date" title="Dari tanggal" />
+              <input id="exp-date-to" type="date" title="Sampai tanggal" />
+              <select id="exp-outlet-filter">
+                <option value="">Semua outlet</option>
+              </select>
+              <select id="exp-category-filter">
+                <option value="">Semua kategori</option>
+                <option value="operational">Operasional</option>
+                <option value="utilities">Utilitas</option>
+                <option value="supplies">Perlengkapan</option>
+                <option value="transport">Transport</option>
+                <option value="maintenance">Pemeliharaan</option>
+                <option value="inventory_purchase">Beli Persediaan</option>
+                <option value="other">Lain-lain</option>
+              </select>
+              <select id="exp-status-filter">
+                <option value="">Semua status</option>
+                <option value="recorded" selected>Aktif</option>
+                <option value="voided">Dibatalkan</option>
+              </select>
+              <button id="exp-refresh-btn" class="btn">Muat ulang</button>
+              <button id="exp-new-btn" class="btn primary">+ Pengeluaran</button>
+            </div>
+          </div>
+
+          <div class="cards" id="exp-summary"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Outlet</th>
+                  <th>Kategori</th>
+                  <th>Metode</th>
+                  <th class="right">Nominal</th>
+                  <th>Petugas</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="exp-body"></tbody>
+            </table>
+            <p id="exp-empty" class="empty hidden">Belum ada pengeluaran pada filter ini.</p>
+          </div>
+        </section>
+
+        <!-- Riwayat pergerakan stok (Fase 2) -->
+        <section id="inventory-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Riwayat Pergerakan Stok</h3>
+              <p class="muted">Jejak append-only (tidak dapat diubah/dihapus)</p>
+            </div>
+            <div class="detail-actions">
+              <select id="mov-outlet-filter">
+                <option value="">Semua outlet</option>
+              </select>
+              <select id="mov-type-filter">
+                <option value="">Semua jenis</option>
+                <option value="initial">Stok awal</option>
+                <option value="adjustment">Penyesuaian</option>
+                <option value="sale">Penjualan</option>
+                <option value="void">Void penjualan</option>
+                <option value="mark_out">Tandai HABIS</option>
+                <option value="restore">Aktifkan kembali</option>
+              </select>
+              <button id="mov-refresh-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Waktu</th>
+                  <th>Outlet</th>
+                  <th>Produk</th>
+                  <th>Jenis</th>
+                  <th class="right">Δ Stok</th>
+                  <th class="right">Sisa</th>
+                  <th>Catatan</th>
+                </tr>
+              </thead>
+              <tbody id="mov-body"></tbody>
+            </table>
+            <p id="mov-empty" class="empty hidden">Belum ada pergerakan stok.</p>
+          </div>
+        </section>
+
         <!-- Audit log bisnis aktif -->
         <section id="audit-section" class="detail card hidden">
           <div class="detail-head">
@@ -588,6 +782,14 @@
             <input id="product-price" type="number" min="0" step="1" required />
           </label>
           <label class="field">
+            <span>Harga modal / HPP (Rp)</span>
+            <input id="product-cost" type="number" min="0" step="1" placeholder="0" />
+          </label>
+          <label class="field">
+            <span>Satuan (opsional)</span>
+            <input id="product-unit" type="text" maxlength="20" placeholder="mis. pcs, kg, botol" />
+          </label>
+          <label class="field">
             <span>SKU (opsional)</span>
             <input id="product-sku" type="text" />
           </label>
@@ -605,12 +807,29 @@
             <input id="product-track" type="checkbox" checked />
             <span>Lacak stok</span>
           </label>
+          <label class="field" id="product-initial-field">
+            <span>Stok awal di outlet pertama (opsional)</span>
+            <input id="product-initial-stock" type="number" min="0" step="1" placeholder="0" />
+          </label>
           <label class="field" id="product-status-field">
             <span>Status</span>
             <select id="product-status">
               <option value="active">Aktif</option>
               <option value="suspended">Nonaktif</option>
             </select>
+          </label>
+          <label class="field checkbox" id="product-oos-field">
+            <input id="product-oos" type="checkbox" />
+            <span>Tandai stok HABIS (tidak bisa dijual)</span>
+          </label>
+          <label class="field">
+            <span>Foto produk (opsional)</span>
+            <input id="product-photo" type="file" accept="image/*" />
+          </label>
+          <div id="product-photo-preview" class="photo-preview"></div>
+          <label class="field checkbox" id="product-photo-clear-field">
+            <input id="product-photo-clear" type="checkbox" />
+            <span>Hapus foto yang ada</span>
           </label>
 
           <p id="product-form-error" class="error hidden"></p>
@@ -700,6 +919,79 @@
           <button type="button" id="session-revoke-btn" class="btn danger">Paksa Logout Semua</button>
           <button type="button" id="session-cancel" class="btn">Tutup</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL PENGELUARAN ================= -->
+    <div id="exp-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Pengeluaran Baru</h3>
+        <form id="exp-form" novalidate>
+          <label class="field">
+            <span>Outlet</span>
+            <select id="exp-outlet" required></select>
+          </label>
+          <label class="field">
+            <span>Kategori</span>
+            <select id="exp-category">
+              <option value="operational">Operasional</option>
+              <option value="utilities">Utilitas</option>
+              <option value="supplies">Perlengkapan</option>
+              <option value="transport">Transport</option>
+              <option value="maintenance">Pemeliharaan</option>
+              <option value="inventory_purchase">Beli Persediaan (tidak dihitung laba)</option>
+              <option value="other">Lain-lain</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Nominal (Rp)</span>
+            <input id="exp-amount" type="number" min="1" step="1" required />
+          </label>
+          <label class="field">
+            <span>Metode</span>
+            <select id="exp-method">
+              <option value="cash">Tunai</option>
+              <option value="transfer">Transfer</option>
+              <option value="qr">QRIS</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Tanggal</span>
+            <input id="exp-date" type="date" required />
+          </label>
+          <label class="field">
+            <span>Keterangan (opsional)</span>
+            <input id="exp-note" type="text" maxlength="300" />
+          </label>
+          <label class="field">
+            <span>Bukti foto (opsional)</span>
+            <input id="exp-receipt" type="file" accept="image/*" />
+          </label>
+          <p id="exp-form-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="exp-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL VOID PENGELUARAN ================= -->
+    <div id="void-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Batalkan Pengeluaran</h3>
+        <p id="void-info" class="muted"></p>
+        <form id="void-form" novalidate>
+          <label class="field">
+            <span>Alasan pembatalan (min. 3 karakter)</span>
+            <input id="void-reason" type="text" maxlength="200" required />
+          </label>
+          <p id="void-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="void-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn danger">Batalkan</button>
+          </div>
+        </form>
       </div>
     </div>
 

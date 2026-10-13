@@ -18,6 +18,8 @@ const state = {
   auditPage: 1,
   auditLimit: 20,
   auditTotal: 0,
+  // V0.3: bukti/foto yang sedang dipilih pada modal (undefined = tidak diubah)
+  formPhoto: undefined,
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -33,6 +35,19 @@ const fmtDate = (iso) => {
   if (!iso) return '—';
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('id-ID');
+};
+
+/**
+ * Tanggal saja (YYYY-MM-DD) untuk kolom bertipe DATE (`spent_on`).
+ * Aman untuk nilai string maupun objek Date dari driver Postgres.
+ */
+const fmtDay = (value) => {
+  if (!value) return '—';
+  if (typeof value === 'string') return value.slice(0, 10);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
 const fmtIDR = (sen) =>
@@ -221,8 +236,14 @@ const loadOutlets = async () => {
   show($('outlet-section'));
   renderOutletList(body.items);
 
-  // Sinkronkan filter outlet pada bagian transaksi & laporan.
-  for (const id of ['tx-outlet-filter', 'rep-outlet-filter']) {
+  // Sinkronkan filter outlet pada bagian transaksi, laporan & keuangan.
+  for (const id of [
+    'tx-outlet-filter',
+    'rep-outlet-filter',
+    'fin-outlet-filter',
+    'exp-outlet-filter',
+    'mov-outlet-filter',
+  ]) {
     const sel = $(id);
     const previous = sel.value;
     sel.innerHTML = '<option value="">Semua outlet</option>';
@@ -264,6 +285,10 @@ const renderCashierList = (items) => {
       ? `<button class="btn small" data-action="unlock" data-id="${c.id}" data-name="${name}">Buka Kunci</button>`
       : '';
     const sessionsBtn = `<button class="btn small" data-action="sessions" data-id="${c.id}" data-name="${name}">Sesi</button>`;
+    const profitBadge = c.can_view_profit
+      ? '<span class="badge ok">Ya</span>'
+      : '<span class="badge off">Tidak</span>';
+    const labaBtn = `<button class="btn small" data-action="toggle-profit" data-id="${c.id}" data-name="${name}" data-next="${!c.can_view_profit}">${c.can_view_profit ? 'Cabut' : 'Beri'} Laba</button>`;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -272,7 +297,8 @@ const renderCashierList = (items) => {
       <td>${escapeHtml(c.outlet_name ?? '—')}</td>
       <td>${statusBadge}</td>
       <td>${pinBadge}</td>
-      <td class="right">${sessionsBtn} ${pinBtn} ${remove} ${unlock}</td>`;
+      <td>${profitBadge}</td>
+      <td class="right">${sessionsBtn} ${labaBtn} ${pinBtn} ${remove} ${unlock}</td>`;
     tbody.appendChild(tr);
   }
 };
@@ -377,6 +403,22 @@ $('cashier-list').addEventListener('click', async (event) => {
   }
   if (action === 'sessions') {
     await openSessionModal(b.id, cashierId, name);
+    return;
+  }
+  if (action === 'toggle-profit') {
+    const next = btn.dataset.next === 'true';
+    try {
+      await guard(() => api.cashiers.update(b.id, cashierId, { canViewProfit: next }));
+      alertBox(
+        next
+          ? `Kasir "${name}" kini dapat melihat HPP/laba.`
+          : `Akses HPP kasir "${name}" dicabut.`,
+        'ok'
+      );
+      await loadCashiers();
+    } catch (err) {
+      alertBox(describeError(err), 'error');
+    }
     return;
   }
   if (action === 'remove-pin') {
@@ -608,6 +650,9 @@ const loadBusinesses = async () => {
     hide($('product-section'));
     hide($('tx-section'));
     hide($('report-section'));
+    hide($('finance-section'));
+    hide($('expense-section'));
+    hide($('inventory-section'));
     hide($('audit-section'));
     show($('waiting-state'));
   } else {
@@ -632,6 +677,9 @@ const refreshContext = async () => {
   await loadProducts();
   await loadTransactions();
   await loadReport();
+  await loadFinance();
+  await loadExpenses();
+  await loadMovements();
   await loadAuditLog();
 };
 
@@ -873,24 +921,37 @@ const renderProductList = (items) => {
     const stockLabel = p.track_stock
       ? `Stok ${Number(p.total_stock)}`
       : '<span class="muted">tanpa stok</span>';
+    const costLabel =
+      p.cost_price != null ? ` • HPP ${escapeHtml(fmtIDR(p.cost_price))}` : '';
+    const unitLabel = p.unit ? ` • ${escapeHtml(p.unit)}` : '';
+    const availBadge = p.out_of_stock
+      ? '<span class="badge off">HABIS</span>'
+      : `<span class="badge ${p.status === 'active' ? 'ok' : 'off'}">${escapeHtml(p.status)}</span>`;
     card.innerHTML = `
       <div class="product-head">
         <div>
           <strong>${escapeHtml(p.name)}</strong>
           <p class="muted small">
             ${p.category_name ? escapeHtml(p.category_name) : 'Tanpa kategori'}
-            ${p.sku ? ' • SKU ' + escapeHtml(p.sku) : ''}
+            ${p.sku ? ' • SKU ' + escapeHtml(p.sku) : ''}${unitLabel}
           </p>
         </div>
         <div class="right">
           <div class="product-price">${escapeHtml(fmtIDR(p.price))}</div>
-          <span class="badge ${p.status === 'active' ? 'ok' : 'off'}">${escapeHtml(p.status)}</span>
+          ${availBadge}
         </div>
       </div>
-      <div class="outlet-meta muted small">${stockLabel}</div>
+      <div class="outlet-meta muted small">${stockLabel}${costLabel}</div>
       <div class="detail-actions">
         <button class="btn small" data-action="edit-product" data-id="${p.id}">Ubah</button>
         ${p.track_stock ? `<button class="btn small" data-action="stock" data-id="${p.id}">Atur stok</button>` : ''}
+        ${
+          p.track_stock
+            ? `<button class="btn small" data-action="toggle-oos" data-id="${p.id}" data-oos="${p.out_of_stock}">${
+                p.out_of_stock ? 'Aktifkan kembali' : 'Tandai HABIS'
+              }</button>`
+            : ''
+        }
         <button class="btn small danger" data-action="delete-product" data-id="${p.id}">Hapus</button>
       </div>`;
     list.appendChild(card);
@@ -948,6 +1009,17 @@ $('product-list').addEventListener('click', (event) => {
       try {
         const detail = await guard(() => api.products.get(b.id, id));
         if (detail) openStockModal(detail);
+      } catch (err) {
+        alertBox(describeError(err), 'error');
+      }
+    })();
+  } else if (action === 'toggle-oos') {
+    (async () => {
+      const next = btn.dataset.oos !== 'true';
+      try {
+        await guard(() => api.products.setStockStatus(b.id, id, next));
+        alertBox(next ? 'Produk ditandai HABIS.' : 'Produk diaktifkan kembali.', 'ok');
+        await loadProducts();
       } catch (err) {
         alertBox(describeError(err), 'error');
       }
@@ -1015,25 +1087,42 @@ $('category-chips').addEventListener('click', (event) => {
 const openProductCreate = () => {
   const b = activeBusiness();
   if (!b) return;
+  state.formPhoto = undefined;
   $('product-modal-title').textContent = 'Produk Baru';
   $('product-form').reset();
   $('product-id').value = '';
   $('product-track').checked = true;
   hide($('product-status-field'));
+  show($('product-initial-field'));
+  hide($('product-oos-field'));
+  hide($('product-photo-clear-field'));
+  $('product-photo-clear').checked = false;
+  $('product-photo-preview').innerHTML = '';
   fillCategorySelect($('product-category'), '');
   hide($('product-form-error'));
   show($('product-modal'));
 };
 
 const openProductEdit = (p) => {
+  state.formPhoto = undefined;
   $('product-modal-title').textContent = 'Ubah Produk';
   $('product-id').value = p.id;
   $('product-name').value = p.name ?? '';
   $('product-price').value = p.price != null ? Number(p.price) / 100 : '';
+  $('product-cost').value = p.cost_price != null ? Number(p.cost_price) / 100 : '';
+  $('product-unit').value = p.unit ?? '';
   $('product-sku').value = p.sku ?? '';
   $('product-barcode').value = p.barcode ?? '';
   $('product-track').checked = !!p.track_stock;
+  hide($('product-initial-field'));
   $('product-status').value = p.status ?? 'active';
+  $('product-oos-field').classList.toggle('hidden', !p.track_stock);
+  $('product-oos').checked = !!p.manual_out_of_stock;
+  $('product-photo-clear-field').classList.toggle('hidden', !p.photo_url);
+  $('product-photo-clear').checked = false;
+  $('product-photo-preview').innerHTML = p.photo_url
+    ? `<img src="${escapeHtml(p.photo_url)}" alt="Foto produk" />`
+    : '';
   fillCategorySelect($('product-category'), p.category_id ?? '');
   show($('product-status-field'));
   hide($('product-form-error'));
@@ -1046,6 +1135,62 @@ $('product-modal').addEventListener('click', (event) => {
   if (event.target === $('product-modal')) closeProductModal();
 });
 
+// ---------- Pengecilan foto produk di klien ----------
+const MAX_PHOTO_CHARS = 380_000;
+
+const compressImage = (file, maxDim, quality) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Gagal membaca berkas'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Berkas bukan gambar yang valid'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+/** JPEG data URL < ~280 KB agar aman terhadap batas body server. */
+const fileToCompressedDataUrl = async (file) => {
+  let last = '';
+  for (const [dim, q] of [[640, 0.82], [512, 0.78], [384, 0.7], [256, 0.6], [160, 0.5]]) {
+    last = await compressImage(file, dim, q);
+    if (last.length <= MAX_PHOTO_CHARS) return last;
+  }
+  throw new Error('Foto terlalu besar, mohon pilih gambar lain');
+};
+
+$('product-photo').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const dataUrl = await fileToCompressedDataUrl(file);
+    state.formPhoto = dataUrl;
+    $('product-photo-clear').checked = false;
+    $('product-photo-preview').innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="Pratinjau" />`;
+  } catch (err) {
+    event.target.value = '';
+    alertBox(describeError(err), 'error');
+  }
+});
+
+$('product-photo-clear').addEventListener('change', (event) => {
+  if (event.target.checked) {
+    state.formPhoto = '';
+    $('product-photo-preview').innerHTML = '';
+  }
+});
+
 $('product-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('product-form-error'));
@@ -1054,15 +1199,26 @@ $('product-form').addEventListener('submit', async (event) => {
 
   const id = $('product-id').value;
   const categoryId = $('product-category').value || null;
+  const trackStock = $('product-track').checked;
   const payload = {
     name: $('product-name').value.trim(),
     price: Math.round(Number($('product-price').value || 0) * 100),
+    costPrice: Math.round(Number($('product-cost').value || 0) * 100),
+    unit: $('product-unit').value.trim() || null,
     sku: $('product-sku').value.trim() || null,
     barcode: $('product-barcode').value.trim() || null,
     categoryId,
-    trackStock: $('product-track').checked,
+    trackStock,
   };
-  if (id) payload.status = $('product-status').value;
+  if (state.formPhoto !== undefined) payload.photoUrl = state.formPhoto;
+
+  if (id) {
+    payload.status = $('product-status').value;
+    payload.manualOutOfStock = trackStock ? $('product-oos').checked : false;
+  } else {
+    const initial = $('product-initial-stock').value.trim();
+    if (trackStock && initial !== '') payload.initialStock = Number(initial);
+  }
 
   try {
     if (id) {
@@ -1638,6 +1794,402 @@ $('cross-range').addEventListener('change', applyCrossQuickRange);
 $('cross-date-from').addEventListener('change', loadCrossReport);
 $('cross-date-to').addEventListener('change', loadCrossReport);
 $('cross-export-xlsx').addEventListener('click', downloadCrossExcel);
+
+// ============================================================================
+// V0.3 — Keuangan & laba (Fase 4/6), pengeluaran outlet (Fase 5), dan riwayat
+// pergerakan stok (Fase 2). Semua perhitungan dilakukan SERVER; panel hanya
+// menampilkan hasil yang sudah di-scope ke bisnis aktif.
+// ============================================================================
+
+const CATEGORY_LABELS = {
+  operational: 'Operasional',
+  utilities: 'Utilitas',
+  supplies: 'Perlengkapan',
+  transport: 'Transport',
+  maintenance: 'Pemeliharaan',
+  inventory_purchase: 'Beli Persediaan',
+  other: 'Lain-lain',
+};
+
+const METHOD_LABELS = {
+  cash: 'Tunai',
+  card: 'Kartu',
+  qr: 'QRIS',
+  wallet: 'E-Wallet',
+  transfer: 'Transfer',
+};
+
+const MOVEMENT_LABELS = {
+  initial: 'Stok awal',
+  adjustment: 'Penyesuaian',
+  sale: 'Penjualan',
+  void: 'Void penjualan',
+  refund: 'Refund',
+  mark_out: 'Tandai HABIS',
+  restore: 'Aktifkan kembali',
+};
+
+const money = (v) => escapeHtml(fmtIDR(v ?? 0));
+
+const statCard = (label, value, sub) => `
+  <div class="card stat">
+    <span class="stat-label">${escapeHtml(label)}</span>
+    <strong class="stat-value">${escapeHtml(value)}</strong>
+    ${sub ? `<span class="muted small">${escapeHtml(sub)}</span>` : ''}
+  </div>`;
+
+// -------------------------------------------------- Keuangan & laba ----------
+const finQuery = () => {
+  const range = $('fin-range').value;
+  const outletId = $('fin-outlet-filter').value || '';
+  if (range === 'custom') {
+    return { from: $('fin-date-from').value, to: $('fin-date-to').value, outletId };
+  }
+  return { period: range, outletId };
+};
+
+const renderFinance = (d) => {
+  const income = d.income ?? {};
+  const exp = d.expenses ?? {};
+  const tx = d.transactions ?? {};
+
+  $('fin-period-label').textContent =
+    d.period?.from && d.period?.to ? `Periode: ${d.period.from} s.d. ${d.period.to}` : '';
+
+  $('fin-summary').innerHTML = [
+    statCard('Total pendapatan', fmtIDR(income.total ?? 0), `${tx.completed ?? 0} transaksi`),
+    statCard('Tunai', fmtIDR(income.cash ?? 0)),
+    statCard('QRIS', fmtIDR(income.qris ?? 0)),
+    statCard('HPP terjual', fmtIDR(d.hpp ?? 0)),
+    statCard('Biaya transaksi', fmtIDR(income.transaction_fees ?? 0)),
+    statCard('Pengeluaran operasional', fmtIDR(exp.operating_total ?? 0)),
+    statCard('Laba kotor', fmtIDR(d.gross_profit ?? 0), 'pendapatan − HPP'),
+    statCard('Laba bersih', fmtIDR(d.net_profit ?? 0), '− operasional − biaya'),
+  ].join('');
+
+  const methods = d.payment_methods ?? [];
+  const mb = $('fin-method-body');
+  mb.innerHTML = '';
+  $('fin-method-empty').classList.toggle('hidden', methods.length > 0);
+  for (const m of methods) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(METHOD_LABELS[m.method] ?? m.method)}</td>
+      <td class="right">${m.transactions ?? 0}</td>
+      <td class="right strong">${money(m.total)}</td>
+      <td class="right">${money(m.fees)}</td>`;
+    mb.appendChild(tr);
+  }
+
+  const byCat = exp.by_category ?? [];
+  const eb = $('fin-expense-body');
+  eb.innerHTML = '';
+  $('fin-expense-empty').classList.toggle('hidden', byCat.length > 0);
+  for (const c of byCat) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(CATEGORY_LABELS[c.category] ?? c.category)}${
+        c.counts_as_operating === false ? ' <span class="badge off">non-laba</span>' : ''
+      }</td>
+      <td class="right">${c.entries ?? 0}</td>
+      <td class="right strong">${money(c.total)}</td>`;
+    eb.appendChild(tr);
+  }
+
+  const outlets = d.outlets ?? [];
+  const ob = $('fin-outlet-body');
+  ob.innerHTML = '';
+  $('fin-outlet-empty').classList.toggle('hidden', outlets.length > 0);
+  for (const o of outlets) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(o.outlet_name ?? '—')}</td>
+      <td class="right">${o.transactions ?? 0}</td>
+      <td class="right">${money(o.income)}</td>
+      <td class="right">${money(o.hpp)}</td>
+      <td class="right">${money(o.operating_expense)}</td>
+      <td class="right strong">${money(o.gross_profit)}</td>
+      <td class="right strong">${money(o.net_profit)}</td>`;
+    ob.appendChild(tr);
+  }
+};
+
+const loadFinance = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('finance-section'));
+    return;
+  }
+  show($('finance-section'));
+  const data = await guard(() => api.reports.finance(b.id, finQuery()));
+  if (!data) return;
+  renderFinance(data);
+};
+
+$('fin-refresh-btn').addEventListener('click', loadFinance);
+$('fin-range').addEventListener('change', loadFinance);
+$('fin-date-from').addEventListener('change', loadFinance);
+$('fin-date-to').addEventListener('change', loadFinance);
+$('fin-outlet-filter').addEventListener('change', loadFinance);
+$('fin-export-xlsx').addEventListener('click', () => {
+  const b = activeBusiness();
+  if (!b) return;
+  runXlsxDownload({
+    buttonId: 'fin-export-xlsx',
+    loader: () => api.reports.financeXlsx(b.id, finQuery()),
+    successLabel: 'Laporan keuangan berhasil diunduh',
+  });
+});
+
+// -------------------------------------------------- Pengeluaran outlet -------
+const expQuery = () => ({
+  outletId: $('exp-outlet-filter').value || '',
+  category: $('exp-category-filter').value || '',
+  status: $('exp-status-filter').value || '',
+  from: $('exp-date-from').value || '',
+  to: $('exp-date-to').value || '',
+  limit: 100,
+});
+
+const renderExpenses = (data) => {
+  const items = data.items ?? [];
+  const totals = data.totals ?? {};
+  $('exp-summary').innerHTML = [
+    statCard('Total tampil', fmtIDR(totals.total ?? 0), `${items.length} catatan`),
+    statCard('Operasional', fmtIDR(totals.operating_total ?? 0), 'masuk laba bersih'),
+    statCard('Beli persediaan', fmtIDR(totals.inventory_total ?? 0), 'tidak dihitung laba'),
+  ].join('');
+
+  const body = $('exp-body');
+  body.innerHTML = '';
+  $('exp-empty').classList.toggle('hidden', items.length > 0);
+  for (const e of items) {
+    const voided = e.status === 'voided';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(fmtDay(e.spent_on))}</td>
+      <td>${escapeHtml(e.outlet_name ?? '—')}</td>
+      <td>${escapeHtml(CATEGORY_LABELS[e.category] ?? e.category)}</td>
+      <td>${escapeHtml(METHOD_LABELS[e.method] ?? e.method)}</td>
+      <td class="right strong">${money(e.amount)}</td>
+      <td>${escapeHtml(e.officer_name ?? '—')}${voided ? ' <span class="badge off">VOID</span>' : ''}</td>
+      <td class="right">
+        ${
+          voided
+            ? '—'
+            : `<button class="btn small danger" data-action="void" data-id="${e.id}">Batalkan</button>`
+        }
+      </td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadExpenses = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('expense-section'));
+    return;
+  }
+  show($('expense-section'));
+  const data = await guard(() => api.expenses.list(b.id, expQuery()));
+  if (!data) return;
+  renderExpenses(data);
+};
+
+$('exp-refresh-btn').addEventListener('click', loadExpenses);
+$('exp-category-filter').addEventListener('change', loadExpenses);
+$('exp-status-filter').addEventListener('change', loadExpenses);
+$('exp-date-from').addEventListener('change', loadExpenses);
+$('exp-date-to').addEventListener('change', loadExpenses);
+$('exp-outlet-filter').addEventListener('change', loadExpenses);
+
+// Modal pengeluaran (owner wajib memilih outlet)
+const fillExpenseOutlets = async () => {
+  const b = activeBusiness();
+  if (!b) return;
+  const body = await guard(() => api.outlets.list(b.id));
+  const sel = $('exp-outlet');
+  sel.innerHTML = '';
+  for (const o of body?.items ?? []) {
+    const opt = document.createElement('option');
+    opt.value = o.id;
+    opt.textContent = o.name;
+    sel.appendChild(opt);
+  }
+  const filter = $('exp-outlet-filter').value;
+  if (filter) sel.value = filter;
+};
+
+const openExpenseModal = async () => {
+  state.formPhoto = undefined;
+  $('exp-form').reset();
+  await fillExpenseOutlets();
+  const today = new Date().toISOString().slice(0, 10);
+  $('exp-date').value = today;
+  hide($('exp-form-error'));
+  show($('exp-modal'));
+  $('exp-amount').focus();
+};
+
+$('exp-new-btn').addEventListener('click', () => {
+  openExpenseModal().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('exp-cancel').addEventListener('click', () => hide($('exp-modal')));
+$('exp-modal').addEventListener('click', (event) => {
+  if (event.target === $('exp-modal')) hide($('exp-modal'));
+});
+
+$('exp-receipt').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    state.formPhoto = undefined;
+    return;
+  }
+  try {
+    state.formPhoto = await fileToCompressedDataUrl(file);
+  } catch (err) {
+    event.target.value = '';
+    state.formPhoto = undefined;
+    alertBox(describeError(err), 'error');
+  }
+});
+
+$('exp-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const err = $('exp-form-error');
+  hide(err);
+  const b = activeBusiness();
+  if (!b) return;
+  const outletId = $('exp-outlet').value;
+  if (!outletId) {
+    err.textContent = 'Pilih outlet terlebih dahulu.';
+    show(err);
+    return;
+  }
+  const amount = Math.round(Number($('exp-amount').value || 0) * 100);
+  if (amount <= 0) {
+    err.textContent = 'Nominal harus lebih dari 0.';
+    show(err);
+    return;
+  }
+  const payload = {
+    outletId,
+    category: $('exp-category').value,
+    amount,
+    method: $('exp-method').value,
+    date: $('exp-date').value || new Date().toISOString().slice(0, 10),
+  };
+  const note = $('exp-note').value.trim();
+  if (note) payload.note = note;
+  if (typeof state.formPhoto === 'string' && state.formPhoto) {
+    payload.receiptUrl = state.formPhoto;
+  }
+
+  const btn = $('exp-form').querySelector('button[type=submit]');
+  btn.disabled = true;
+  try {
+    await guard(() => api.expenses.create(b.id, payload));
+    alertBox('Pengeluaran dicatat.', 'ok');
+    hide($('exp-modal'));
+    await loadExpenses();
+    await loadFinance();
+  } catch (e) {
+    err.textContent = describeError(e);
+    show(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Void pengeluaran (append-only; butuh alasan)
+let voidExpenseId = null;
+let voidExpenseLabel = '';
+
+$('exp-body').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action="void"]');
+  if (!btn) return;
+  voidExpenseId = btn.dataset.id;
+  const row = btn.closest('tr');
+  voidExpenseLabel = row?.children?.[0]?.textContent?.trim() ?? '';
+  $('void-info').textContent = `Batalkan pengeluaran ${voidExpenseLabel}. Baris tidak dihapus.`;
+  $('void-reason').value = '';
+  hide($('void-error'));
+  show($('void-modal'));
+  $('void-reason').focus();
+});
+
+$('void-cancel').addEventListener('click', () => hide($('void-modal')));
+$('void-modal').addEventListener('click', (event) => {
+  if (event.target === $('void-modal')) hide($('void-modal'));
+});
+
+$('void-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const err = $('void-error');
+  hide(err);
+  const b = activeBusiness();
+  const reason = $('void-reason').value.trim();
+  if (reason.length < 3) {
+    err.textContent = 'Alasan minimal 3 karakter.';
+    show(err);
+    return;
+  }
+  if (!b || !voidExpenseId) return;
+  try {
+    await guard(() => api.expenses.void(b.id, voidExpenseId, reason));
+    alertBox('Pengeluaran dibatalkan.', 'ok');
+    hide($('void-modal'));
+    await loadExpenses();
+    await loadFinance();
+  } catch (e) {
+    err.textContent = describeError(e);
+    show(err);
+  }
+});
+
+// ---------------------------------------- Riwayat pergerakan stok ------------
+const movQuery = () => ({
+  outletId: $('mov-outlet-filter').value || '',
+  type: $('mov-type-filter').value || '',
+  limit: 100,
+});
+
+const renderMovements = (data) => {
+  const items = data.items ?? [];
+  const body = $('mov-body');
+  body.innerHTML = '';
+  $('mov-empty').classList.toggle('hidden', items.length > 0);
+  for (const m of items) {
+    const delta = Number(m.qty_delta ?? 0);
+    const sign = delta > 0 ? `+${delta}` : String(delta);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(fmtDate(m.created_at))}</td>
+      <td>${escapeHtml(m.outlet_name ?? '—')}</td>
+      <td>${escapeHtml(m.product_name ?? '—')}</td>
+      <td>${escapeHtml(MOVEMENT_LABELS[m.type] ?? m.type)}</td>
+      <td class="right ${delta > 0 ? 'ok-text' : delta < 0 ? 'danger-text' : ''}">${escapeHtml(sign)}</td>
+      <td class="right">${m.qty_after != null ? Number(m.qty_after) : '—'}</td>
+      <td>${escapeHtml(m.reason ?? m.actor_name ?? '—')}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadMovements = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('inventory-section'));
+    return;
+  }
+  show($('inventory-section'));
+  const data = await guard(() => api.inventoryMovements.list(b.id, movQuery()));
+  if (!data) return;
+  renderMovements(data);
+};
+
+$('mov-refresh-btn').addEventListener('click', loadMovements);
+$('mov-type-filter').addEventListener('change', loadMovements);
+$('mov-outlet-filter').addEventListener('change', loadMovements);
 
 // ------------------------------------------------------------- Bootstrap -----
 const boot = async () => {

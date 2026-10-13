@@ -20,11 +20,30 @@ import { buildStrukEscPos, buildTestEscPos } from './escpos.js';
 import * as printer from './printer.js';
 
 const $ = (id) => document.getElementById(id);
+
+/**
+ * Tanggal saja (YYYY-MM-DD) untuk kolom bertipe DATE (`spent_on`).
+ * Aman untuk nilai string maupun objek Date dari driver Postgres.
+ */
+const fmtDay = (value) => {
+  if (!value) return '—';
+  if (typeof value === 'string') return value.slice(0, 10);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 const state = {
   user: null,
   context: null,
   products: [],
   cart: new Map(), // productId -> { product, qty }
+  canViewProfit: false, // izin HPP dari server (bukan dari UI)
+  categories: [],
+  mgmt: { items: [], total: 0 }, // katalog di tab "Produk"
+  activeTab: 'kasir',
+  formPhoto: undefined, // perubahan foto pada modal produk (undefined = tak diubah)
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -118,7 +137,7 @@ const renderProducts = () => {
   }
 
   for (const p of state.products) {
-    const out = p.track_stock && Number(p.quantity ?? 0) <= 0;
+    const out = Boolean(p.out_of_stock); // status HABIS ditentukan server
     const card = document.createElement('button');
     card.type = 'button';
     card.className = `pos-product ${out ? 'out' : ''}`;
@@ -128,7 +147,7 @@ const renderProducts = () => {
       <strong>${escapeHtml(p.name)}</strong>
       <span class="pos-product-price">${escapeHtml(fmtIDR(p.price))}</span>
       <span class="muted small">
-        ${p.track_stock ? `Stok ${Number(p.quantity ?? 0)}` : 'tanpa stok'}
+        ${out ? 'HABIS' : p.track_stock ? `Stok ${Number(p.quantity ?? 0)}` : 'tanpa stok'}
       </span>`;
     grid.appendChild(card);
   }
@@ -689,8 +708,10 @@ const enterApp = async () => {
   hide($('login-view'));
   show($('app-view'));
   await initPrinter().catch(() => {});
+  await loadCashierInfo();
   await loadProducts();
   await loadHistory();
+  switchTab(state.activeTab || 'kasir');
 };
 
 /** Muat kartu kasir ber-PIN untuk outlet yang terikat perangkat ini. */
@@ -794,8 +815,13 @@ $('logout-btn').addEventListener('click', async () => {
 
 $('refresh-btn').addEventListener('click', async () => {
   await fetchCurrentUser();
+  await loadCashierInfo();
   await loadProducts();
   await loadHistory();
+  if (state.activeTab === 'produk') await loadMgmtProducts();
+  if (state.activeTab === 'pendapatan') await loadDaily();
+  if (state.activeTab === 'pengeluaran') await loadExpenses();
+  if (state.activeTab === 'stok') await loadMovements();
   alertBox('Data dimuat ulang.');
 });
 
@@ -807,8 +833,10 @@ if (tokenStore.access) {
     .then(async () => {
       hide($('login-view'));
       show($('app-view'));
+      await loadCashierInfo();
       await loadProducts();
       await loadHistory();
+      switchTab(state.activeTab || 'kasir');
       await initPrinter().catch(() => {});
     })
     .catch(() => {
@@ -817,3 +845,657 @@ if (tokenStore.access) {
 } else {
   show($('login-view'));
 }
+
+// ============================================================================
+// V0.3 — Tab, manajemen produk, laporan harian, pengeluaran, riwayat stok.
+// Seluruh keputusan bisnis (HPP, HABIS, laba) ditegakkan SERVER; UI hanya
+// menyesuaikan tampilan berdasarkan izin yang dikirim server.
+// ============================================================================
+
+const TABS = ['kasir', 'produk', 'pendapatan', 'pengeluaran', 'stok'];
+
+const CATEGORY_LABELS = {
+  operational: 'Operasional',
+  utilities: 'Utilitas',
+  supplies: 'Perlengkapan',
+  transport: 'Transport',
+  maintenance: 'Pemeliharaan',
+  inventory_purchase: 'Beli Persediaan',
+  other: 'Lain-lain',
+};
+
+const EXPENSE_METHOD_LABELS = { cash: 'Tunai', transfer: 'Transfer', qr: 'QRIS' };
+
+const MOVEMENT_LABELS = {
+  initial: 'Stok awal',
+  adjustment: 'Penyesuaian',
+  sale: 'Penjualan',
+  void: 'Void penjualan',
+  refund: 'Refund',
+  mark_out: 'Tandai HABIS',
+  restore: 'Aktifkan kembali',
+};
+
+const todayIso = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: state.context?.business?.timezone || 'Asia/Jakarta',
+  }).format(new Date());
+
+const rpToSen = (value) => Math.round((Number(value) || 0) * 100);
+const senToRpInput = (sen) => (sen == null ? '' : String(Number(sen) / 100));
+
+/** Info outlet + izin server (`can_view_profit`). */
+const loadCashierInfo = async () => {
+  try {
+    const info = await api.info();
+    state.canViewProfit = Boolean(info?.permissions?.can_view_profit);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) throw err;
+    state.canViewProfit = false; // gagal memuat izin -> sembunyikan HPP (aman)
+  }
+};
+
+// ---------------------------------------------------------------- Tab ------
+const switchTab = (tab) => {
+  if (!TABS.includes(tab)) tab = 'kasir';
+  state.activeTab = tab;
+  for (const el of document.querySelectorAll('[data-pane]')) {
+    el.classList.toggle('hidden', el.dataset.pane !== tab);
+  }
+  for (const btn of document.querySelectorAll('#main-tabs .tab')) {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  }
+  // Struk terakhir hanya relevan di tab Kasir.
+  if (tab === 'kasir') $('receipt').classList.toggle('hidden', !lastTx);
+  else $('receipt').classList.add('hidden');
+
+  if (tab === 'produk') loadMgmtProducts();
+  else if (tab === 'pendapatan') loadDaily();
+  else if (tab === 'pengeluaran') loadExpenses();
+  else if (tab === 'stok') loadMovements();
+};
+
+$('main-tabs').addEventListener('click', (event) => {
+  const btn = event.target.closest('.tab');
+  if (btn) switchTab(btn.dataset.tab);
+});
+
+// --------------------------------------------- Pengecilan foto di klien ----
+const MAX_PHOTO_CHARS = 380_000;
+
+const compressImage = (file, maxDim, quality) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Gagal membaca berkas'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Berkas bukan gambar yang valid'));
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+/** JPEG data URL < ~280 KB agar aman terhadap batas body server. */
+const fileToCompressedDataUrl = async (file) => {
+  let last = '';
+  for (const [dim, q] of [[640, 0.82], [512, 0.78], [384, 0.7], [256, 0.6], [160, 0.5]]) {
+    last = await compressImage(file, dim, q);
+    if (last.length <= MAX_PHOTO_CHARS) return last;
+  }
+  throw new Error('Foto terlalu besar, mohon pilih gambar lain');
+};
+
+// ------------------------------------------------------ Manajemen produk --
+const fillMgmtCategories = (selected = '') => {
+  const sel = $('mprod-category');
+  sel.innerHTML = '<option value="">— tanpa kategori —</option>';
+  for (const c of state.categories) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  }
+  sel.value = selected ?? '';
+};
+
+const renderMgmtProducts = () => {
+  const list = $('mprod-list');
+  list.innerHTML = '';
+  const items = state.mgmt.items;
+  $('mprod-empty').classList.toggle('hidden', items.length > 0);
+
+  for (const p of items) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    const cost =
+      state.canViewProfit && p.cost_price != null
+        ? `<span class="muted small">HPP ${escapeHtml(fmtIDR(p.cost_price))}</span> • `
+        : '';
+    const avail = p.out_of_stock
+      ? '<span class="badge off">HABIS</span>'
+      : '<span class="badge ok">Tersedia</span>';
+    card.innerHTML = `
+      <div class="product-head">
+        <div>
+          <strong>${escapeHtml(p.name)}</strong>
+          <p class="muted small">
+            ${p.category_name ? escapeHtml(p.category_name) : 'Tanpa kategori'}
+            ${p.sku ? ' • SKU ' + escapeHtml(p.sku) : ''}
+            ${p.unit ? ' • ' + escapeHtml(p.unit) : ''}
+          </p>
+        </div>
+        <div class="right">
+          <div class="product-price">${escapeHtml(fmtIDR(p.price))}</div>
+          ${avail}
+        </div>
+      </div>
+      <div class="outlet-meta muted small">
+        ${cost}${p.track_stock ? `Stok ${Number(p.quantity ?? 0)}` : 'Tanpa pelacakan stok'}
+      </div>
+      <div class="detail-actions">
+        <button class="btn small" data-action="edit" data-id="${p.id}">Ubah</button>
+        ${
+          p.track_stock
+            ? `<button class="btn small" data-action="stock" data-id="${p.id}">Atur stok</button>`
+            : ''
+        }
+        <button class="btn small" data-action="toggle-oos" data-id="${p.id}" data-oos="${p.out_of_stock}">
+          ${p.out_of_stock ? 'Aktifkan kembali' : 'Tandai HABIS'}
+        </button>
+      </div>`;
+    list.appendChild(card);
+  }
+};
+
+const loadMgmtProducts = async () => {
+  const body = await guard(() =>
+    api.products({
+      search: $('mprod-search').value.trim(),
+      availability: $('mprod-availability').value || 'all',
+      sort: $('mprod-sort').value || 'name',
+      limit: 100,
+    })
+  );
+  if (!body) return;
+  state.mgmt.items = body.items ?? [];
+  const cats = await guard(() => api.categories());
+  if (cats) state.categories = cats.items ?? [];
+  renderMgmtProducts();
+};
+
+const openMgmtCreate = () => {
+  state.formPhoto = undefined;
+  $('mprod-form').reset();
+  $('mprod-id').value = '';
+  $('mprod-modal-title').textContent = 'Produk Baru';
+  $('mprod-track').checked = true;
+  $('mprod-cost-field').classList.toggle('hidden', !state.canViewProfit);
+  $('mprod-initial-field').classList.remove('hidden');
+  $('mprod-status-field').classList.add('hidden');
+  $('mprod-oos-field').classList.add('hidden');
+  $('mprod-photo-clear-field').classList.add('hidden');
+  $('mprod-photo-clear').checked = false;
+  $('mprod-photo-preview').innerHTML = '';
+  fillMgmtCategories('');
+  hide($('mprod-error'));
+  show($('mprod-modal'));
+  $('mprod-name').focus();
+};
+
+const openMgmtEdit = (p) => {
+  state.formPhoto = undefined;
+  $('mprod-id').value = p.id;
+  $('mprod-modal-title').textContent = 'Ubah Produk';
+  $('mprod-name').value = p.name ?? '';
+  $('mprod-price').value = senToRpInput(p.price);
+  $('mprod-cost').value = state.canViewProfit ? senToRpInput(p.cost_price) : '';
+  $('mprod-cost-field').classList.toggle('hidden', !state.canViewProfit);
+  $('mprod-unit').value = p.unit ?? '';
+  $('mprod-sku').value = p.sku ?? '';
+  $('mprod-barcode').value = p.barcode ?? '';
+  $('mprod-track').checked = !!p.track_stock;
+  $('mprod-initial-field').classList.add('hidden');
+  $('mprod-status-field').classList.add('hidden');
+  $('mprod-oos-field').classList.toggle('hidden', !p.track_stock);
+  $('mprod-oos').checked = !!p.manual_out_of_stock;
+  $('mprod-photo-clear-field').classList.toggle('hidden', !p.photo_url);
+  $('mprod-photo-clear').checked = false;
+  $('mprod-photo-preview').innerHTML = p.photo_url
+    ? `<img src="${escapeHtml(p.photo_url)}" alt="Foto produk" />`
+    : '';
+  fillMgmtCategories(p.category_id ?? '');
+  hide($('mprod-error'));
+  show($('mprod-modal'));
+};
+
+$('mprod-new-btn').addEventListener('click', openMgmtCreate);
+$('mprod-refresh-btn').addEventListener('click', () => loadMgmtProducts());
+$('mprod-search').addEventListener('input', debounce(() => loadMgmtProducts(), 300));
+$('mprod-availability').addEventListener('change', () => loadMgmtProducts());
+$('mprod-sort').addEventListener('change', () => loadMgmtProducts());
+
+$('mprod-photo').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const dataUrl = await fileToCompressedDataUrl(file);
+    state.formPhoto = dataUrl;
+    $('mprod-photo-clear').checked = false;
+    $('mprod-photo-preview').innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="Pratinjau" />`;
+  } catch (err) {
+    event.target.value = '';
+    alertBox(describeError(err), 'error');
+  }
+});
+
+$('mprod-photo-clear').addEventListener('change', (event) => {
+  if (event.target.checked) {
+    state.formPhoto = '';
+    $('mprod-photo-preview').innerHTML = '';
+  }
+});
+
+const closeMgmtModal = () => hide($('mprod-modal'));
+$('mprod-cancel').addEventListener('click', closeMgmtModal);
+$('mprod-modal').addEventListener('click', (event) => {
+  if (event.target === $('mprod-modal')) closeMgmtModal();
+});
+
+$('mprod-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('mprod-error'));
+  const id = $('mprod-id').value;
+  const trackStock = $('mprod-track').checked;
+  const payload = {
+    name: $('mprod-name').value.trim(),
+    price: rpToSen($('mprod-price').value),
+    unit: $('mprod-unit').value.trim() || null,
+    sku: $('mprod-sku').value.trim() || null,
+    barcode: $('mprod-barcode').value.trim() || null,
+    categoryId: $('mprod-category').value || null,
+    trackStock,
+  };
+  if (state.canViewProfit && !$('mprod-cost-field').classList.contains('hidden')) {
+    payload.costPrice = rpToSen($('mprod-cost').value);
+  }
+  if (state.formPhoto !== undefined) payload.photoUrl = state.formPhoto;
+
+  if (id) {
+    payload.manualOutOfStock = trackStock ? $('mprod-oos').checked : false;
+  } else {
+    const initial = $('mprod-initial').value.trim();
+    if (trackStock && initial !== '') payload.initialStock = Number(initial);
+  }
+
+  const btn = $('mprod-form').querySelector('button[type=submit]');
+  btn.disabled = true;
+  try {
+    if (id) await guard(() => api.updateProduct(id, payload));
+    else await guard(() => api.createProduct(payload));
+    alertBox(id ? 'Produk diperbarui.' : 'Produk ditambahkan.', 'ok');
+    closeMgmtModal();
+    await loadMgmtProducts();
+    await loadProducts();
+  } catch (err) {
+    const el = $('mprod-error');
+    el.textContent = describeError(err);
+    show(el);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('mprod-list').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+  const { action, id } = btn.dataset;
+  const product = state.mgmt.items.find((p) => p.id === id);
+  if (!product) return;
+
+  if (action === 'edit') {
+    openMgmtEdit(product);
+  } else if (action === 'stock') {
+    openStockModal(product);
+  } else if (action === 'toggle-oos') {
+    const next = btn.dataset.oos !== 'true';
+    (async () => {
+      try {
+        await guard(() => api.setStockStatus(id, next));
+        alertBox(next ? 'Produk ditandai HABIS.' : 'Produk diaktifkan kembali.', 'ok');
+        await loadMgmtProducts();
+        await loadProducts();
+      } catch (err) {
+        alertBox(describeError(err), 'error');
+      }
+    })();
+  }
+});
+
+// ---------- Modal stok (satu outlet: outlet kasir) ----------
+let stockProduct = null;
+
+const openStockModal = (product) => {
+  stockProduct = product;
+  $('cstock-product').textContent = product.name ?? '';
+  $('cstock-qty').value = product.quantity != null ? Number(product.quantity) : 0;
+  $('cstock-reason').value = '';
+  hide($('cstock-error'));
+  show($('cstock-modal'));
+  $('cstock-qty').focus();
+};
+
+$('cstock-cancel').addEventListener('click', () => hide($('cstock-modal')));
+$('cstock-modal').addEventListener('click', (event) => {
+  if (event.target === $('cstock-modal')) hide($('cstock-modal'));
+});
+
+$('cstock-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!stockProduct) return;
+  const err = $('cstock-error');
+  hide(err);
+  const qty = Number($('cstock-qty').value);
+  if (!Number.isInteger(qty) || qty < 0) {
+    err.textContent = 'Stok harus bilangan bulat >= 0.';
+    show(err);
+    return;
+  }
+  try {
+    await guard(() => api.setStock(stockProduct.id, qty, $('cstock-reason').value.trim()));
+    alertBox('Stok disimpan.', 'ok');
+    hide($('cstock-modal'));
+    await loadMgmtProducts();
+    await loadProducts();
+  } catch (e) {
+    err.textContent = describeError(e);
+    show(err);
+  }
+});
+
+// -------------------------------------------------------- Laporan harian --
+const dailyQuery = () => {
+  const range = $('fin-range').value;
+  if (range === 'custom') return { date: $('fin-date').value || todayIso() };
+  return { period: range };
+};
+
+const renderDaily = (data) => {
+  const income = data.income ?? {};
+  const tx = data.transactions ?? {};
+  const exp = data.expenses ?? {};
+  const allowProfit = Boolean(data.can_view_profit);
+
+  const cards = [
+    {
+      label: 'Total pendapatan',
+      value: fmtIDR(income.total ?? 0),
+      sub: `${tx.completed ?? 0} transaksi`,
+    },
+    { label: 'Tunai', value: fmtIDR(income.cash ?? 0) },
+    { label: 'QRIS', value: fmtIDR(income.qris ?? 0) },
+    { label: 'Item terjual', value: String(tx.items_sold ?? 0) },
+    { label: 'Pengeluaran operasional', value: fmtIDR(exp.operating_total ?? 0) },
+  ];
+  if (allowProfit) {
+    cards.push({ label: 'HPP terjual', value: fmtIDR(data.hpp ?? 0) });
+    cards.push({ label: 'Laba kotor', value: fmtIDR(data.gross_profit ?? 0) });
+    cards.push({ label: 'Laba bersih', value: fmtIDR(data.net_profit ?? 0) });
+  }
+
+  $('fin-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(c.value)}</strong>
+        ${c.sub ? `<span class="muted small">${escapeHtml(c.sub)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+
+  const range = data.period ?? {};
+  $('fin-range-label').textContent =
+    range.from && range.to
+      ? `Periode: ${range.from}${range.to !== range.from ? ` s.d. ${range.to}` : ''}`
+      : '';
+
+  const methods = data.payment_methods ?? [];
+  const body = $('fin-methods');
+  body.innerHTML = '';
+  $('fin-methods-empty').classList.toggle('hidden', methods.length > 0);
+  for (const m of methods) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(METHOD_LABELS[m.method] ?? m.method)}</td>
+      <td class="right">${m.transactions ?? 0}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(m.total ?? 0))}</td>
+      <td class="right">${escapeHtml(fmtIDR(m.fees ?? 0))}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadDaily = async () => {
+  const data = await guard(() => api.daily(dailyQuery()));
+  if (!data) return;
+  renderDaily(data);
+};
+
+$('fin-refresh-btn').addEventListener('click', loadDaily);
+$('fin-range').addEventListener('change', () => {
+  const custom = $('fin-range').value === 'custom';
+  $('fin-date').classList.toggle('hidden', !custom);
+  if (custom && !$('fin-date').value) $('fin-date').value = todayIso();
+  loadDaily();
+});
+$('fin-date').addEventListener('change', loadDaily);
+$('fin-date').classList.add('hidden');
+
+// ------------------------------------------------------------ Pengeluaran --
+const expenseQuery = () => ({
+  category: $('exp-category-filter').value,
+  status: $('exp-status-filter').value || 'recorded',
+  from: $('exp-date-from').value,
+  to: $('exp-date-to').value,
+  limit: 100,
+});
+
+const renderExpenses = (data) => {
+  const items = data.items ?? [];
+  const totals = data.totals ?? {};
+  $('exp-summary').innerHTML = `
+    <div class="card stat">
+      <span class="stat-label">Total tampil</span>
+      <strong class="stat-value">${escapeHtml(fmtIDR(totals.total ?? 0))}</strong>
+      <span class="muted small">${items.length} catatan</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">Operasional</span>
+      <strong class="stat-value">${escapeHtml(fmtIDR(totals.operating_total ?? 0))}</strong>
+      <span class="muted small">masuk perhitungan laba</span>
+    </div>
+    <div class="card stat">
+      <span class="stat-label">Beli persediaan</span>
+      <strong class="stat-value">${escapeHtml(fmtIDR(totals.inventory_total ?? 0))}</strong>
+      <span class="muted small">tidak dihitung ganda</span>
+    </div>`;
+
+  const body = $('exp-body');
+  body.innerHTML = '';
+  $('exp-empty').classList.toggle('hidden', items.length > 0);
+  for (const e of items) {
+    const voided = e.status === 'voided';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(fmtDay(e.spent_on))}</td>
+      <td>${escapeHtml(CATEGORY_LABELS[e.category] ?? e.category)}</td>
+      <td>${escapeHtml(EXPENSE_METHOD_LABELS[e.method] ?? e.method)}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(e.amount ?? 0))}</td>
+      <td>${escapeHtml(e.note ?? '—')}${voided ? ' <span class="badge off">VOID</span>' : ''}</td>
+      <td class="right">
+        ${
+          voided
+            ? '—'
+            : `<button class="btn small danger" data-action="void" data-id="${e.id}">Batalkan</button>`
+        }
+      </td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadExpenses = async () => {
+  const data = await guard(() => api.expenses(expenseQuery()));
+  if (!data) return;
+  renderExpenses(data);
+};
+
+$('exp-refresh-btn').addEventListener('click', loadExpenses);
+$('exp-category-filter').addEventListener('change', loadExpenses);
+$('exp-status-filter').addEventListener('change', loadExpenses);
+$('exp-date-from').addEventListener('change', loadExpenses);
+$('exp-date-to').addEventListener('change', loadExpenses);
+
+const openExpenseModal = () => {
+  state.formPhoto = undefined;
+  $('exp-form').reset();
+  $('exp-date').value = todayIso();
+  hide($('exp-form-error'));
+  show($('exp-modal'));
+  $('exp-amount').focus();
+};
+
+$('exp-new-btn').addEventListener('click', openExpenseModal);
+$('exp-cancel').addEventListener('click', () => hide($('exp-modal')));
+$('exp-modal').addEventListener('click', (event) => {
+  if (event.target === $('exp-modal')) hide($('exp-modal'));
+});
+
+$('exp-receipt').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) {
+    state.formPhoto = undefined;
+    return;
+  }
+  try {
+    state.formPhoto = await fileToCompressedDataUrl(file);
+  } catch (err) {
+    event.target.value = '';
+    state.formPhoto = undefined;
+    alertBox(describeError(err), 'error');
+  }
+});
+
+$('exp-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const err = $('exp-form-error');
+  hide(err);
+  const amount = rpToSen($('exp-amount').value);
+  if (amount <= 0) {
+    err.textContent = 'Nominal harus lebih dari 0.';
+    show(err);
+    return;
+  }
+  const payload = {
+    category: $('exp-category').value,
+    amount,
+    method: $('exp-method').value,
+    date: $('exp-date').value || todayIso(),
+  };
+  const note = $('exp-note').value.trim();
+  if (note) payload.note = note;
+  if (typeof state.formPhoto === 'string' && state.formPhoto) {
+    payload.receiptUrl = state.formPhoto;
+  }
+
+  const btn = $('exp-form').querySelector('button[type=submit]');
+  btn.disabled = true;
+  try {
+    await guard(() => api.createExpense(payload));
+    alertBox('Pengeluaran dicatat.', 'ok');
+    hide($('exp-modal'));
+    await loadExpenses();
+  } catch (e) {
+    err.textContent = describeError(e);
+    show(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---------- Void pengeluaran ----------
+let voidExpenseId = null;
+
+$('exp-body').addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-action="void"]');
+  if (!btn) return;
+  voidExpenseId = btn.dataset.id;
+  $('void-reason').value = '';
+  hide($('void-error'));
+  show($('void-modal'));
+  $('void-reason').focus();
+});
+
+$('void-cancel').addEventListener('click', () => hide($('void-modal')));
+$('void-modal').addEventListener('click', (event) => {
+  if (event.target === $('void-modal')) hide($('void-modal'));
+});
+
+$('void-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const err = $('void-error');
+  hide(err);
+  const reason = $('void-reason').value.trim();
+  if (reason.length < 3) {
+    err.textContent = 'Alasan minimal 3 karakter.';
+    show(err);
+    return;
+  }
+  if (!voidExpenseId) return;
+  try {
+    await guard(() => api.voidExpense(voidExpenseId, reason));
+    alertBox('Pengeluaran dibatalkan.', 'ok');
+    hide($('void-modal'));
+    await loadExpenses();
+  } catch (e) {
+    err.textContent = describeError(e);
+    show(err);
+  }
+});
+
+// --------------------------------------------- Riwayat pergerakan stok ----
+const renderMovements = (data) => {
+  const items = data.items ?? [];
+  const body = $('mov-body');
+  body.innerHTML = '';
+  $('mov-empty').classList.toggle('hidden', items.length > 0);
+  for (const m of items) {
+    const delta = Number(m.qty_delta ?? 0);
+    const sign = delta > 0 ? `+${delta}` : String(delta);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(fmtDate(m.created_at))}</td>
+      <td>${escapeHtml(m.product_name ?? '—')}</td>
+      <td>${escapeHtml(MOVEMENT_LABELS[m.type] ?? m.type)}</td>
+      <td class="right ${delta > 0 ? 'ok-text' : delta < 0 ? 'danger-text' : ''}">${escapeHtml(sign)}</td>
+      <td class="right">${m.qty_after != null ? Number(m.qty_after) : '—'}</td>
+      <td>${escapeHtml(m.reason ?? '—')}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+const loadMovements = async () => {
+  const data = await guard(() => api.inventoryMovements({ limit: 50 }));
+  if (!data) return;
+  renderMovements(data);
+};
+
+$('mov-refresh-btn').addEventListener('click', loadMovements);

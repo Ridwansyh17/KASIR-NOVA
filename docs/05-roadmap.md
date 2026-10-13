@@ -548,6 +548,63 @@
 - **Selesai jika:** sebagai aplikasi Android, panel Kasir berjalan pada perangkat
   (ponsel/tablet) dan fitur cetak thermal tersedia.
 
+## Fase 18 — V0.3: HPP, Stok Habis, Pengeluaran Outlet & Laporan Keuangan (13 Okt 2026) ✅ SELESAI
+- **Tujuan:** melengkapi operasional harian — modal (HPP) & satuan, foto
+  produk, aturan HABIS turunan, pencatatan pengeluaran outlet, serta laporan
+  keuangan/laba (kotor & bersih) **lintas Owner & Kasir** dengan akses yang
+  dibatasi server.
+- **Migrasi `0009`** (`server/src/db/migrations/0009_product_inventory_expenses.sql`):
+  - `products`: `cost_price`, `unit`, `photo_url`, `manual_out_of_stock`,
+    `stock_note`, jejak `created_by_*`/`updated_by_*`, `status` produk aktif.
+  - `cashiers.can_view_profit` (opt-in Owner untuk membuka HPP/laba).
+  - `transaction_items.cost_price` (**snapshot HPP** saat penjualan) dan
+    `payments.fee_amount` (biaya transaksi/gateway).
+  - Tabel **`inventory_movements`** (append-only, enum `inventory_movement_type`)
+    dan **`expenses`** (+ enum kategori/metode/status).
+  - Semua kolom baru ber-`DEFAULT` sehingga aman untuk data lama.
+- **HPP (`cost_price`) dibatasi izin di server:** Owner selalu; Kasir hanya bila
+  `can_view_profit`. Field dihapus dari respons tanpa izin; memasukkan HPP dari
+  Area Kasir tanpa izin → **403**. UI hanya menyesuaikan tampilan.
+- **HABIS turunan:** `manual_out_of_stock = true` **ATAU**
+  (`track_stock` dan `total_stock ≤ 0`). Server **memblokir penjualan** produk
+  HABIS (bukan hanya UI); aktivasi kembali mensyaratkan stok `> 0`.
+- **Inventori append-only:** setiap mutasi saldo (stok awal, opname, penjualan,
+  refund, void, tandai habis/aktifkan) menulis satu baris
+  `inventory_movements` dalam **transaksi DB yang sama**; tidak ada endpoint
+  hapus. `product_name` disimpan sebagai snapshot.
+- **Pengeluaran outlet** (`expenses`): kategori `operational`/`utilities`/
+  `supplies`/`transport`/`maintenance`/`inventory_purchase`/`other`, metode
+  `cash`/`transfer`/`qr`, `spent_on` berbasis **zona waktu bisnis**. Koreksi
+  memakai **void** (bukan hapus); kasir hanya boleh membatalkan catatannya
+  sendiri (403). Kategori `inventory_purchase` **dikecualikan** dari laba agar
+  HPP tidak dihitung dua kali.
+- **Laporan keuangan** `GET .../reports/finance` (+ ekspor xlsx 3 sheet
+  `Ringkasan Keuangan`/`Per Outlet`/`Pengeluaran Outlet`): pendapatan per
+  metode, HPP (dari snapshot), biaya transaksi, pengeluaran operasional, laba
+  kotor (pendapatan − HPP) & laba bersih (laba kotor − operasional − fee) +
+  baris per outlet. Kasir memakai `GET /api/cashier/reports/daily`
+  (bentuk sama, satu outlet); server **menghapus** field laba bila kasir tidak
+  berizin.
+- **Frontend `apps/owner`:** kolom **Laba** pada daftar kasir (toggle izin),
+  form produk (HPP, satuan, stok awal, HABIS, foto dengan pengecilan JPEG),
+  badge status + tombol Tandai HABIS/Hapus, section **Laporan Keuangan**
+  (rentang cepat/kustom + ekspor .xlsx), **Pengeluaran** (catat → void via
+  modal), dan **Pergerakan Stok**.
+- **Frontend `apps/kasir`:** navigasi **5 tab** (Kasir, Produk, Pendapatan,
+  Pengeluaran, Stok); Kelola Produk (CRUD kecuali hapus + HPP bila berizin +
+  foto + stok awal), laporan pendapatan harian (HPP/laba hanya bila berizin),
+  catat/void pengeluaran, dan riwayat pergerakan stok outlet. Aset
+  `apps/kasir-mobile/www` disinkronkan (`build-www.mjs`).
+- **Dokumentasi:** `docs/18-api-pengeluaran-inventori.md` (baru) serta
+  pembaruan `docs/03-model-data.md`, `docs/04-matriks-hak-akses.md`,
+  `docs/14-api-produk-stok.md`, `docs/16-api-laporan.md`.
+- **Pengujian:** `server/tests/v03-features.test.js` (HPP per peran, HABIS
+  otomatis/manual + blokir, void mengembalikan stok + jejak pergerakan,
+  snapshot HPP & biaya, pengeluaran bisnis/outlet, isolasi tenant) — **seluruh
+  suite server 220/220 lulus**.
+- **Tertunda:** ikon/favicon & manifest PWA (Fase 3), verifikasi cetak ke
+  printer fisik, dan keputusan gateway pembayaran & perpanjangan otomatis.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

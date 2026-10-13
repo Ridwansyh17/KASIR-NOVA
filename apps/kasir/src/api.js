@@ -148,27 +148,66 @@ export const logout = async () => {
   }
 };
 
+/** Bangun query string dari objek; lewati nilai kosong/null/undefined. */
+const qs = (params = {}) => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    search.set(key, String(value));
+  }
+  const s = search.toString();
+  return s ? `?${s}` : '';
+};
+
 export const api = {
   me: () => request('/api/auth/me'),
 
-  products: (params = {}) => {
-    const qs = new URLSearchParams();
-    if (params.search) qs.set('search', params.search);
-    const suffix = qs.toString() ? `?${qs.toString()}` : '';
-    return request(`/api/cashier/products${suffix}`);
-  },
+  /** Info outlet/bisnis kasir + izin (mis. `can_view_profit`). */
+  info: () => request('/api/cashier/me'),
 
+  // ------------------------------------------------------------- Produk ----
+  products: (params = {}) => request(`/api/cashier/products${qs(params)}`),
+  categories: () => request('/api/cashier/categories'),
+  createProduct: (data) =>
+    request('/api/cashier/products', { method: 'POST', body: JSON.stringify(data) }),
+  updateProduct: (productId, data) =>
+    request(`/api/cashier/products/${productId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  /** Fase 2: tandai HABIS manual / aktifkan kembali. */
+  setStockStatus: (productId, outOfStock, note) =>
+    request(`/api/cashier/products/${productId}/stock-status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ outOfStock, note: note || undefined }),
+    }),
+  /** Isi/koreksi stok outlet kasir sendiri. */
+  setStock: (productId, quantity, reason) =>
+    request(`/api/cashier/products/${productId}/stock`, {
+      method: 'PATCH',
+      body: JSON.stringify({ quantity, reason: reason || undefined }),
+    }),
+
+  // ---------------------------------------------------------- Transaksi ----
   createTransaction: (data) =>
     request('/api/cashier/transactions', { method: 'POST', body: JSON.stringify(data) }),
 
-  transactions: (params = {}) => {
-    const qs = new URLSearchParams();
-    if (params.status) qs.set('status', params.status);
-    if (params.page) qs.set('page', params.page);
-    if (params.limit) qs.set('limit', params.limit);
-    const suffix = qs.toString() ? `?${qs.toString()}` : '';
-    return request(`/api/cashier/transactions${suffix}`);
-  },
+  transactions: (params = {}) => request(`/api/cashier/transactions${qs(params)}`),
 
   transaction: (id) => request(`/api/cashier/transactions/${id}`),
+
+  // -------------------------------------------------------- Pengeluaran ----
+  expenses: (params = {}) => request(`/api/cashier/expenses${qs(params)}`),
+  createExpense: (data) =>
+    request('/api/cashier/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  voidExpense: (expenseId, reason) =>
+    request(`/api/cashier/expenses/${expenseId}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  // ------------------------------------------------------------- Laporan ---
+  /** Laporan harian outlet (Fase 4). `params`: { date | period | from, to }. */
+  daily: (params = {}) => request(`/api/cashier/reports/daily${qs(params)}`),
+
+  /** Histori pergerakan stok outlet (append-only, Fase 2). */
+  inventoryMovements: (params = {}) =>
+    request(`/api/cashier/inventory-movements${qs(params)}`),
 };

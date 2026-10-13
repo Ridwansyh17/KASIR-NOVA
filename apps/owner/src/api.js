@@ -235,6 +235,12 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    /** Ubah data kasir (mis. izin melihat HPP: `{ canViewProfit: true }`). */
+    update: (businessId, cashierId, data) =>
+      request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     setPin: (businessId, cashierId, pin) =>
       request(`/api/owner/businesses/${businessId}/cashiers/${cashierId}/pin`, {
         method: 'POST',
@@ -302,6 +308,20 @@ export const api = {
     /** Perbandingan agregat tiap outlet dalam satu bisnis (Fase 16). */
     outlets: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports/outlets${queryString(params)}`),
+    /**
+     * Ringkasan keuangan/laba (Fase 4/6): pendapatan per metode, HPP,
+     * biaya transaksi, pengeluaran operasional, laba kotor & bersih.
+     * @param {{period?,date?,from?,to?,outletId?}} params
+     */
+    finance: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/reports/finance${queryString(params)}`),
+    /** Unduh laporan keuangan .xlsx (Ringkasan + Per Outlet + Pengeluaran). */
+    financeXlsx: (businessId, params = {}) =>
+      downloadXlsx(
+        `/api/owner/businesses/${businessId}/reports/finance/export`,
+        params,
+        'KASIR_NOVA_Laporan_Keuangan.xlsx'
+      ),
     /** Perbandingan agregat tiap bisnis milik Owner (Fase 16). */
     businesses: (params = {}) => request(`/api/owner/reports/businesses${queryString(params)}`),
     /** @returns {Promise<string|object>} teks CSV atau objek {items}. */
@@ -383,5 +403,36 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ quantity }),
       }),
+    /** Fase 2: tandai produk HABIS manual / aktifkan kembali. */
+    setStockStatus: (businessId, productId, outOfStock) =>
+      request(`/api/owner/businesses/${businessId}/products/${productId}/stock-status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ outOfStock }),
+      }),
+  },
+
+  /**
+   * Pengeluaran outlet (Fase 5). Koreksi memakai void + alasan (bukan hapus).
+   * Nominal dalam SEN di body (`amount`).
+   */
+  expenses: {
+    list: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/expenses${queryString(params)}`),
+    create: (businessId, data) =>
+      request(`/api/owner/businesses/${businessId}/expenses`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    void: (businessId, expenseId, reason) =>
+      request(`/api/owner/businesses/${businessId}/expenses/${expenseId}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+  },
+
+  /** Histori pergerakan stok (Fase 2, append-only). */
+  inventoryMovements: {
+    list: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/inventory-movements${queryString(params)}`),
   },
 };
