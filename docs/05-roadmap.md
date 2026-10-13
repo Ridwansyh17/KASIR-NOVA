@@ -538,6 +538,11 @@
     `http://localhost`). Verifikasi: `GET /api/health` dengan
     `Origin: https://localhost` → `200` + `Access-Control-Allow-Origin:
     https://localhost`; origin web `https://kasir-nova.web.app` tetap `200`.
+  - **Frontend di-deploy ulang** ke Firebase Hosting (13 Okt 2026) agar panel
+    Kasir web memuat modul Fase 17. Verifikasi: `GET /kasir/src/printer.js` →
+    `200` `text/javascript`; `index.html` memuat `printer-card`; header
+    keamanan (`nosniff`, `X-Frame-Options: DENY`, `no-referrer`) tetap;
+    panel **Owner & Admin tidak berubah** (byte identik dengan sebelum deploy).
 - **Belum terverifikasi:** cetak **runtime ke printer fisik** (SPP/BLE) —
   tidak ada perangkat printer pada lingkungan pengembangan.
 - **Selesai jika:** sebagai aplikasi Android, panel Kasir berjalan pada perangkat

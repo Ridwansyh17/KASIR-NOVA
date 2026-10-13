@@ -265,6 +265,9 @@ Status (13 Okt 2026, sudah dilakukan):
   allowlist CORS — tanpa ini APK tidak dapat memanggil API (§7.0).
 - Berkas APK siap pasang ada di
   **`dist/apk/KASIR-NOVA-1.0.0-beta.2.apk`** (diabaikan git).
+- **Web panel Kasir di-deploy ulang** ke Firebase Hosting sehingga memuat modul
+  printer Fase 17 (kartu *Printer Thermal*; di browser biasa menampilkan catatan
+  "Hanya di aplikasi Android"). Panel Owner & Admin tidak berubah.
 
 > **Penting saat beralih beta.1 → beta.2:** beta.1 ditandatangani *debug
 > keystore*, beta.2 dengan *keystore rilis* — tanda tangannya berbeda, jadi
