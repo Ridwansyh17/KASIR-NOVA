@@ -72,7 +72,29 @@ npm run e2e:online
 
 Kredensial uji tersedia di `akun kasir-nova-test.txt` (tidak di-commit).
 Runbook deploy/rollback: `docs/24-vercel-serverless.md`; backup/restore:
-`docs/22-backup-restore.md`.
+`docs/22-backup-restore.md`; APK Android & cetak Bluetooth:
+`docs/25-apk-android-cetak-bluetooth.md`.
+
+## APK Android (panel Kasir)
+
+Kemasan Android ada di `apps/kasir-mobile` (Capacitor 7). Prasyarat: **JDK 21**
+dan **Android SDK** (di mesin ini: `C:\Android`, tercatat di
+`apps/kasir-mobile/android/local.properties`).
+
+```powershell
+cd apps\kasir-mobile
+npm install
+npm run sync              # salin apps/kasir -> www, lalu cap sync android
+npm run android:prepare   # plugin printer, izin Bluetooth, versi, signing
+npm run apk:release       # APK rilis (butuh android/key.properties)
+npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.2.apk
+```
+
+Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`; naikkan
+`versionCode` lewat `$env:NOVA_APP_VERSION_CODE='3'` sebelum
+`npm run android:prepare`. Keystore & kredensial rilis **tidak di-commit**
+(`nova-release.jks`, `key.properties`, `keystore-credentials.txt`). Runbook
+lengkap: `docs/25-apk-android-cetak-bluetooth.md`.
 
 ## Struktur
 
@@ -81,6 +103,7 @@ server/      Backend Node.js + Express + PostgreSQL
 apps/admin   Panel Admin Platform
 apps/owner   Panel Owner (multi-bisnis)
 apps/kasir   Aplikasi Kasir (POS)
+apps/kasir-mobile  Kemasan Capacitor -> APK Android (printer Bluetooth)
 packages/    Kode bersama (validasi, konstanta, format IDR)
 docs/        Dokumentasi arsitektur & roadmap
 ```
@@ -98,8 +121,8 @@ roadmap fase.
 
 ## Status
 
-- Fase **0–16 selesai** (termasuk penyempurnaan struk thermal **16b**); suite tes
-  integrasi **185/185**; E2E alur produksi
+- Fase **0–17 selesai** (termasuk penyempurnaan struk thermal **16b** dan APK
+  Android **17**); suite tes integrasi **206/206**; E2E alur produksi
   **26/26** (dijalankan terhadap server lokal sebelum deploy; langkah 20–23
   menguji perbandingan outlet & lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend di
@@ -121,3 +144,14 @@ roadmap fase.
   aktual (LUNAS / BELUM LUNAS / DIBATALKAN / DIKEMBALIKAN / GAGAL). Tersedia
   tombol **Cetak 58mm** & **80mm** (`@page` dinamis); kembalian hanya untuk tunai
   yang benar-benar lunas. Builder struk murni: `apps/kasir/src/receipt.js`.
+- **APK Android panel Kasir (Fase 17)**: panel Kasir dikemas sebagai APK
+  Capacitor (`apps/kasir-mobile`, `id.kasirnova.kasir`, `1.0.0-beta.2`) dengan
+  cetak struk thermal langsung via **Bluetooth Classic (SPP) & BLE** — plugin
+  `NovaPrinter` + ESC/POS murni (`apps/kasir/src/escpos.js`). APK ditandatangani
+  keystore rilis dan dibagikan lewat **Firebase App Distribution** (grup
+  `kasir-beta`); berkas siap pasang di `dist/apk/`. Runbook:
+  `docs/25-apk-android-cetak-bluetooth.md`. **Belum terverifikasi:** cetak ke
+  printer fisik (tidak ada perangkat di lingkungan pengembangan).
+- **Modul tertunda** (butuh keputusan pemilik): gateway pembayaran digital dan
+  perpanjangan langganan otomatis — lihat *Modul Ditangguhkan* di
+  `docs/05-roadmap.md`.
