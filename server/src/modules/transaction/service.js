@@ -19,6 +19,7 @@ import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
 import { enforceSubscriptionActive } from '../subscription/service.js';
+import { recordMovement } from '../inventory/service.js';
 
 export const TRANSACTION_COLUMNS = `id, business_id, outlet_id, cashier_id, invoice_no,
   status, subtotal, discount_type, discount_value, discount_total, tax_rate,
@@ -150,7 +151,7 @@ const loadDetail = async (db, businessId, transactionId) => {
     [transactionId]
   );
   const payments = await db.query(
-    `SELECT id, method, amount, reference, provider, status, created_at
+    `SELECT id, method, amount, reference, provider, status, fee_amount, created_at
        FROM payments WHERE transaction_id = $1
       ORDER BY created_at ASC, id ASC`,
     [transactionId]
@@ -205,7 +206,7 @@ export const createSale = async ({ cashierId, data, ip }) => {
     if (dupes.length) throw new ConflictError('Keranjang memuat produk duplikat');
 
     const { rows: prodRows } = await client.query(
-      `SELECT id, name, sku, price, track_stock, status
+      `SELECT id, name, sku, price, cost_price, track_stock, status, manual_out_of_stock
          FROM products
         WHERE id = ANY($1::uuid[]) AND business_id = $2 AND deleted_at IS NULL`,
       [productIds, scope.business_id]
@@ -216,11 +217,18 @@ export const createSale = async ({ cashierId, data, ip }) => {
       const p = byId.get(it.productId);
       if (!p) throw new NotFoundError('Produk tidak ditemukan di bisnis ini');
       if (p.status !== 'active') throw new ConflictError(`Produk "${p.name}" sedang nonaktif`);
+      // Fase 2: produk berstatus HABIS diblokir dari transaksi baru.
+      if (p.manual_out_of_stock) {
+        throw new ConflictError(`Produk "${p.name}" sedang HABIS dan tidak dapat dijual`);
+      }
       return {
         product_id: p.id,
         product_name: p.name,
         sku: p.sku,
         unit_price: Number(p.price),
+        // Snapshot HPP saat transaksi (Fase 7) — laporan laba tidak terpengaruh
+        // bila HPP katalog berubah di kemudian hari.
+        cost_price: Number(p.cost_price ?? 0),
         qty: it.qty,
         track_stock: p.track_stock,
       };
@@ -299,15 +307,16 @@ export const createSale = async ({ cashierId, data, ip }) => {
     for (const line of totals.lines) {
       await client.query(
         `INSERT INTO transaction_items
-           (transaction_id, product_id, product_name, sku, unit_price, qty,
+           (transaction_id, product_id, product_name, sku, unit_price, cost_price, qty,
             discount_amount, tax_amount, line_total)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           transaction.id,
           line.product_id,
           line.product_name,
           line.sku,
           line.unit_price,
+          line.cost_price,
           line.qty,
           line.discount_amount,
           line.tax_amount,
@@ -319,20 +328,43 @@ export const createSale = async ({ cashierId, data, ip }) => {
         const upd = await client.query(
           `UPDATE product_stocks
               SET quantity = quantity - $3, updated_at = now()
-            WHERE product_id = $1 AND outlet_id = $2 AND quantity >= $3`,
+            WHERE product_id = $1 AND outlet_id = $2 AND quantity >= $3
+            RETURNING quantity`,
           [line.product_id, scope.outlet_id, line.qty]
         );
         if (upd.rowCount === 0) {
           throw new ConflictError(`Stok "${line.product_name}" tidak mencukupi`);
         }
+        // Fase 2: catat pergerakan stok penjualan (append-only).
+        const afterQty = Number(upd.rows[0].quantity);
+        await recordMovement(client, {
+          businessId: scope.business_id,
+          outletId: scope.outlet_id,
+          productId: line.product_id,
+          productName: line.product_name,
+          type: 'sale',
+          qtyBefore: afterQty + line.qty,
+          qtyAfter: afterQty,
+          reason: `Penjualan ${invoiceNo}`,
+          refType: 'transaction',
+          refId: transaction.id,
+          actorRole: 'cashier',
+          actorId: cashierId,
+        });
       }
     }
 
-    // 9. Pembayaran.
+    // 9. Pembayaran (+ biaya transaksi opsional untuk pembayaran non-tunai).
     await client.query(
-      `INSERT INTO payments (transaction_id, method, amount, reference, status)
-       VALUES ($1, $2, $3, $4, 'paid')`,
-      [transaction.id, method, paid, data.payment.reference ?? null]
+      `INSERT INTO payments (transaction_id, method, amount, reference, status, fee_amount)
+       VALUES ($1, $2, $3, $4, 'paid', $5)`,
+      [
+        transaction.id,
+        method,
+        paid,
+        data.payment.reference ?? null,
+        data.payment.feeAmount ?? 0,
+      ]
     );
 
     // 10. Audit.
@@ -444,7 +476,7 @@ export const voidTransaction = async ({ businessId, transactionId, actor, ip }) 
 
     // Kembalikan stok untuk produk yang masih melacak stok.
     const { rows: items } = await client.query(
-      `SELECT ti.product_id, ti.qty, p.track_stock
+      `SELECT ti.product_id, ti.product_name, ti.qty, p.track_stock
          FROM transaction_items ti
          LEFT JOIN products p ON p.id = ti.product_id
         WHERE ti.transaction_id = $1`,
@@ -452,12 +484,28 @@ export const voidTransaction = async ({ businessId, transactionId, actor, ip }) 
     );
     for (const it of items) {
       if (it.product_id && it.track_stock) {
-        await client.query(
+        const upd = await client.query(
           `UPDATE product_stocks
               SET quantity = quantity + $3, updated_at = now()
-            WHERE product_id = $1 AND outlet_id = $2`,
+            WHERE product_id = $1 AND outlet_id = $2
+            RETURNING quantity`,
           [it.product_id, transaction.outlet_id, it.qty]
         );
+        const afterQty = Number(upd.rows[0]?.quantity ?? 0);
+        await recordMovement(client, {
+          businessId,
+          outletId: transaction.outlet_id,
+          productId: it.product_id,
+          productName: it.product_name,
+          type: 'void',
+          qtyBefore: afterQty - Number(it.qty),
+          qtyAfter: afterQty,
+          reason: `Pembatalan ${transaction.invoice_no}`,
+          refType: 'transaction',
+          refId: transactionId,
+          actorRole: actor.role,
+          actorId: actor.id,
+        });
       }
     }
 

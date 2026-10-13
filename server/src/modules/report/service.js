@@ -13,7 +13,8 @@
  */
 import { query } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
-import { buildTransactionsWorkbook, buildComparisonWorkbook } from './xlsx.js';
+import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook } from './xlsx.js';
+import { expensesInRange, expensesByCategory, exportExpenseRows } from '../expense/service.js';
 
 const GROUPED_NUMERIC = [
   'subtotal',
@@ -506,6 +507,295 @@ export const toCsv = (rows) => {
   return [CSV_COLUMNS.join(','), ...lines].join('\r\n');
 };
 
+// ==================================================== Fase 4/6: Keuangan ====
+/** Geser tanggal `YYYY-MM-DD` sebanyak `days` (UTC) — aman dari DST/zona lokal. */
+export const shiftDate = (dateStr, days) => {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+};
+
+/**
+ * Rentang efektif laporan keuangan/dashboard.
+ * Prioritas: `date` > `period` > (`from`,`to`) > default `today`.
+ * `period`: today | yesterday | week (7 hari terakhir termasuk hari ini) |
+ * month (awal bulan s.d. hari ini). Semua dihitung pada ZONA WAKTU BISNIS.
+ */
+export const resolveFinanceRange = async (timezone, filters = {}) => {
+  const { rows } = await query(
+    `SELECT (now() AT TIME ZONE $1::text)::date::text AS today`,
+    [timezone]
+  );
+  const today = rows[0].today;
+
+  if (filters.date) return { from: filters.date, to: filters.date, period: 'date', today };
+
+  switch (filters.period) {
+    case 'yesterday': {
+      const d = shiftDate(today, -1);
+      return { from: d, to: d, period: 'yesterday', today };
+    }
+    case 'week':
+      return { from: shiftDate(today, -6), to: today, period: 'week', today };
+    case 'month':
+      return { from: `${today.slice(0, 7)}-01`, to: today, period: 'month', today };
+    case 'custom':
+      if (!filters.from || !filters.to) {
+        return { from: today, to: today, period: 'today', today };
+      }
+      return { from: filters.from, to: filters.to, period: 'custom', today };
+    case 'today':
+    default:
+      if (filters.from || filters.to) {
+        return {
+          from: filters.from ?? filters.to,
+          to: filters.to ?? filters.from,
+          period: 'custom',
+          today,
+        };
+      }
+      return { from: today, to: today, period: 'today', today };
+  }
+};
+
+/** Pendapatan per metode pembayaran (hanya transaksi selesai & pembayaran lunas). */
+const incomeByMethod = async (businessId, range, tz, outletId) => {
+  const { rows } = await query(
+    `SELECT p.method,
+            COALESCE(SUM(p.amount), 0)    AS total,
+            COALESCE(SUM(p.fee_amount), 0) AS fees,
+            count(DISTINCT t.id)::int     AS transactions
+       FROM payments p
+       JOIN transactions t ON t.id = p.transaction_id
+      WHERE t.business_id = $1
+        AND t.status = 'completed'
+        AND p.status = 'paid'
+        AND t.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+        AND t.created_at < ((($3::date)::timestamp + interval '1 day') AT TIME ZONE $4::text)
+        AND ($5::uuid IS NULL OR t.outlet_id = $5)
+      GROUP BY p.method
+      ORDER BY p.method ASC`,
+    [businessId, range.from, range.to, tz, outletId]
+  );
+  return rows.map((r) => ({
+    method: r.method,
+    total: Number(r.total),
+    fees: Number(r.fees),
+    transactions: Number(r.transactions),
+  }));
+};
+
+/**
+ * Ringkasan keuangan satu periode (Fase 4 laporan harian kasir & Fase 6
+ * dashboard Owner).
+ *
+ * Rumus (semua SEN):
+ *   Total Pendapatan = Tunai + QRIS + metode lain
+ *   Laba Kotor       = Total Pendapatan - HPP produk terjual
+ *   Laba Bersih      = Laba Kotor - Pengeluaran Operasional - Biaya Transaksi
+ *
+ * Hanya transaksi `completed` + pembayaran `paid` yang dihitung; transaksi
+ * pending/gagal/void/refund TIDAK masuk pendapatan. Pengeluaran kategori
+ * `inventory_purchase` tidak dihitung dua kali (lihat modul expense).
+ */
+export const financeSummary = async ({ businessId, filters = {}, outletId = null }) => {
+  const biz = await getBusiness(businessId);
+  const tz = biz.timezone;
+  const range = await resolveFinanceRange(tz, filters);
+  const targetOutlet = filters.outletId ?? outletId ?? null;
+
+  /**
+   * Predikat rentang + cakupan outlet untuk transaksi (param: $1 bisnis,
+   * $2 from, $3 to, $4 timezone, $5 outlet id / NULL).
+   */
+  const FINANCE_PREDICATE = `t.business_id = $1 AND t.status = 'completed'
+    AND t.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+    AND t.created_at < ((($3::date)::timestamp + interval '1 day') AT TIME ZONE $4::text)
+    AND ($5::uuid IS NULL OR t.outlet_id = $5)`;
+
+  const [methods, hppRows, txRows, voidRows, outletRows, expenses, byCategory] =
+    await Promise.all([
+      incomeByMethod(businessId, range, biz.timezone, targetOutlet),
+      query(
+        `SELECT COALESCE(SUM(ti.cost_price * ti.qty), 0) AS hpp,
+                COALESCE(SUM(ti.qty), 0)::int             AS items_sold
+           FROM transaction_items ti
+           JOIN transactions t ON t.id = ti.transaction_id
+          WHERE ${FINANCE_PREDICATE}`,
+        [businessId, range.from, range.to, biz.timezone, targetOutlet]
+      ),
+      query(
+        `SELECT COUNT(*) FILTER (WHERE t.status = 'completed')::int AS completed
+           FROM transactions t
+          WHERE t.business_id = $1
+            AND t.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+            AND t.created_at < ((($3::date)::timestamp + interval '1 day') AT TIME ZONE $4::text)
+            AND ($5::uuid IS NULL OR t.outlet_id = $5)`,
+        [businessId, range.from, range.to, biz.timezone, targetOutlet]
+      ),
+      query(
+        `SELECT COALESCE(SUM(t.total) FILTER (WHERE t.status = 'voided'), 0)   AS voided_total,
+                COALESCE(SUM(t.total) FILTER (WHERE t.status = 'refunded'), 0) AS refunded_total,
+                COUNT(*) FILTER (WHERE t.status = 'voided')::int               AS voided_count,
+                COUNT(*) FILTER (WHERE t.status = 'refunded')::int             AS refunded_count
+           FROM transactions t
+          WHERE t.business_id = $1
+            AND t.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+            AND t.created_at < ((($3::date)::timestamp + interval '1 day') AT TIME ZONE $4::text)
+            AND ($5::uuid IS NULL OR t.outlet_id = $5)`,
+        [businessId, range.from, range.to, biz.timezone, targetOutlet]
+      ),
+      query(
+        `WITH pay AS (
+           SELECT t.outlet_id, COALESCE(SUM(p.amount), 0) AS income,
+                  COALESCE(SUM(p.fee_amount), 0)          AS fees,
+                  COUNT(DISTINCT t.id)::int               AS transactions
+             FROM payments p
+             JOIN transactions t ON t.id = p.transaction_id
+            WHERE t.business_id = $1 AND t.status = 'completed' AND p.status = 'paid'
+              AND t.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+              AND t.created_at < ((($3::date)::timestamp + interval '1 day') AT TIME ZONE $4::text)
+            GROUP BY t.outlet_id
+         ), hpp AS (
+           SELECT t.outlet_id, COALESCE(SUM(ti.cost_price * ti.qty), 0) AS hpp
+             FROM transaction_items ti
+             JOIN transactions t ON t.id = ti.transaction_id
+            WHERE t.business_id = $1 AND t.status = 'completed'
+              AND t.created_at >= ($2::date)::timestamp AT TIME ZONE $4::text
+              AND t.created_at < ((($3::date)::timestamp + interval '1 day') AT TIME ZONE $4::text)
+            GROUP BY t.outlet_id
+         ), exp AS (
+           SELECT outlet_id, COALESCE(SUM(amount) FILTER (WHERE category <> 'inventory_purchase'), 0) AS operating
+             FROM expenses
+            WHERE business_id = $1 AND status = 'recorded'
+              AND spent_on >= $2::date AND spent_on <= $3::date
+            GROUP BY outlet_id
+         )
+         SELECT o.id AS outlet_id, o.name AS outlet_name,
+                COALESCE(pay.income, 0)  AS income,
+                COALESCE(pay.fees, 0)    AS fees,
+                COALESCE(pay.transactions, 0) AS transactions,
+                COALESCE(hpp.hpp, 0)     AS hpp,
+                COALESCE(exp.operating, 0) AS operating_expense
+           FROM outlets o
+           LEFT JOIN pay ON pay.outlet_id = o.id
+           LEFT JOIN hpp ON hpp.outlet_id = o.id
+           LEFT JOIN exp ON exp.outlet_id = o.id
+          WHERE o.business_id = $1 AND o.deleted_at IS NULL
+            AND ($5::uuid IS NULL OR o.id = $5)
+          ORDER BY o.name ASC`,
+        [businessId, range.from, range.to, biz.timezone, targetOutlet]
+      ),
+      expensesInRange({ query }, {
+        businessId,
+        outletId: targetOutlet,
+        from: range.from,
+        to: range.to,
+      }),
+      expensesByCategory({ query }, {
+        businessId,
+        outletId: targetOutlet,
+        from: range.from,
+        to: range.to,
+      }),
+    ]);
+
+  const pick = (key) => Number(methods.find((m) => m.method === key)?.total ?? 0);
+  const cash = pick('cash');
+  const qris = pick('qr');
+  const card = pick('card');
+  const wallet = pick('wallet');
+  const totalIncome = methods.reduce((a, m) => a + Number(m.total), 0);
+  const feeTotal = methods.reduce((a, m) => a + Number(m.fees), 0);
+
+  const hpp = Number(hppRows.rows[0].hpp);
+  const itemsSold = hppRows.rows[0].items_sold;
+  const grossProfit = totalIncome - hpp;
+  const netProfit = grossProfit - expenses.operating_total - feeTotal;
+
+  const s = voidRows.rows[0];
+  const outlets = outletRows.rows.map((r) => {
+    const income = Number(r.income);
+    const outletHpp = Number(r.hpp);
+    const operating = Number(r.operating_expense);
+    const fees = Number(r.fees);
+    return {
+      outlet_id: r.outlet_id,
+      outlet_name: r.outlet_name,
+      transactions: r.transactions,
+      income,
+      hpp: outletHpp,
+      operating_expense: operating,
+      transaction_fees: fees,
+      gross_profit: income - outletHpp,
+      net_profit: income - outletHpp - operating - fees,
+    };
+  });
+
+  return {
+    business: {
+      id: biz.id,
+      name: biz.name,
+      currency: biz.currency,
+      timezone: biz.timezone,
+    },
+    period: { from: range.from, to: range.to, preset: range.period },
+    scope: { outlet_id: targetOutlet },
+    income: {
+      cash,
+      qris,
+      card,
+      wallet,
+      other: 0,
+      total: totalIncome,
+      transaction_fees: feeTotal,
+    },
+    payment_methods: methods.map((m) => ({
+      method: m.method,
+      total: Number(m.total),
+      fees: Number(m.fees),
+      transactions: Number(m.transactions),
+    })),
+    transactions: {
+      completed: txRows.rows[0].completed,
+      voided: s.voided_count,
+      refunded: s.refunded_count,
+      items_sold: itemsSold,
+      voided_total: Number(s.voided_total),
+      refunded_total: Number(s.refunded_total),
+    },
+    hpp,
+    expenses: { ...expenses, by_category: byCategory },
+    gross_profit: grossProfit,
+    net_profit: netProfit,
+    outlets,
+  };
+};
+
+/**
+ * Ekspor laporan keuangan (Fase 6) ke .xlsx: sheet Ringkasan Keuangan +
+ * sheet Pengeluaran Outlet. Memakai rumus & angka yang SAMA dengan dashboard
+ * (bukan perhitungan ulang terpisah).
+ * @returns {Promise<{buffer: Buffer, filename: string}>}
+ */
+export const exportFinanceXlsx = async ({ businessId, filters }) => {
+  const business = await getBusiness(businessId);
+  const [summary, expenses, outlet] = await Promise.all([
+    financeSummary({ businessId, filters }),
+    exportExpenseRows({ businessId, filters }),
+    outletLabel(filters.outletId),
+  ]);
+  const generatedAt = new Date().toLocaleString('id-ID', { timeZone: business.timezone });
+  const buffer = await buildFinanceWorkbook({
+    business,
+    summary,
+    expenses,
+    filters: { ...filters, outletLabel: outlet },
+    generatedAt,
+  });
+  const filename = `KASIR_NOVA_Laporan_Keuangan_${summary.period.from}_sampai_${summary.period.to}.xlsx`;
+  return { buffer, filename };
+};
+
 export default {
   groupedReport,
   summary,
@@ -516,5 +806,8 @@ export default {
   exportOutletComparisonXlsx,
   exportBusinessComparisonXlsx,
   resolvePeriod,
+  resolveFinanceRange,
+  financeSummary,
+  shiftDate,
   toCsv,
 };

@@ -1,7 +1,11 @@
 /**
  * Controller modul produk, kategori & stok — tipis.
+ *
+ * Visibilitas HPP ditegakkan di sini: `includeCost` dihitung dari izin
+ * pengguna (Owner selalu; Kasir bila `can_view_profit`).
  */
 import * as service from './service.js';
+import { canViewProfit } from '../permission/service.js';
 
 export const listCategories = async (req, res, next) => {
   try {
@@ -52,11 +56,13 @@ export const deleteCategory = async (req, res, next) => {
 
 export const listProducts = async (req, res, next) => {
   try {
+    const includeCost = await canViewProfit(req.user);
     const result = await service.listProducts({
       businessId: req.params.businessId,
       filters: req.query,
+      includeCost,
     });
-    res.json(result);
+    res.json({ ...result, can_view_profit: includeCost });
   } catch (err) {
     next(err);
   }
@@ -64,11 +70,14 @@ export const listProducts = async (req, res, next) => {
 
 export const createProduct = async (req, res, next) => {
   try {
+    const includeCost = await canViewProfit(req.user);
     const product = await service.createProduct({
       businessId: req.params.businessId,
       data: req.body,
       actor: req.user,
       ip: req.ip,
+      includeCost,
+      outletId: req.body.outletId ?? null,
     });
     res.status(201).json({ product });
   } catch (err) {
@@ -78,8 +87,11 @@ export const createProduct = async (req, res, next) => {
 
 export const getProduct = async (req, res, next) => {
   try {
-    const result = await service.getProduct(req.params.businessId, req.params.productId);
-    res.json(result);
+    const includeCost = await canViewProfit(req.user);
+    const result = await service.getProduct(req.params.businessId, req.params.productId, {
+      includeCost,
+    });
+    res.json({ ...result, can_view_profit: includeCost });
   } catch (err) {
     next(err);
   }
@@ -87,12 +99,14 @@ export const getProduct = async (req, res, next) => {
 
 export const updateProduct = async (req, res, next) => {
   try {
+    const includeCost = await canViewProfit(req.user);
     const product = await service.updateProduct(
       req.params.businessId,
       req.params.productId,
       req.body,
       req.user,
-      req.ip
+      req.ip,
+      { includeCost }
     );
     res.json({ product });
   } catch (err) {
@@ -122,7 +136,26 @@ export const setStock = async (req, res, next) => {
       req.params.outletId,
       req.body.quantity,
       req.user,
-      req.ip
+      req.ip,
+      { reason: req.body.reason ?? null }
+    );
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Tandai habis manual / aktifkan kembali (Fase 2). */
+export const setStockStatus = async (req, res, next) => {
+  try {
+    const includeCost = await canViewProfit(req.user);
+    const result = await service.setStockStatus(
+      req.params.businessId,
+      req.params.productId,
+      req.body,
+      req.user,
+      req.ip,
+      { includeCost }
     );
     res.json(result);
   } catch (err) {
@@ -141,4 +174,5 @@ export default {
   updateProduct,
   deleteProduct,
   setStock,
+  setStockStatus,
 };

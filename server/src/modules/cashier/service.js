@@ -17,7 +17,7 @@ import { hashPassword, hashPin } from '../../utils/hash.js';
 import { enforceCashierQuota } from '../subscription/service.js';
 import { writeAudit } from '../audit/service.js';
 
-export const CASHIER_COLUMNS = `id, outlet_id, email, full_name, status, pin_set_at, created_by, created_at, updated_at`;
+export const CASHIER_COLUMNS = `id, outlet_id, email, full_name, status, can_view_profit, pin_set_at, created_by, created_at, updated_at`;
 
 const auditShape = (c, outletName) =>
   c
@@ -28,13 +28,14 @@ const auditShape = (c, outletName) =>
         email: c.email,
         full_name: c.full_name,
         status: c.status,
+        can_view_profit: c.can_view_profit,
       }
     : null;
 
 /** Daftar kasir milik sebuah bisnis (ikut nama outlet). */
 export const listCashiers = async (businessId) => {
   const { rows } = await query(
-    `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status,
+    `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status, c.can_view_profit,
             c.pin_set_at, c.created_by, c.created_at, c.updated_at, o.name AS outlet_name
        FROM cashiers c
        JOIN outlets o ON o.id = c.outlet_id
@@ -73,10 +74,18 @@ export const createCashier = async ({ businessId, data, actor, ip }) => {
       const passwordHash = await hashPassword(data.password);
 
       const { rows } = await client.query(
-        `INSERT INTO cashiers (outlet_id, email, password_hash, pin_hash, full_name, status, created_by)
-         VALUES ($1, $2, $3, $4, $5, 'active', $6)
+        `INSERT INTO cashiers (outlet_id, email, password_hash, pin_hash, full_name, status, can_view_profit, created_by)
+         VALUES ($1, $2, $3, $4, $5, 'active', $7, $6)
          RETURNING ${CASHIER_COLUMNS}`,
-        [data.outletId, data.email, passwordHash, pinHash, data.fullName, actor.id]
+        [
+          data.outletId,
+          data.email,
+          passwordHash,
+          pinHash,
+          data.fullName,
+          actor.id,
+          data.canViewProfit ?? false,
+        ]
       );
       const cashier = rows[0];
 
@@ -102,7 +111,7 @@ export const createCashier = async ({ businessId, data, actor, ip }) => {
 /** Detail kasir (dipastikan milik bisnis sesi). */
 export const getCashier = async (businessId, cashierId) => {
   const { rows } = await query(
-    `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status,
+    `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status, c.can_view_profit,
             c.created_by, c.created_at, c.updated_at, o.name AS outlet_name
        FROM cashiers c
        JOIN outlets o ON o.id = c.outlet_id
@@ -117,7 +126,8 @@ export const getCashier = async (businessId, cashierId) => {
 export const updateCashier = async (businessId, cashierId, patch, actor, ip) => {
   return withTransaction(async (client) => {
     const { rows: currentRows } = await client.query(
-      `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status, o.name AS outlet_name
+      `SELECT c.id, c.outlet_id, c.email, c.full_name, c.status, c.can_view_profit,
+              o.name AS outlet_name
          FROM cashiers c
          JOIN outlets o ON o.id = c.outlet_id
         WHERE c.id = $1 AND o.business_id = $2
@@ -133,6 +143,11 @@ export const updateCashier = async (businessId, cashierId, patch, actor, ip) => 
     if (patch.fullName !== undefined) {
       fields.push(`full_name = $${i++}`);
       values.push(patch.fullName);
+    }
+    if (patch.canViewProfit !== undefined) {
+      // Izin melihat HPP/laba (Fase 1). Owner selalu boleh; kasir opt-in.
+      fields.push(`can_view_profit = $${i++}`);
+      values.push(patch.canViewProfit);
     }
     if (patch.pin !== undefined) {
       // PIN baru = intervensi Owner: hash baru, reset lockout, kunci dibuka bila

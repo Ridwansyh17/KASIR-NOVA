@@ -108,3 +108,23 @@ export const businessComparisonExportQuerySchema = z
     ...comparisonFilters,
   })
   .superRefine(rangeRefine);
+
+// ------------------------------------------------- Fase 4/6: keuangan ------
+/**
+ * Filter laporan keuangan/dashboard. `period` dihitung di server memakai zona
+ * waktu bisnis sehingga hasil tidak bergantung zona waktu perangkat klien.
+ * `date` (satu tanggal) menang atas `period`; `from`/`to` untuk rentang bebas.
+ */
+export const financeQuerySchema = z
+  .object({
+    period: z
+      .enum(['today', 'yesterday', 'week', 'month', 'custom'], {
+        errorMap: () => ({ message: 'period tidak dikenal' }),
+      })
+      .optional(),
+    date: dateOnly.optional(),
+    from: dateOnly.optional(),
+    to: dateOnly.optional(),
+    outletId: uuid('outlet').optional(),
+  })
+  .superRefine(rangeRefine);

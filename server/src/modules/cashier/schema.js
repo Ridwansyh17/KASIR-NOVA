@@ -35,12 +35,14 @@ export const createCashierSchema = z.object({
   password,
   pin: pin.optional(),
   outletId: z.string().uuid('ID outlet tidak valid'),
+  canViewProfit: z.boolean().optional(),
 });
 
 export const updateCashierSchema = z
   .object({
     fullName: fullName.optional(),
     pin: pin.optional(),
+    canViewProfit: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Tidak ada field yang diubah',

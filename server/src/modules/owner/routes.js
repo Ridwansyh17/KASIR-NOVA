@@ -25,6 +25,8 @@ import { reportRoutes } from '../report/routes.js';
 import { crossReportRoutes } from '../report/comparison-routes.js';
 import { createAuditRouter } from '../audit/routes.js';
 import { ownerSessionRouter } from '../session/routes.js';
+import { expenseRoutes } from '../expense/routes.js';
+import { createInventoryRouter } from '../inventory/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -83,6 +85,12 @@ router.use('/businesses/:businessId/products', productRoutes);
 
 // Transaksi penjualan: riwayat/detail + void (kembalikan stok).
 router.use('/businesses/:businessId/transactions', transactionRoutes);
+
+// Pengeluaran outlet (Fase 5): daftar/filter, catat, batalkan (void).
+router.use('/businesses/:businessId/expenses', expenseRoutes);
+
+// Histori pergerakan stok (Fase 2) — append-only.
+router.use('/businesses/:businessId/inventory-movements', createInventoryRouter());
 
 // Laporan penjualan: agregat per periode, ringkasan, ekspor CSV/JSON.
 router.use('/businesses/:businessId/reports', reportRoutes);

@@ -1,24 +1,116 @@
 /**
  * Controller area kasir — tipis.
  *
- * Outlet/bisnis SELALU diturunkan dari akun kasir (req.user.id), bukan dari
- * parameter URL — mencegah IDOR lintas outlet.
+ * Outlet/bisnis SELALU diturunkan dari akun kasir (`req.cashierScope`), bukan
+ * dari parameter URL — mencegah IDOR lintas outlet.
+ *
+ * Fase 1/2: kasir dapat menambah/mengubah produk & menandai stok habis.
+ * Fase 4 : kasir melihat laporan pendapatan harian outletnya.
+ * Fase 5 : kasir mencatat pengeluaran outletnya.
  */
+import { query } from '../../config/db.js';
 import * as service from './service.js';
+import * as productService from '../product/service.js';
 import * as transactionService from '../transaction/service.js';
-
+import * as reportService from '../report/service.js';
+// ---------------------------------------------------------------- Produk ----
 export const listProducts = async (req, res, next) => {
   try {
-    const result = await service.listOutletProducts({
-      cashierId: req.user.id,
-      filters: req.query,
+    res.json(await service.listOutletProducts({ cashierId: req.user.id, filters: req.query }));
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listCategories = async (req, res, next) => {
+  try {
+    const businessId = req.cashierScope.business_id;
+    const { rows } = await query(
+      `SELECT c.id, c.name, c.created_at,
+              (SELECT count(*) FROM products p
+                WHERE p.category_id = c.id AND p.deleted_at IS NULL) AS product_count
+         FROM product_categories c
+        WHERE c.business_id = $1
+        ORDER BY c.name ASC`,
+      [businessId]
+    );
+    res.json({ items: rows, total: rows.length });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const createProduct = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const includeCost = Boolean(scope.can_view_profit);
+    const product = await productService.createProduct({
+      businessId: scope.business_id,
+      data: req.body,
+      actor: req.user,
+      ip: req.ip,
+      includeCost,
+      outletId: scope.outlet_id,
     });
+    res.status(201).json({ product });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const updateProduct = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const product = await productService.updateProduct(
+      scope.business_id,
+      req.params.productId,
+      req.body,
+      req.user,
+      req.ip,
+      { includeCost: Boolean(scope.can_view_profit) }
+    );
+    res.json({ product });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const setStockStatus = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const result = await productService.setStockStatus(
+      scope.business_id,
+      req.params.productId,
+      req.body,
+      req.user,
+      req.ip,
+      { outletId: scope.outlet_id, includeCost: Boolean(scope.can_view_profit) }
+    );
     res.json(result);
   } catch (err) {
     next(err);
   }
 };
 
+export const setStock = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const stock = await productService.setStock(
+      scope.business_id,
+      req.params.productId,
+      scope.outlet_id,
+      req.body.quantity,
+      req.user,
+      req.ip,
+      { reason: req.body.reason ?? null }
+    );
+    res.json({ stock });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ------------------------------------------------------------- Transaksi ----
 export const createTransaction = async (req, res, next) => {
   try {
     const { transaction, idempotent } = await transactionService.createSale({
@@ -47,14 +139,73 @@ export const listTransactions = async (req, res, next) => {
 
 export const getTransaction = async (req, res, next) => {
   try {
-    const transaction = await transactionService.getOutletTransaction(
-      req.user.id,
-      req.params.transactionId
+    res.json(
+      await transactionService.getOutletTransaction(req.user.id, req.params.transactionId)
     );
-    res.json({ transaction });
   } catch (err) {
     next(err);
   }
 };
 
-export default { listProducts, createTransaction, listTransactions, getTransaction };
+// ------------------------------------------------- Laporan harian (Fase 4) --
+/**
+ * Laporan pendapatan harian outlet kasir. Bila kasir TIDAK berizin melihat
+ * laba, field HPP & laba dihapus dari respons (penegakan di server).
+ */
+export const dailyReport = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const filters = { ...req.query };
+    if (!filters.date && !filters.period && !filters.from && !filters.to) {
+      filters.period = 'today';
+    }
+    const data = await reportService.financeSummary({
+      businessId: scope.business_id,
+      filters,
+      outletId: scope.outlet_id,
+    });
+    const allowProfit = Boolean(scope.can_view_profit);
+    if (!allowProfit) {
+      delete data.hpp;
+      delete data.gross_profit;
+      delete data.net_profit;
+      for (const outlet of data.outlets) {
+        delete outlet.hpp;
+        delete outlet.gross_profit;
+        delete outlet.net_profit;
+      }
+    }
+    res.json({ ...data, can_view_profit: allowProfit });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ---------------------------------------------------------------- Info -----
+/** Info outlet/bisnis + izin kasir (dipakai UI untuk menyesuaikan tampilan). */
+export const me = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    res.json({
+      business: { id: scope.business_id, name: scope.business_name, timezone: scope.timezone },
+      outlet: { id: scope.outlet_id, name: scope.outlet_name },
+      permissions: { can_view_profit: Boolean(scope.can_view_profit) },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export default {
+  listProducts,
+  listCategories,
+  createProduct,
+  updateProduct,
+  setStockStatus,
+  setStock,
+  createTransaction,
+  listTransactions,
+  getTransaction,
+  dailyReport,
+  me,
+};

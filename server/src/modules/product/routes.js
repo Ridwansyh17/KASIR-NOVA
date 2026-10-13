@@ -19,6 +19,7 @@ import {
   categoryParamSchema,
   stockSchema,
   stockParamSchema,
+  stockStatusSchema,
   productListQuerySchema,
 } from './schema.js';
 
@@ -86,4 +87,12 @@ productRoutes.patch(
   ...validate({ params: stockParamSchema, body: stockSchema }),
   requireBusinessAccess(),
   controller.setStock
+);
+
+// Fase 2: tandai habis manual / aktifkan kembali.
+productRoutes.patch(
+  '/:productId/stock-status',
+  ...validate({ params: productParamSchema, body: stockStatusSchema }),
+  requireBusinessAccess(),
+  controller.setStockStatus
 );

@@ -42,6 +42,12 @@ export const createSaleSchema = z
         .int('Jumlah bayar harus bilangan bulat (sen)')
         .min(0, 'Jumlah bayar tidak boleh negatif'),
       reference: z.string().trim().max(120, 'Referensi maksimal 120 karakter').optional().nullable(),
+      feeAmount: z
+        .number('Biaya transaksi harus angka')
+        .int('Biaya transaksi harus bilangan bulat (sen)')
+        .min(0, 'Biaya transaksi tidak boleh negatif')
+        .max(100_000_000, 'Biaya transaksi terlalu besar')
+        .optional(),
     }),
     note: z.string().trim().max(255, 'Catatan maksimal 255 karakter').optional().nullable(),
     clientRef: uuid('clientRef').optional(),

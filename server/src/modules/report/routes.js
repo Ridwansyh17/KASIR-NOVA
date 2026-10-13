@@ -17,6 +17,7 @@ import {
   exportQuerySchema,
   outletComparisonQuerySchema,
   outletComparisonExportQuerySchema,
+  financeQuerySchema,
 } from './schema.js';
 
 export const reportRoutes = Router({ mergeParams: true });
@@ -54,6 +55,21 @@ reportRoutes.get(
   ...validate({ params: reportBusinessParamSchema, query: exportQuerySchema }),
   requireBusinessAccess(),
   controller.exportReport
+);
+
+// Fase 4/6: ringkasan keuangan & ekspor laporan keuangan.
+reportRoutes.get(
+  '/finance',
+  ...validate({ params: reportBusinessParamSchema, query: financeQuerySchema }),
+  requireBusinessAccess(),
+  controller.finance
+);
+
+reportRoutes.get(
+  '/finance/export',
+  ...validate({ params: reportBusinessParamSchema, query: financeQuerySchema }),
+  requireBusinessAccess(),
+  controller.financeExport
 );
 
 export default reportRoutes;

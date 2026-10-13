@@ -108,6 +108,31 @@ export const businessComparisonExport = async (req, res, next) => {
   }
 };
 
+// ------------------------------------------- Fase 4/6: laporan keuangan ---
+
+/** Ringkasan keuangan (pendapatan, HPP, pengeluaran, laba) — Fase 4 & 6. */
+export const finance = async (req, res, next) => {
+  try {
+    res.json(
+      await service.financeSummary({ businessId: req.params.businessId, filters: req.query })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Ekspor laporan keuangan ke .xlsx. */
+export const financeExport = async (req, res, next) => {
+  try {
+    sendXlsx(
+      res,
+      await service.exportFinanceXlsx({ businessId: req.params.businessId, filters: req.query })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 export default {
   grouped,
   summary,
@@ -116,4 +141,6 @@ export default {
   outletComparisonExport,
   businessComparison,
   businessComparisonExport,
+  finance,
+  financeExport,
 };

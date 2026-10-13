@@ -34,6 +34,27 @@ export const TRANSACTION_STATUS_LABELS = {
   refunded: 'Refund',
 };
 
+export const EXPENSE_CATEGORY_LABELS = {
+  operational: 'Operasional',
+  utilities: 'Listrik dan Air',
+  supplies: 'Perlengkapan',
+  transport: 'Transportasi',
+  maintenance: 'Perawatan',
+  inventory_purchase: 'Pembelian Persediaan',
+  other: 'Lainnya',
+};
+
+export const EXPENSE_STATUS_LABELS = {
+  recorded: 'Tercatat',
+  voided: 'Dibatalkan',
+};
+
+export const EXPENSE_METHOD_LABELS = {
+  cash: 'Tunai',
+  transfer: 'Transfer',
+  qr: 'QRIS',
+};
+
 const CURRENCY_FMT = '"Rp"#,##0';
 const NAVY = 'FF0C1A34';
 const CYAN = 'FF00B4FF';
@@ -506,4 +527,159 @@ export const buildComparisonWorkbook = async ({
   return Buffer.from(await wb.xlsx.writeBuffer());
 };
 
-export default { buildTransactionsWorkbook, buildComparisonWorkbook, sanitizeText };
+/**
+ * Bangun berkas laporan keuangan (Fase 6) — sheet Ringkasan Keuangan,
+ * Per Outlet, dan Pengeluaran Outlet. Angka (sen) diformat sebagai Rupiah.
+ * @returns {Promise<Buffer>}
+ */
+export const buildFinanceWorkbook = async ({
+  business,
+  summary,
+  expenses,
+  filters,
+  generatedAt,
+}) => {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'KASIR NOVA';
+  wb.created = new Date();
+
+  // ------------------------------------------------ Sheet: Ringkasan ------
+  const ws = wb.addWorksheet('Ringkasan Keuangan');
+  ws.columns = [
+    { key: 'label', width: 42 },
+    { key: 'value', width: 30 },
+  ];
+
+  ws.mergeCells('A1:B1');
+  const heading = ws.getCell('A1');
+  heading.value = 'KASIR NOVA — Laporan Keuangan';
+  heading.font = { bold: true, size: 15, color: { argb: NAVY } };
+  ws.getCell('A2').value = `Dibuat: ${generatedAt}`;
+  ws.getCell('A2').font = { italic: true, color: { argb: 'FF5A6B85' } };
+
+  const { section, info, money, count } = summaryParts(ws);
+
+  ws.addRow([]);
+  section('INFORMASI LAPORAN');
+  info('Nama Bisnis', business.name);
+  info('Jenis Usaha', business.business_type || 'Tidak diisi');
+  info('Mata Uang', business.currency || 'IDR');
+  info('Zona Waktu', business.timezone || 'Asia/Jakarta');
+  info('Periode (zona bisnis)', `${formatDateID(summary.period.from)} s.d. ${formatDateID(summary.period.to)}`);
+  info('Filter Outlet', filters.outletLabel || 'Semua outlet');
+
+  ws.addRow([]);
+  section('PENDAPATAN (TRANSAKSI SELESAI & PEMBAYARAN LUNAS)');
+  money('Tunai', summary.income.cash);
+  money('QRIS', summary.income.qris);
+  money('Kartu', summary.income.card);
+  money('E-Wallet', summary.income.wallet);
+  money('Total Pendapatan', summary.income.total, true);
+  count('Jumlah transaksi selesai', summary.transactions.completed);
+  count('Jumlah item terjual', summary.transactions.items_sold);
+
+  ws.addRow([]);
+  section('LABA / RUGI');
+  money('HPP produk terjual', summary.hpp);
+  money('Laba Kotor (Pendapatan - HPP)', summary.gross_profit, true);
+  money('Pengeluaran Operasional', summary.expenses.operating_total);
+  money('Biaya Transaksi', summary.income.transaction_fees);
+  money('Laba Bersih', summary.net_profit, true);
+
+  ws.addRow([]);
+  section('PENGELUARAN MENURUT KATEGORI');
+  if (!summary.expenses.by_category.length) {
+    ws.addRow(['—', 'Tidak ada pengeluaran']);
+  } else {
+    for (const row of summary.expenses.by_category) {
+      const r = ws.addRow([
+        `${labelOf(EXPENSE_CATEGORY_LABELS, row.category)}${row.counts_as_operating ? '' : ' (tidak dihitung pada laba bersih)'}`,
+        senToRupiah(row.total),
+      ]);
+      r.getCell(2).numFmt = CURRENCY_FMT;
+    }
+    money('Total pengeluaran recorded', summary.expenses.total, true);
+  }
+
+  ws.addRow([]);
+  section('TRANSAKSI DIBATALKAN / REFUND (TIDAK DIHITUNG SEBAGAI PENDAPATAN)');
+  count('Transaksi void', summary.transactions.voided);
+  money('Nilai transaksi void', summary.transactions.voided_total);
+  count('Transaksi refund', summary.transactions.refunded);
+  money('Nilai transaksi refund', summary.transactions.refunded_total);
+
+  // ------------------------------------------------ Sheet: Per Outlet ----
+  const perOutlet = wb.addWorksheet('Per Outlet', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  perOutlet.columns = [
+    { header: 'Outlet', key: 'name', width: 26 },
+    { header: 'Transaksi', key: 'transactions', width: 12 },
+    { header: 'Pendapatan', key: 'income', width: 16 },
+    { header: 'HPP', key: 'hpp', width: 16 },
+    { header: 'Laba Kotor', key: 'gross', width: 16 },
+    { header: 'Pengeluaran', key: 'opex', width: 16 },
+    { header: 'Biaya Transaksi', key: 'fees', width: 16 },
+    { header: 'Laba Bersih', key: 'net', width: 16 },
+  ];
+  styleHeader(perOutlet.getRow(1));
+  for (const o of summary.outlets) {
+    perOutlet.addRow({
+      name: sanitizeText(o.outlet_name),
+      transactions: o.transactions,
+      income: senToRupiah(o.income),
+      hpp: senToRupiah(o.hpp),
+      gross: senToRupiah(o.gross_profit),
+      opex: senToRupiah(o.operating_expense),
+      fees: senToRupiah(o.transaction_fees),
+      net: senToRupiah(o.net_profit),
+    });
+  }
+  ['income', 'hpp', 'gross', 'opex', 'fees', 'net'].forEach((k) =>
+    applyCurrency(perOutlet, k, 2)
+  );
+  perOutlet.autoFilter = { from: 'A1', to: 'H1' };
+
+  // ------------------------------------------ Sheet: Pengeluaran Outlet --
+  const ex = wb.addWorksheet('Pengeluaran Outlet', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  ex.columns = [
+    { header: 'No', key: 'no', width: 6 },
+    { header: 'Tanggal', key: 'date', width: 12 },
+    { header: 'Outlet', key: 'outlet', width: 22 },
+    { header: 'Kategori', key: 'category', width: 22 },
+    { header: 'Nominal', key: 'amount', width: 16 },
+    { header: 'Metode', key: 'method', width: 12 },
+    { header: 'Petugas', key: 'officer', width: 20 },
+    { header: 'Status', key: 'status', width: 14 },
+    { header: 'Keterangan', key: 'note', width: 34 },
+    { header: 'Alasan Batal', key: 'voidReason', width: 28 },
+  ];
+  styleHeader(ex.getRow(1));
+  expenses.forEach((e, i) => {
+    ex.addRow({
+      no: i + 1,
+      date: formatDateID(e.spent_on),
+      outlet: sanitizeText(e.outlet_name),
+      category: labelOf(EXPENSE_CATEGORY_LABELS, e.category),
+      amount: senToRupiah(e.amount),
+      method: labelOf(EXPENSE_METHOD_LABELS, e.method),
+      officer: sanitizeText(e.officer_name || '—'),
+      status: labelOf(EXPENSE_STATUS_LABELS, e.status),
+      note: sanitizeText(e.note),
+      voidReason: sanitizeText(e.void_reason),
+    });
+  });
+  applyCurrency(ex, 'amount', 2);
+  ex.autoFilter = { from: 'A1', to: 'J1' };
+
+  return Buffer.from(await wb.xlsx.writeBuffer());
+};
+
+export default {
+  buildTransactionsWorkbook,
+  buildComparisonWorkbook,
+  buildFinanceWorkbook,
+  sanitizeText,
+};
