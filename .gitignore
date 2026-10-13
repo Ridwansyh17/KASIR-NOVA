@@ -61,6 +61,7 @@ apps/kasir-mobile/android/app/build/
 apps/kasir-mobile/android/app/src/main/assets/public/
 apps/kasir-mobile/android/local.properties
 apps/kasir-mobile/android/key.properties
+apps/kasir-mobile/android/keystore-credentials.txt
 apps/kasir-mobile/android/app/google-services.json
 *.keystore
 *.jks

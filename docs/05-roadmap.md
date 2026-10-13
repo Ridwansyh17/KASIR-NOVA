@@ -489,7 +489,8 @@
   (Classic SPP/RFCOMM **dan** BLE) langsung dari perangkat.
   Runbook lengkap: **`docs/25-apk-android-cetak-bluetooth.md`**.
 - **Identitas app:** `appId = id.kasirnova.kasir`, nama **KASIR NOVA**,
-  versi **`1.0.0-beta.1`** (versionCode 1); minSdk 23, compile/target 35.
+  versi **`1.0.0-beta.2`** (versionCode 2); minSdk 23, compile/target 35.
+  Versi bersumber dari `apps/kasir-mobile/package.json`.
 - **Pembungkus:** Capacitor 7 (`@capacitor/core|cli|android@^7`),
   `webDir=www`, `androidScheme=https` → origin WebView `https://localhost`.
   CORS backend (`server/src/config/env.js`) **selalu** mengizinkan
@@ -512,20 +513,26 @@
   - **Build APK debug** `gradlew assembleDebug` → **BERHASIL**:
     `apps/kasir-mobile/android/app/build/outputs/apk/debug/app-debug.apk`
     (~3,97 MB). Terverifikasi via `aapt2 dump badging`: package
-    `id.kasirnova.kasir`, versionName `1.0.0-beta.1`, minSdk 23 / targetSdk 35,
+    `id.kasirnova.kasir`, minSdk 23 / targetSdk 35,
     izin Bluetooth (BLUETOOTH, BLUETOOTH_ADMIN, BLUETOOTH_CONNECT,
     BLUETOOTH_SCAN, ACCESS_FINE_LOCATION) ada; kelas `NovaPrinterPlugin`
     ter-*dex*; aset web (`assets/public/src/escpos.js`, `printer.js`) terpaket.
-  - **Tanda tangan rilis:** `apps/kasir-mobile/key.properties.example` +
-    konfigurasi `signingConfigs.release` (via `setup-android.mjs`); tanpa
-    `key.properties`, `assembleRelease` memakai debug signing. Rahasia
-    (`*.jks`, `key.properties`, `google-services.json`) diabaikan git.
+  - **Build APK rilis bertanda tangan resmi** `gradlew assembleRelease` →
+    `app-release.apk` (~3,10 MB), `versionName 1.0.0-beta.2` / versionCode 2,
+    sertifikat **KASIR NOVA** (`CN=KASIR NOVA, O=KASIR NOVA, C=ID`, bukan
+    *Android Debug*), skema v1+v2 terverifikasi (`apksigner verify`).
+  - **Tanda tangan rilis:** keystore resmi `apps/kasir-mobile/android/nova-release.jks`
+    (alias `nova-kasir`, RSA 2048, valid s/d 2054) + `key.properties`
+    (dibuat dari `key.properties.example`), konfigurasi `signingConfigs.release`
+    disuntik `setup-android.mjs` (idempoten). Kredensial di
+    `keystore-credentials.txt`; rahasia (`*.jks`, `key.properties`,
+    `keystore-credentials.txt`, `google-services.json`) diabaikan git.
   - **Firebase App Distribution (project `kasir-nova`):** aplikasi Android
     `id.kasirnova.kasir` terdaftar (App ID
     `1:1057858530498:android:7091503841af1c892a9f5b`), grup penguji
-    `kasir-beta` dibuat, dan APK `1.0.0-beta.1` **sudah didistribusikan**
-    (Release ID `3a2dio0hk110`, penguji `ridwansyarifuddin110@gmail.com`).
-    Berkas siap pasang: `dist/apk/KASIR-NOVA-1.0.0-beta.1.apk`.
+    `kasir-beta` (1 penguji: `ridwansyarifuddin110@gmail.com`), dan APK
+    **`1.0.0-beta.2` (bertanda tangan rilis) sudah didistribusikan**.
+    Berkas siap pasang: `dist/apk/KASIR-NOVA-1.0.0-beta.2.apk`.
   - **Backend produksi di-deploy ulang** (Vercel) agar allowlist CORS memuat
     origin WebView APK (`https://localhost`, `capacitor://localhost`,
     `http://localhost`). Verifikasi: `GET /api/health` dengan

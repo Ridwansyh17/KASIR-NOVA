@@ -22,7 +22,10 @@ const projectRoot = join(__dirname, '..');
 const androidDir = join(projectRoot, 'android');
 const templatesDir = join(projectRoot, 'android-templates');
 
-const APP_VERSION_NAME = process.env.NOVA_APP_VERSION ?? '1.0.0-beta.1';
+// Versi aplikasi mengikuti package.json (satu sumber kebenaran) agar tidak
+// melenceng antar berkas; dapat ditimpa lewat NOVA_APP_VERSION.
+const pkg = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8'));
+const APP_VERSION_NAME = process.env.NOVA_APP_VERSION ?? pkg.version ?? '1.0.0-beta.1';
 const APP_VERSION_CODE = Number(process.env.NOVA_APP_VERSION_CODE ?? 1);
 
 if (!existsSync(androidDir)) {

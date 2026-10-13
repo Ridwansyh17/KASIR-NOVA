@@ -19,7 +19,7 @@ struk langsung ke **printer thermal Bluetooth (ESC/POS)**, baik tipe
 | Owner / Admin Platform | tetap **web** (Firebase Hosting) |
 | Application ID | `id.kasirnova.kasir` |
 | Nama aplikasi | **KASIR NOVA** |
-| Versi | `1.0.0-beta.1` (versionCode `1`) |
+| Versi | `1.0.0-beta.2` (versionCode `2`) |
 | Pembungkus | **Capacitor 7** (`@capacitor/core|cli|android@^7`) |
 | Target | Android **6.0+** (minSdk 23), compile/target SDK 35 |
 | Lebar kertas | **58 mm** (32 kolom) dan **80 mm** (48 kolom) |
@@ -254,13 +254,23 @@ Status (13 Okt 2026, sudah dilakukan):
 - `google-services.json` sudah diambil ke
   `apps/kasir-mobile/android/app/google-services.json` (**tidak di-commit**).
 - Grup penguji **`kasir-beta`** (nama tampil *kasir-nova beta*) dibuat.
-- APK **`1.0.0-beta.1` telah didistribusikan** ke grup `kasir-beta`
-  (Release ID `3a2dio0hk110`); penguji: `ridwansyarifuddin110@gmail.com`.
+- APK **`1.0.0-beta.1`** (debug-signed) didistribusikan — **digantikan** oleh
+  beta.2 di bawah.
+- **Keystore rilis resmi dibuat** (`nova-release.jks`, alias `nova-kasir`,
+  RSA 2048, valid s/d 2054) dan **APK `1.0.0-beta.2` bertanda tangan resmi**
+  telah didistribusikan ke grup `kasir-beta`; penguji:
+  `ridwansyarifuddin110@gmail.com`.
 - **Backend produksi sudah di-deploy ulang** dengan origin WebView
   (`https://localhost`, `capacitor://localhost`, `http://localhost`) pada
   allowlist CORS — tanpa ini APK tidak dapat memanggil API (§7.0).
-- Berkas APK siap pasang ada di **`dist/apk/KASIR-NOVA-1.0.0-beta.1.apk`**
-  (diabaikan git).
+- Berkas APK siap pasang ada di
+  **`dist/apk/KASIR-NOVA-1.0.0-beta.2.apk`** (diabaikan git).
+
+> **Penting saat beralih beta.1 → beta.2:** beta.1 ditandatangani *debug
+> keystore*, beta.2 dengan *keystore rilis* — tanda tangannya berbeda, jadi
+> Android akan menolak pemasangan di atas versi lama. **Copot pemasangan
+> beta.1 lebih dulu**, baru pasang beta.2 (data lokal aplikasi kasir
+> tidak tersimpan di APK; sesi login cukup masuk ulang).
 
 ### 7.0 Prasyarat agar APK berfungsi (CORS backend)
 
@@ -310,7 +320,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
    `firebaseappdistribution-noreply@google.com`; buka tautannya, setujui
    undangan, lalu pasang aplikasi. (Disarankan memasang **App Tester**.)
 2. **Lewat berkas APK langsung** (paling cepat) — salin
-   `dist/apk/KASIR-NOVA-1.0.0-beta.1.apk` ke HP (USB/Google Drive), lalu buka
+   `dist/apk/KASIR-NOVA-1.0.0-beta.2.apk` ke HP (USB/Google Drive), lalu buka
    berkas di HP dan izinkan **"Install unknown apps"** untuk aplikasi
    pengelola berkas yang dipakai.
 3. Saat pertama dibuka, izinkan **Nearby devices/Bluetooth** (Android 12+) atau
@@ -320,7 +330,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
 
 ```powershell
 cd apps\kasir-mobile
-node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.1.apk
+node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.2.apk
 # atau pakai APK hasil Gradle:
 node scripts\distribute.mjs android\app\build\outputs\apk\debug\app-debug.apk
 # paling singkat (APK rilis bila ada, jika tidak APK debug):
@@ -369,14 +379,25 @@ cmd /c "npm run apk:release"
 
 - `storeFile` di `key.properties` relatif terhadap modul `android/app/`
   (contoh `../nova-release.jks` = `apps/kasir-mobile/android/nova-release.jks`).
+- **Status saat ini:** keystore rilis sudah dibuat —
+  `apps/kasir-mobile/android/nova-release.jks` (alias `nova-kasir`, RSA 2048,
+  valid s/d 2054) dengan `key.properties` terisi, sehingga `assembleRelease`
+  menghasilkan APK bertanda tangan **sertifikat KASIR NOVA**.
+  Kredensial disimpan di
+  `apps/kasir-mobile/android/keystore-credentials.txt` (dan salinan di
+  `dist/apk/keystore-credentials.txt`) — **diabaikan git**, pindahkan ke
+  password manager.
 - Tanpa `key.properties`, `assembleRelease` tetap berjalan dan menghasilkan
-  `app-release.apk` yang **ditandatangani dengan debug keystore** (cukup untuk
-  uji lokal/distribusi beta, **bukan** untuk Play Store — untuk itu gunakan
-  keystore rilis tetap di atas).
+  `app-release.apk` yang ditandatangani dengan debug keystore (cukup untuk uji
+  lokal; **jangan** dipakai untuk distribusi resmi karena tanda tangannya
+  berbeda dari rilis resmi).
 - Hasil: `apps/kasir-mobile/android/app/build/outputs/apk/release/app-release.apk`.
-- `*.jks`, `*.keystore`, `key.properties`, `*.apk`, `*.aab` **diabaikan git**.
+- `*.jks`, `*.keystore`, `key.properties`, `keystore-credentials.txt`, `*.apk`,
+  `*.aab` **diabaikan git**.
+- Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`
+  (`version`), dipakai `setup-android.mjs` untuk `versionName`.
 - Naikkan `versionCode` tiap rilis:
-  `$env:NOVA_APP_VERSION_CODE='2'` sebelum `npm run android:prepare`.
+  `$env:NOVA_APP_VERSION_CODE='3'` sebelum `npm run android:prepare`.
 
 ---
 
@@ -388,10 +409,10 @@ cmd /c "npm run apk:release"
 | Allowlist CORS WebView (`https://localhost`, `capacitor://localhost`) | `server/tests/cors.test.js` | ✅ lulus |
 | Suite server penuh | `npm run test:server` | ✅ **206 tes, 206 lulus, 0 gagal** |
 | Build APK debug | `gradlew assembleDebug` | ✅ APK (~3,97 MB); package/versi/izin/plugin terverifikasi (`aapt2 dump badging`) |
-| Build APK rilis (fallback debug signing) | `gradlew assembleRelease` | ✅ `app-release.apk` (~3,10 MB), tanda tangan terverifikasi (`apksigner`) |
+| Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (~3,10 MB), v`1.0.0-beta.2`/code 2, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`) |
 | CORS produksi untuk APK | `GET /api/health` + `Origin: https://localhost` | ✅ `200` + `Access-Control-Allow-Origin: https://localhost` |
 | CORS produksi web (regresi) | `GET /api/health` + `Origin: https://kasir-nova.web.app` | ✅ `200` + header sesuai |
-| Distribusi beta | `node scripts/distribute.mjs …` | ✅ Release ID `3a2dio0hk110` ke grup `kasir-beta` |
+| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (1 penguji, rilis `1.0.0-beta.2`) |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 
