@@ -21,9 +21,12 @@
   stok; `setStock` untuk produk itu → **409**.
 - **Ketersediaan (HABIS) bersifat turunan:**
   `manual_out_of_stock = true` **ATAU** (`track_stock = true` DAN
-  `Σ total_stock ≤ 0`). Field respons `out_of_stock` memakai definisi ini dan
+  saldo ≤ 0). Field respons `out_of_stock` memakai definisi ini dan
   **diblokir server** saat penjualan (409). Menandai HABIS tidak mengubah saldo;
   **aktivasi kembali mensyaratkan stok > 0** (409 bila stok 0).
+  - Owner: saldo = **Σ stok seluruh outlet** (`total_stock`).
+  - Kasir: saldo = **stok outlet kasir itu** (`quantity`); katalognya
+    menurunkan `quantity`/`out_of_stock` dari outlet akun, bukan lintas outlet.
 - **Unik per bisnis**: nama kategori, nama produk, SKU, dan barcode
   (case-insensitive). Konflik → **409**. Nama produk/kategori boleh dipakai
   lagi setelah produk soft-deleted.
