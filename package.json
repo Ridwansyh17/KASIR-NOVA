@@ -11,6 +11,7 @@
   "scripts": {
     "dev:server": "npm run dev --workspace server",
     "test:server": "npm run test --workspace server",
+    "verify:ui": "node scripts/verify-ui.mjs",
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
     "db:backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-db.ps1",

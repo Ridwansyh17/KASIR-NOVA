@@ -87,7 +87,7 @@ npm install
 npm run sync              # salin apps/kasir -> www, lalu cap sync android
 npm run android:prepare   # plugin printer, izin Bluetooth, versi, signing
 npm run apk:release       # APK rilis (butuh android/key.properties)
-npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.2.apk
+npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.3.apk
 ```
 
 Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`; naikkan
@@ -144,8 +144,16 @@ roadmap fase.
   aktual (LUNAS / BELUM LUNAS / DIBATALKAN / DIKEMBALIKAN / GAGAL). Tersedia
   tombol **Cetak 58mm** & **80mm** (`@page` dinamis); kembalian hanya untuk tunai
   yang benar-benar lunas. Builder struk murni: `apps/kasir/src/receipt.js`.
-- **APK Android panel Kasir (Fase 17)**: panel Kasir dikemas sebagai APK
-  Capacitor (`apps/kasir-mobile`, `id.kasirnova.kasir`, `1.0.0-beta.2`) dengan
+- **V0.3 — HPP, stok habis, pengeluaran & laporan keuangan**: modal/HPP produk
+  (satuan, foto, HABIS manual) dengan **pembatasan izin di server** (kasir hanya
+  bila `can_view_profit`); aturan **HABIS turunan** memblokir penjualan di server
+  (bukan hanya UI); **pergerakan stok append-only**; **pengeluaran outlet**
+  (koreksi lewat **void**, bukan hapus); **laporan keuangan & laba** (kotor/bersih)
+  + ekspor Excel, serta laporan harian Kasir. Panel Owner & Kasir; kontrak di
+  `docs/18-api-pengeluaran-inventori.md`.
+- **APK Android panel Kasir (Fase 17, diperbarui V0.3)**: panel Kasir dikemas
+  sebagai APK Capacitor (`apps/kasir-mobile`, `id.kasirnova.kasir`,
+  `1.0.0-beta.3`) dengan ikon launcher **KASIR NOVA** (adaptive) dan
   cetak struk thermal langsung via **Bluetooth Classic (SPP) & BLE** — plugin
   `NovaPrinter` + ESC/POS murni (`apps/kasir/src/escpos.js`). APK ditandatangani
   keystore rilis dan dibagikan lewat **Firebase App Distribution** (grup

@@ -602,8 +602,14 @@
   otomatis/manual + blokir, void mengembalikan stok + jejak pergerakan,
   snapshot HPP & biaya, pengeluaran bisnis/outlet, isolasi tenant) — **seluruh
   suite server 220/220 lulus**.
-- **Tertunda:** ikon/favicon & manifest PWA (Fase 3), verifikasi cetak ke
-  printer fisik, dan keputusan gateway pembayaran & perpanjangan otomatis.
+- **Aset & ikon:** favicon/apple-touch/ikon PWA (`site.webmanifest`) untuk
+  Admin/Owner/Kasir serta ikon launcher Android (adaptive, latar navy `#02102B`)
+  dihasilkan dari logo sumber via `scripts/generate-icons.ps1`.
+- **APK Android:** versi dinaikkan ke `1.0.0-beta.3` (versionCode `3`); ikon
+  launcher diganti dengan ikon **KASIR NOVA**. Distribusi beta ke penguji belum
+  dilakukan (menunggu persetujuan).
+- **Tertunda:** verifikasi cetak ke printer fisik, distribusi APK beta, dan
+  keputusan gateway pembayaran & perpanjangan otomatis.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
