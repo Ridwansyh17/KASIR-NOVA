@@ -1144,7 +1144,7 @@ const boot = async () => {
         await loadCashierInfo();
         await loadProducts();
         await loadHistory();
-        switchTab(state.activeTab || 'kasir');
+        switchTab(state.activeTab || 'beranda');
         return;
       }
       // Sesi milik peran lain: jangan dipakai di panel Kasir.

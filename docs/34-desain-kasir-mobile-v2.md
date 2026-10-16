@@ -224,3 +224,45 @@ npm.cmd run verify:ui     # termasuk bagian [desain kasir mobile V2 (FASE 12)]
 node scripts/build-hosting.mjs
 npm.cmd run e2e:online    # produksi (perlu OWNER_*/ADMIN_* env)
 ```
+
+---
+
+## 8. Hasil verifikasi & penerapan (16 Okt 2026)
+
+### 8.1 Pengujian
+
+| Perintah | Hasil |
+|---|---|
+| `npm run test:server` | **248/248 lulus** (2 tes baru: akurasi seri + penolakan tanpa sesi/`period` salah) |
+| `npm run verify:ui` | **SEMUA OK** — bagian `[desain kasir mobile V2 (FASE 12)]` lulus; smoke bundel `dist/hosting` 200 |
+| `npm run test:auth` | 10/10 lulus |
+| `npm run test:image` | 9/9 lulus |
+| `npm run e2e:local` | **33/33 lulus** |
+| `npm run qa:local` | **SEMUA TAHAP LULUS** (1–5; E2E lokal terpisah) |
+| `npm run e2e:online` (produksi) | **28/28 lulus** |
+
+### 8.2 Pemeriksaan produksi (setelah deploy)
+
+Dengan akun kasir demo (`kasir.demo@nova.test`, outlet **Outlet Utama**):
+
+```
+GET /api/cashier/reports/daily-series?period=week   → 200
+  periode 10–16 Okt 2026, outlet "Outlet Utama",
+  titik: 12 Okt (5 trx), 13 Okt (5 trx), 16 Okt (3 trx)   ← hari tanpa penjualan = 0
+GET /api/cashier/reports/daily?period=today          → 200
+  omzet Rp 120.000, 3 transaksi, tunai Rp 120.000, qris Rp 0,
+  can_view_profit=false (Laba Bersih tidak dikirim)      ← benar
+GET /api/cashier/reports/daily-series (tanpa token)   → 401  (rute ada, bukan 404)
+```
+
+### 8.3 Yang dideploy
+
+| Sasaran | Perintah | Hasil |
+|---|---|---|
+| Backend produksi | `npx.cmd vercel deploy --prod --yes` | `https://kasir-nova.vercel.app` — endpoint baru `200`/`401` sesuai harapan |
+| Web (Firebase Hosting) | `node scripts/build-hosting.mjs` + `firebase.cmd deploy --only hosting` | `https://kasir-nova.web.app/kasir/` memuat `#bottom-nav`, `#home-chart`, `#brand-context` |
+| APK beta | `npm run sync` → `setup-android.mjs` (beta.6/code 6) → `apk:release` → `npm run distribute` | `dist/apk/KASIR-NOVA-1.0.0-beta.6.apk` (~5,01 MB), sertifikat sama seperti beta.5, **terkirim ke grup `kasir-beta`** |
+
+> Persetujuan pemilik untuk deploy backend + hosting + distribusi beta.6
+> diminta dan diberikan sebelum tindakan dilakukan (lihat laporan fase).
+
