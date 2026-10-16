@@ -12,12 +12,13 @@
     "dev:server": "npm run dev --workspace server",
     "test:server": "npm run test --workspace server",
     "verify:ui": "node scripts/verify-ui.mjs",
-  "test:auth": "node --test scripts/test-auth-restore.mjs",
+    "test:auth": "node --test scripts/test-auth-restore.mjs",
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
     "db:backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-db.ps1",
     "db:restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-db.ps1",
-    "e2e:online": "node scripts/e2e-online.mjs"
+    "e2e:online": "node scripts/e2e-online.mjs",
+    "theme:apply-v2": "node scripts/apply-theme-v2.mjs"
   },
   "engines": {
     "node": ">=20"

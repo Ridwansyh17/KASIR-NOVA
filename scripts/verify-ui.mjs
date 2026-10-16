@@ -132,6 +132,54 @@ for (const { app, submitId, formId } of BUG_APPS) {
 }
 console.log('  pemeriksaan regresi bug login & produk selesai');
 
+// ------------------------------------------------- FASE 1: token desain V2 ----
+// Mengunci identitas visual V2 (tema terang + topbar navy) agar tidak
+// tergelincir kembali ke token tema gelap lama.
+console.log('\n[token desain V2 (FASE 1)]');
+const V2_TOKENS = [
+  '--navy-700',
+  '--navy-800',
+  '--blue-500',
+  '--blue-600',
+  '--sidebar',
+  '--overlay',
+  '--shadow-sm',
+  '--shadow-lg',
+  '--input-bg',
+  '--primary-tint',
+];
+const LEGACY_LITERALS = [
+  ['#060e22', 'latar gelap lama'],
+  ['#0c1a34', 'kartu gelap lama'],
+  ['#0f1f3d', 'kartu-2 gelap lama'],
+  ['#14284c', 'kartu-3 gelap lama'],
+  ['#00b4ff', 'aksen cyan lama'],
+  ['#e9f1ff', 'teks terang lama'],
+  ['#8fa2c4', 'teks redup lama'],
+  ['#1d3160', 'garis gelap lama'],
+  ['#008fd4', 'aksen biru lama'],
+];
+for (const app of APPS) {
+  const css = readFileSync(join(root, 'apps', app.name, 'styles', 'styles.css'), 'utf8');
+  const missing = V2_TOKENS.filter((t) => !new RegExp(`${t.replace(/[-]/g, '\\-')}\\s*:`).test(css));
+  if (missing.length) fail(`[${app.name}] token V2 hilang: ${missing.join(', ')}`);
+  for (const [lit, label] of LEGACY_LITERALS) {
+    if (css.toLowerCase().includes(lit.toLowerCase())) {
+      fail(`[${app.name}] warna ${label} (${lit}) masih ada`);
+    }
+  }
+  if (!/\.topbar\s*\{[^}]*linear-gradient\(180deg,\s*var\(--sidebar\)/s.test(css)) {
+    fail(`[${app.name}] .topbar belum memakai latar navy V2`);
+  }
+  if (!/\bbody\s*\{[^}]*background:\s*var\(--bg\)/s.test(css)) {
+    fail(`[${app.name}] body belum memakai latar terang var(--bg)`);
+  }
+  if (!/\.auth\s*\{[^}]*linear-gradient\(180deg,\s*var\(--navy-800\)/s.test(css)) {
+    fail(`[${app.name}] layar login belum memakai latar navy V2`);
+  }
+}
+console.log(`  token dicek: ${V2_TOKENS.length} token + ${LEGACY_LITERALS.length} warna lama per aplikasi`);
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;

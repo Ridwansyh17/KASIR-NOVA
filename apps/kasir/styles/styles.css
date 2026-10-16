@@ -1,23 +1,65 @@
 /* KASIR NOVA — Panel Kasir */
 :root {
-  /* Identitas visual dari file logo resmi "Logo KASIR NOVA.jpeg":
-     latar navy sangat gelap (pokok piksel rgb 0,16,48 ≈ #001030) +
-     aksen cyan-biru (rgb 0,160-176,255 ≈ #00B0FF) + putih. */
-  --bg: #060e22;
-  --card: #0c1a34;
-  --card-2: #0f1f3d;
-  --card-3: #14284c;
-  --text: #e9f1ff;
-  --muted: #8fa2c4;
-  --border: #1d3160;
-  --primary: #00b4ff;
-  --primary-dark: #008fd4;
-  --danger: #ff7b7b;
-  --ok-bg: rgba(64, 224, 160, 0.14);
-  --ok-fg: #43e0a0;
-  --off-bg: rgba(255, 123, 123, 0.14);
-  --off-fg: #ff8f8f;
-  --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  /* ======================================================================
+     KASIR NOVA V2 — Token desain (FASE 1, 16 Okt 2026)
+     ----------------------------------------------------------------------
+     Warna terukur dari aset brand V2 (ekstraksi programatik):
+       navy sidebar / guideline .... #062A66 / #042650
+       aksen biru utama ............ #0072F6  (tua #0050D2, terang #1BA4FE)
+       latar konten (tema TERANG) .. #F7FAFD / #FFFFFF
+     Nama variabel lama DIPERTAHANKAN agar semua aturan CSS yang ada tetap
+     valid; nilainya dipetakan dari tema gelap ke tema terang.
+     ====================================================================== */
+
+  /* --- Skala brand --- */
+  --navy-900: #02102b;
+  --navy-800: #042650;
+  --navy-700: #062a66;
+  --navy-600: #0a3678;
+  --blue-600: #0050d2;
+  --blue-500: #0072f6;
+  --blue-400: #1ba4fe;
+  --blue-100: #e6effe;
+
+  /* --- Permukaan & teks (tema terang) --- */
+  --bg: #f4f7fc;
+  --card: #ffffff;
+  --card-2: #f2f6fc;
+  --card-3: #e8eef8;
+  --input-bg: #ffffff;
+  --text: #0b1b33;
+  --text-invert: #ffffff;
+  --muted: #5b6b85;
+  --border: #e0e7f2;
+  --border-strong: #c9d6e8;
+
+  /* --- Aksen & status --- */
+  --primary: var(--blue-500);
+  --primary-dark: var(--blue-600);
+  --primary-tint: rgba(0, 114, 246, 0.10);
+  --focus-ring: rgba(0, 114, 246, 0.28);
+  --danger: #d64545;
+  --danger-tint: rgba(214, 69, 69, 0.10);
+  --danger-border: rgba(214, 69, 69, 0.35);
+  --ok-fg: #0e8f63;
+  --ok-bg: rgba(14, 143, 99, 0.12);
+  --ok-border: rgba(14, 143, 99, 0.35);
+  --off-fg: #c2453f;
+  --off-bg: rgba(214, 69, 69, 0.10);
+
+  /* --- Topbar / permukaan navy --- */
+  --sidebar: var(--navy-700);
+  --sidebar-2: var(--navy-800);
+  --sidebar-fg: #dbe6f7;
+  --sidebar-muted: #9db3d4;
+  --sidebar-active: rgba(255, 255, 255, 0.14);
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+
+  /* --- Overlay & bayangan --- */
+  --overlay: rgba(2, 16, 43, 0.55);
+  --shadow-sm: 0 1px 2px rgba(11, 27, 51, 0.06), 0 1px 3px rgba(11, 27, 51, 0.05);
+  --shadow: 0 6px 20px rgba(11, 27, 51, 0.08);
+  --shadow-lg: 0 18px 44px rgba(11, 27, 51, 0.18);
 }
 
 * {
@@ -109,7 +151,7 @@ body {
   height: 128px;
   object-fit: contain;
   border-radius: 14px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-lg);
 }
 
 .auth-card p {
@@ -138,7 +180,7 @@ select {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #0a1428;
+  background: var(--input-bg);
   outline: none;
 }
 
@@ -146,7 +188,7 @@ select {
 input:focus,
 select:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(0, 180, 255, 0.22);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 /* ---------- Buttons ---------- */
@@ -162,7 +204,7 @@ select:focus {
 }
 
 .btn:hover {
-  background: #14284c;
+  background: var(--card-3);
 }
 
 .btn:disabled {
@@ -173,7 +215,7 @@ select:focus {
 .btn.primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--text-invert);
 }
 
 .btn.primary:hover {
@@ -182,11 +224,11 @@ select:focus {
 
 .btn.danger {
   color: var(--danger);
-  border-color: rgba(255, 123, 123, 0.35);
+  border-color: var(--danger-border);
 }
 
 .btn.danger:hover {
-  background: rgba(255, 123, 123, 0.12);
+  background: var(--danger-tint);
 }
 
 .btn.block {
@@ -221,7 +263,7 @@ select:focus {
   height: 34px;
   object-fit: contain;
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-sm);
 }
 
 .user {
@@ -264,19 +306,19 @@ select:focus {
   border-radius: 10px;
   margin-bottom: 14px;
   border: 1px solid var(--border);
-  background: rgba(0, 180, 255, 0.1);
+  background: var(--primary-tint);
   font-size: 14px;
 }
 
 .alert.ok {
   background: var(--ok-bg);
-  border-color: rgba(64, 224, 160, 0.4);
+  border-color: var(--ok-border);
   color: var(--ok-fg);
 }
 
 .alert.error {
   background: var(--off-bg);
-  border-color: rgba(255, 123, 123, 0.4);
+  border-color: var(--danger-border);
   color: var(--off-fg);
 }
 
@@ -384,7 +426,7 @@ select:focus {
   padding: 14px 16px;
   display: grid;
   gap: 10px;
-  background: #0f1f3d;
+  background: var(--card-2);
 }
 
 .outlet-head {
@@ -407,7 +449,7 @@ select:focus {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 15, 0.72);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -481,7 +523,7 @@ select:focus {
   padding: 3px 6px 3px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: #14284c;
+  background: var(--card-3);
   font-size: 12px;
 }
 
@@ -518,7 +560,7 @@ select:focus {
   padding: 14px 16px;
   display: grid;
   gap: 10px;
-  background: #0f1f3d;
+  background: var(--card-2);
 }
 
 .product-head {
@@ -596,14 +638,14 @@ select:focus {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #0f1f3d;
+  background: var(--card-2);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .pos-product:hover:enabled {
   border-color: var(--primary);
-  background: rgba(0, 180, 255, 0.1);
+  background: var(--primary-tint);
 }
 
 .pos-product.out {
@@ -631,7 +673,7 @@ select:focus {
   padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #0f1f3d;
+  background: var(--card-2);
 }
 
 .cart-info {
@@ -693,7 +735,7 @@ select:focus {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #0f1f3d;
+  background: var(--card-2);
 }
 
 .receipt {
@@ -758,14 +800,14 @@ select:focus {
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #0f1f3d;
+  background: var(--card-2);
   color: var(--text);
   cursor: pointer;
 }
 
 .printer-device:hover {
   border-color: var(--primary);
-  background: rgba(0, 180, 255, 0.1);
+  background: var(--primary-tint);
 }
 
 .printer-device-name {
@@ -1096,7 +1138,7 @@ button.link:hover {
 
 .tab.active {
   color: var(--text);
-  background: #0f1f3d;
+  background: var(--card-2);
   border-color: var(--border);
 }
 
@@ -1164,11 +1206,11 @@ button.link:hover {
 }
 
 .ok-text {
-  color: #37d67a;
+  color: var(--ok-fg);
 }
 
 .danger-text {
-  color: #ff6b6b;
+  color: var(--off-fg);
 }
 
 /* Pratinjau foto produk */
@@ -1190,11 +1232,84 @@ button.link:hover {
 }
 
 .btn.danger {
-  border-color: #7a2130;
-  color: #ff9a9a;
+  border-color: var(--danger-border);
+  color: var(--danger);
 }
 
 .btn.danger:hover {
-  background: #3a1420;
+  background: var(--danger-tint);
 }
 
+/* ==========================================================================
+   KASIR NOVA V2 — Lapisan identitas visual (FASE 1)
+   Ditambahkan 16 Okt 2026. Menimpa bagian tema gelap lama yang bergantung
+   pada struktur (bukan sekadar warna token): latar halaman, topbar navy,
+   layar login, dan tab. Dipisahkan agar mudah ditinjau/di-revert.
+   ========================================================================== */
+
+/* --- Latar halaman: terang + pendar biru tipis --- */
+body {
+  background: var(--bg);
+  background-image: radial-gradient(
+    1100px 600px at 50% -140px,
+    rgba(0, 114, 246, 0.06),
+    transparent 65%
+  );
+}
+
+/* --- Topbar navy (identitas brand V2) --- */
+.topbar {
+  background: linear-gradient(180deg, var(--sidebar) 0%, var(--sidebar-2) 100%);
+  border-bottom: 1px solid var(--sidebar-border);
+  color: var(--sidebar-fg);
+}
+
+.topbar .brand,
+.topbar span {
+  color: var(--sidebar-fg);
+}
+
+.topbar .muted,
+.topbar small {
+  color: var(--sidebar-muted);
+}
+
+.topbar .brand-logo {
+  box-shadow: 0 0 0 1px var(--sidebar-border);
+  border-radius: 8px;
+  background: var(--navy-900);
+}
+
+.topbar .btn {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--sidebar-border);
+  color: var(--text-invert);
+}
+
+.topbar .btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* --- Login: latar navy, kartu putih --- */
+.auth {
+  background:
+    radial-gradient(1000px 560px at 50% -120px, rgba(27, 164, 254, 0.32), transparent 62%),
+    linear-gradient(180deg, var(--navy-800) 0%, var(--navy-900) 100%);
+}
+
+.auth-card {
+  box-shadow: var(--shadow-lg);
+}
+
+.brand-logo-lg {
+  box-shadow: none;
+}
+
+/* --- Tab: gaya terang --- */
+.tab:hover {
+  background: var(--card-2);
+}
+
+.tab.active {
+  box-shadow: var(--shadow-sm);
+}
