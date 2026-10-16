@@ -19,11 +19,11 @@
 
 ## Peran
 
-| `role` | Area aplikasi | Status Fase 1 |
+| `role` | Area aplikasi | Status |
 |---|---|---|
 | `platform_admin` | `apps/admin` | ✅ aktif |
 | `owner` | `apps/owner` | ✅ aktif |
-| `cashier` | `apps/kasir` | ⏳ aktif di Fase 5 (sementara `404`) |
+| `cashier` | `apps/kasir` | ✅ aktif (email/password sejak Fase 5; juga login PIN — Fase 10b) |
 
 > Tiap aplikasi frontend mengirim `role` tetapnya sendiri (tidak dipilih
 > pengguna). Ini memisahkan area login.
@@ -54,7 +54,7 @@ terlampaui).
 | 200 | Berhasil |
 | 401 | Email atau password salah (pesan seragam, anti-enumerasi) |
 | 403 | Akun dinonaktifkan |
-| 404 | Peran belum tersedia (mis. `cashier` sebelum Fase 5) |
+| 404 | Peran tidak dikenal/tidak didukung (mis. salah ketik `role`) |
 | 422 | Validasi gagal (mis. password < 8 karakter, peran tak dikenal) |
 | 429 | Terlalu banyak percobaan |
 
