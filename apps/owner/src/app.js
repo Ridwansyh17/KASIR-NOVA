@@ -5,7 +5,7 @@
  * aktif -> lihat detail bisnis, langganan, dan kelola outlet. Semua otorisasi
  * & isolasi tenant tetap ditegakkan server; UI ini hanya alat bantu.
  */
-import { api, login, logout, tokenStore, ApiError } from './api.js';
+import { api, login, logout, restoreSession, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const ACTIVE_KEY = 'nova_owner_business';
@@ -121,8 +121,10 @@ $('logout-btn').addEventListener('click', async () => {
 
 // ------------------------------------------------------------ Bisnis ---------
 const fetchCurrentUser = async () => {
-  const { user } = await guard(() => api.me());
+  const body = await guard(() => api.me());
+  const user = body?.user ?? null;
   $('current-user').textContent = user ? `${user.fullName} (${user.email})` : '';
+  return user;
 };
 
 const activeBusiness = () => state.businesses.find((b) => b.id === state.activeId) ?? null;
@@ -1194,20 +1196,47 @@ $('product-photo-clear').addEventListener('change', (event) => {
 $('product-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('product-form-error'));
+
   const b = activeBusiness();
   if (!b) return;
 
   const id = $('product-id').value;
-  const categoryId = $('product-category').value || null;
+  const submitBtn = $('product-submit');
+  const formError = $('product-form-error');
+  const fail = (message) => {
+    formError.textContent = message;
+    show(formError);
+  };
+
+  // ---- Validasi klien: pesan jelas; data form TIDAK dihapus bila gagal ----
+  const name = $('product-name').value.trim();
+  if (!name) return fail('Nama produk wajib diisi.');
+
+  const priceRp = Number($('product-price').value || 0);
+  if (!Number.isFinite(priceRp) || priceRp < 0) {
+    return fail('Harga jual harus berupa angka dan tidak boleh negatif.');
+  }
+
+  const costRp = Number($('product-cost').value || 0);
+  if (!Number.isFinite(costRp) || costRp < 0) {
+    return fail('Harga modal (HPP) harus berupa angka dan tidak boleh negatif.');
+  }
+
   const trackStock = $('product-track').checked;
+  const initialRaw = $('product-initial-stock').value.trim();
+  const initialStock = trackStock && initialRaw !== '' ? Number(initialRaw) : null;
+  if (initialStock !== null && (!Number.isInteger(initialStock) || initialStock < 0)) {
+    return fail('Stok awal harus bilangan bulat ≥ 0.');
+  }
+
   const payload = {
-    name: $('product-name').value.trim(),
-    price: Math.round(Number($('product-price').value || 0) * 100),
-    costPrice: Math.round(Number($('product-cost').value || 0) * 100),
+    name,
+    price: Math.round(priceRp * 100),
+    costPrice: Math.round(costRp * 100),
     unit: $('product-unit').value.trim() || null,
     sku: $('product-sku').value.trim() || null,
     barcode: $('product-barcode').value.trim() || null,
-    categoryId,
+    categoryId: $('product-category').value || null,
     trackStock,
   };
   if (state.formPhoto !== undefined) payload.photoUrl = state.formPhoto;
@@ -1215,25 +1244,32 @@ $('product-form').addEventListener('submit', async (event) => {
   if (id) {
     payload.status = $('product-status').value;
     payload.manualOutOfStock = trackStock ? $('product-oos').checked : false;
-  } else {
-    const initial = $('product-initial-stock').value.trim();
-    if (trackStock && initial !== '') payload.initialStock = Number(initial);
+  } else if (initialStock !== null) {
+    payload.initialStock = initialStock;
   }
 
+  // ---- Kirim: cegah klik ganda + tampilkan status "Menyimpan…" ----
+  const originalLabel = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Menyimpan…';
   try {
-    if (id) {
-      await guard(() => api.products.update(b.id, id, payload));
-      alertBox('Produk diperbarui.', 'ok');
-    } else {
-      await guard(() => api.products.create(b.id, payload));
-      alertBox('Produk baru berhasil dibuat.', 'ok');
-    }
+    const result = id
+      ? await guard(() => api.products.update(b.id, id, payload))
+      : await guard(() => api.products.create(b.id, payload));
+
+    // `guard()` mengembalikan undefined saat sesi berakhir (401) dan sudah
+    // mengarahkan ke login — jangan pernah menampilkan notifikasi berhasil.
+    if (!result) return;
+
+    alertBox(id ? 'Produk diperbarui.' : 'Produk baru berhasil disimpan.', 'ok');
     closeProductModal();
     await loadProducts();
   } catch (err) {
-    const el = $('product-form-error');
-    el.textContent = describeError(err);
-    show(el);
+    // Gagal: form tetap terisi agar pengguna dapat memperbaiki & mencoba lagi.
+    fail(describeError(err));
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
   }
 });
 
@@ -2192,19 +2228,47 @@ $('mov-type-filter').addEventListener('change', loadMovements);
 $('mov-outlet-filter').addEventListener('change', loadMovements);
 
 // ------------------------------------------------------------- Bootstrap -----
+/**
+ * Bootstrap panel Owner dengan PEMULIHAN SESI (persistent login).
+ *
+ * Alur lama bergantung pada `guard()` yang menelan 401 dan tetap
+ * menampilkan app-view; pemulihan hanya terjadi sebagai efek samping
+ * `request()`. Sekarang sesi diverifikasi eksplisit lewat `restoreSession()`
+ * sebelum memutuskan layar mana yang tampil, sehingga sesi yang masih valid
+ * langsung membuka dashboard tanpa login ulang.
+ */
 const boot = async () => {
-  if (tokenStore.access || tokenStore.refresh) {
-    try {
-      await fetchCurrentUser();
-      hide($('login-view'));
-      show($('app-view'));
-      await loadBusinesses();
-      return;
-    } catch {
-      tokenStore.clear();
-    }
+  if (!tokenStore.hasSession) {
+    show($('login-view'));
+    return;
   }
-  show($('login-view'));
+  try {
+    const body = await restoreSession();
+    const user = body?.user ?? null;
+    if (!user) {
+      show($('login-view'));
+      return;
+    }
+    $('current-user').textContent = `${user.fullName} (${user.email})`;
+    hide($('login-view'));
+    show($('app-view'));
+    await loadBusinesses();
+  } catch (err) {
+    // Sesi tidak dapat diverifikasi (mis. jaringan). Token TIDAK dihapus;
+    // tampilkan login disertai pesan agar penyebabnya jelas.
+    show($('login-view'));
+    const el = $('login-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
 };
+
+// Bila tab/aplikasi kembali aktif dari background, perbarui sesi diam-diam
+// supaya pengguna tidak terlempar ke login hanya karena access token basi.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && tokenStore.hasSession) {
+    restoreSession().catch(() => {});
+  }
+});
 
 boot();

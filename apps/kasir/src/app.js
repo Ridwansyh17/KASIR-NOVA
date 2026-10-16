@@ -6,7 +6,7 @@
  * Semua perhitungan total & pajak tetap dilakukan SERVER; perhitungan di sini
  * hanya perkiraan untuk tampilan. Verifikasi peran/status ditegakkan server.
  */
-import { api, login, logout, loginWithPin, listPinCashiers, tokenStore, ApiError } from './api.js';
+import { api, login, logout, loginWithPin, listPinCashiers, restoreSession, tokenStore, ApiError } from './api.js';
 import {
   escapeHtml,
   fmtIDR,
@@ -123,6 +123,7 @@ const fetchCurrentUser = () =>
     // Ikat perangkat ke outlet agar layar login PIN tahu daftar kasir yang mana.
     if (context?.outlet?.id) localStorage.setItem(OUTLET_KEY, context.outlet.id);
     renderProfile();
+    return user;
   });
 
 // ------------------------------------------------------------ Produk ---------
@@ -827,24 +828,63 @@ $('refresh-btn').addEventListener('click', async () => {
 
 $('history-refresh-btn').addEventListener('click', loadHistory);
 
-// Pemulihan sesi: jika access token masih ada di storage, langsung tampilkan.
-if (tokenStore.access) {
-  fetchCurrentUser()
-    .then(async () => {
-      hide($('login-view'));
-      show($('app-view'));
-      await loadCashierInfo();
-      await loadProducts();
-      await loadHistory();
-      switchTab(state.activeTab || 'kasir');
-      await initPrinter().catch(() => {});
-    })
-    .catch(() => {
-      // guard() sudah menangani 401; error lain cukup dibiarkan ke login.
-    });
-} else {
+// ------------------- Bootstrap dengan pemulihan sesi (persistent login) ------
+/**
+ * AKAR BUG LAMA: blok ini hanya memeriksa ACCESS token di `sessionStorage`.
+ * `sessionStorage` selalu kosong setelah aplikasi/tab ditutup, sehingga kasir
+ * SELALU dipaksa login ulang walaupun REFRESH token di `localStorage` masih
+ * valid (terutama di APK Android).
+ *
+ * Perbaikan: bila ada sesi tersimpan apa pun (access ATAU refresh), pulihkan
+ * lewat `restoreSession()` (otomatis memakai refresh token) sebelum memutuskan
+ * layar mana yang ditampilkan.
+ */
+const boot = async () => {
+  if (tokenStore.hasSession) {
+    try {
+      const body = await restoreSession();
+      const user = body?.user ?? null;
+      if (user && user.role === 'cashier') {
+        state.user = user;
+        state.context = body.context ?? null;
+        // Ikat perangkat ke outlet agar layar login PIN tahu daftar kasir.
+        if (state.context?.outlet?.id) {
+          localStorage.setItem(OUTLET_KEY, state.context.outlet.id);
+        }
+        renderProfile();
+        hide($('login-view'));
+        show($('app-view'));
+        await initPrinter().catch(() => {});
+        await loadCashierInfo();
+        await loadProducts();
+        await loadHistory();
+        switchTab(state.activeTab || 'kasir');
+        return;
+      }
+      // Sesi milik peran lain: jangan dipakai di panel Kasir.
+      tokenStore.clear();
+    } catch {
+      // Gangguan jaringan: token TIDAK dihapus; pengguna bisa mencoba lagi
+      // tanpa kehilangan sesi.
+    }
+  }
   show($('login-view'));
-}
+  // Tawarkan masuk cepat via PIN bila perangkat sudah pernah terikat outlet.
+  if (localStorage.getItem(OUTLET_KEY)) {
+    hide($('login-form'));
+    show($('pin-form'));
+    loadPinCashiers();
+  }
+};
+
+// Saat aplikasi kembali aktif (dari background), perbarui sesi diam-diam.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && tokenStore.hasSession) {
+    restoreSession().catch(() => {});
+  }
+});
+
+boot();
 
 // ============================================================================
 // V0.3 — Tab, manajemen produk, laporan harian, pengeluaran, riwayat stok.
@@ -1114,10 +1154,33 @@ $('mprod-modal').addEventListener('click', (event) => {
 $('mprod-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('mprod-error'));
+
   const id = $('mprod-id').value;
+  const submitBtn = $('mprod-submit');
+  const formError = $('mprod-error');
+  const fail = (message) => {
+    formError.textContent = message;
+    show(formError);
+  };
+
+  // ---- Validasi klien: pesan jelas; data form TIDAK dihapus bila gagal ----
+  const name = $('mprod-name').value.trim();
+  if (!name) return fail('Nama produk wajib diisi.');
+
+  const priceRp = Number($('mprod-price').value || 0);
+  if (!Number.isFinite(priceRp) || priceRp < 0) {
+    return fail('Harga jual harus berupa angka dan tidak boleh negatif.');
+  }
+
   const trackStock = $('mprod-track').checked;
+  const initialRaw = $('mprod-initial').value.trim();
+  const initialStock = trackStock && initialRaw !== '' ? Number(initialRaw) : null;
+  if (!id && initialStock !== null && (!Number.isInteger(initialStock) || initialStock < 0)) {
+    return fail('Stok awal harus bilangan bulat ≥ 0.');
+  }
+
   const payload = {
-    name: $('mprod-name').value.trim(),
+    name,
     price: rpToSen($('mprod-price').value),
     unit: $('mprod-unit').value.trim() || null,
     sku: $('mprod-sku').value.trim() || null,
@@ -1132,26 +1195,32 @@ $('mprod-form').addEventListener('submit', async (event) => {
 
   if (id) {
     payload.manualOutOfStock = trackStock ? $('mprod-oos').checked : false;
-  } else {
-    const initial = $('mprod-initial').value.trim();
-    if (trackStock && initial !== '') payload.initialStock = Number(initial);
+  } else if (initialStock !== null) {
+    payload.initialStock = initialStock;
   }
 
-  const btn = $('mprod-form').querySelector('button[type=submit]');
-  btn.disabled = true;
+  // ---- Kirim: cegah klik ganda + tampilkan status "Menyimpan…" ----
+  const originalLabel = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Menyimpan…';
   try {
-    if (id) await guard(() => api.updateProduct(id, payload));
-    else await guard(() => api.createProduct(payload));
-    alertBox(id ? 'Produk diperbarui.' : 'Produk ditambahkan.', 'ok');
+    const result = id
+      ? await guard(() => api.updateProduct(id, payload))
+      : await guard(() => api.createProduct(payload));
+
+    // `guard()` mengembalikan undefined saat sesi berakhir (401).
+    if (!result) return;
+
+    alertBox(id ? 'Produk diperbarui.' : 'Produk berhasil disimpan.', 'ok');
     closeMgmtModal();
     await loadMgmtProducts();
     await loadProducts();
   } catch (err) {
-    const el = $('mprod-error');
-    el.textContent = describeError(err);
-    show(el);
+    // Gagal: form tetap terisi agar pengguna dapat memperbaiki & mencoba lagi.
+    fail(describeError(err));
   } finally {
-    btn.disabled = false;
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalLabel;
   }
 });
 

@@ -7,7 +7,7 @@
  *
  * Semua otorisasi tetap ditegakkan server; UI ini hanya alat bantu.
  */
-import { api, login, logout, tokenStore, ApiError } from './api.js';
+import { api, login, logout, restoreSession, tokenStore, ApiError } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -115,8 +115,10 @@ $('logout-btn').addEventListener('click', async () => {
 });
 
 const fetchCurrentUser = async () => {
-  const { user } = await guard(() => api.me());
+  const body = await guard(() => api.me());
+  const user = body?.user ?? null;
   $('current-user').textContent = user ? `${user.fullName} (${user.email})` : '';
+  return user;
 };
 
 // =============================================================== TAB OWNER ===
@@ -837,19 +839,40 @@ $('sessions-body').addEventListener('click', async (event) => {
 });
 
 // ------------------------------------------------------------- Bootstrap -----
+/**
+ * Bootstrap panel Admin dengan PEMULIHAN SESI (persistent login).
+ * Verifikasi sesi eksplisit lewat `restoreSession()` sebelum memutuskan layar.
+ */
 const boot = async () => {
-  if (tokenStore.access || tokenStore.refresh) {
-    try {
-      await fetchCurrentUser();
-      hide($('login-view'));
-      show($('app-view'));
-      await loadOwners();
-      return;
-    } catch {
-      tokenStore.clear();
-    }
+  if (!tokenStore.hasSession) {
+    show($('login-view'));
+    return;
   }
-  show($('login-view'));
+  try {
+    const body = await restoreSession();
+    const user = body?.user ?? null;
+    if (!user) {
+      show($('login-view'));
+      return;
+    }
+    $('current-user').textContent = `${user.fullName} (${user.email})`;
+    hide($('login-view'));
+    show($('app-view'));
+    await loadOwners();
+  } catch (err) {
+    // Sesi tidak dapat diverifikasi (mis. jaringan). Token TIDAK dihapus.
+    show($('login-view'));
+    const el = $('login-error');
+    el.textContent = describeError(err);
+    show(el);
+  }
 };
+
+// Saat tab kembali aktif, perbarui sesi diam-diam agar tidak terlempar ke login.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && tokenStore.hasSession) {
+    restoreSession().catch(() => {});
+  }
+});
 
 boot();

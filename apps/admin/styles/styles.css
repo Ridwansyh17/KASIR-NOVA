@@ -436,16 +436,26 @@ select:focus {
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 15, 0.72);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   z-index: 20;
 }
 
+/*
+ * PERBAIKAN BUG "TOMBOL SIMPAN PRODUK TIDAK ADA": kartu modal dibatasi tinggi
+ * viewport dan menggulir di dalamnya; baris aksi `sticky` agar tombol Simpan
+ * selalu terlihat pada layar pendek / keyboard mobile terbuka.
+ */
 .modal-card {
   width: 100%;
   max-width: 440px;
   padding: 24px;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-card h3 {
@@ -458,10 +468,16 @@ select:focus {
 }
 
 .modal-actions {
+  position: sticky;
+  bottom: -24px;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 6px;
+  margin: 6px -24px -24px;
+  padding: 12px 24px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--card);
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 720px) {

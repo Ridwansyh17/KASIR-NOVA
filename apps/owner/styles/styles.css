@@ -408,16 +408,33 @@ select:focus {
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 15, 0.72);
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
   z-index: 20;
 }
 
+/*
+ * PERBAIKAN BUG "TOMBOL SIMPAN PRODUK TIDAK ADA":
+ * Sebelumnya `.modal-card` tidak punya batas tinggi maupun scroll. Pada layar
+ * pendek (ponsel, atau keyboard Android terbuka) form produk yang panjang
+ * membuat kartu lebih tinggi dari viewport; karena `.modal` bersifat `fixed`
+ * dan memakai `place-items: center`, bagian atas DAN bawah kartu terpotong —
+ * tombol Simpan/Batal di paling bawah jadi tidak dapat dijangkau.
+ *
+ * Solusi: kartu dibatasi setinggi viewport (`dvh`, dengan fallback `vh`) dan
+ * menggulir di dalamnya; baris aksi dibuat `sticky` di bawah sehingga tombol
+ * Simpan SELALU terlihat di desktop maupun mobile.
+ */
 .modal-card {
   width: 100%;
   max-width: 440px;
   padding: 24px;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-card h3 {
@@ -430,10 +447,16 @@ select:focus {
 }
 
 .modal-actions {
+  position: sticky;
+  bottom: -24px;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 6px;
+  margin: 6px -24px -24px;
+  padding: 12px 24px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--card);
+  border-top: 1px solid var(--border);
 }
 
 /* ---------- Produk & kategori ---------- */

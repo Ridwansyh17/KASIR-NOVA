@@ -79,6 +79,59 @@ for (const app of APPS) {
   }
 }
 
+// ----------------------------------- Regresi Bug 1 (login) & Bug 2 (produk) ---
+// Dua bug yang diminta diperbaiki:
+//   Bug 1 - Persistent Login: aplikasi dibuka ulang -> dipaksa login walau
+//           refresh token masih valid (akarnya: boot hanya memeriksa access
+//           token di sessionStorage yang selalu kosong).
+//   Bug 2 - Tombol "Simpan Produk" tidak terjangkau pada layar pendek karena
+//           kartu modal tidak punya batas tinggi/scroll.
+console.log('\n[regresi bug login & produk]');
+const BUG_APPS = [
+  { app: 'kasir', submitId: 'mprod-submit', formId: 'mprod-form' },
+  { app: 'owner', submitId: 'product-submit', formId: 'product-form' },
+];
+for (const { app, submitId, formId } of BUG_APPS) {
+  const html = readFileSync(join(root, 'apps', app, 'index.html'), 'utf8');
+  const js = readFileSync(join(root, 'apps', app, 'src', 'app.js'), 'utf8');
+  const apiSrc = readFileSync(join(root, 'apps', app, 'src', 'api.js'), 'utf8');
+  const css = readFileSync(join(root, 'apps', app, 'styles', 'styles.css'), 'utf8');
+
+  // (1) Tombol Simpan Produk ada, berlabel jelas, di dalam form produk.
+  const btn = new RegExp(`<button[^>]*id="${submitId}"[^>]*>([^<]*)</button>`).exec(html);
+  if (!btn) {
+    fail(`[${app}] tombol simpan produk #${submitId} tidak ditemukan`);
+  } else if (!/Simpan\s+Produk/i.test(btn[1])) {
+    fail(`[${app}] label #${submitId} bukan "Simpan Produk" (dapat: "${btn[1].trim()}")`);
+  }
+  const formPos = html.indexOf(`id="${formId}"`);
+  const btnPos = html.indexOf(`id="${submitId}"`);
+  if (formPos === -1 || btnPos === -1 || btnPos < formPos) {
+    fail(`[${app}] tombol #${submitId} bukan bagian dari form #${formId}`);
+  }
+
+  // Bug 2: modal harus dibatasi tinggi, bisa digulir, dan aksi sticky.
+  if (!/\.modal-card\s*\{[^}]*max-height\s*:/s.test(css)) {
+    fail(`[${app}] .modal-card tanpa max-height -> tombol simpan bisa keluar viewport`);
+  }
+  if (!/\.modal-card\s*\{[^}]*overflow-y\s*:\s*auto/s.test(css)) {
+    fail(`[${app}] .modal-card tanpa overflow-y:auto`);
+  }
+  if (!/\.modal-actions\s*\{[^}]*position\s*:\s*sticky/s.test(css)) {
+    fail(`[${app}] .modal-actions tidak sticky`);
+  }
+
+  // Bug 1: boot harus memakai restoreSession() + hasSession.
+  if (!/export const restoreSession/.test(apiSrc)) fail(`[${app}] api.js tanpa restoreSession`);
+  if (!/get hasSession\(\)/.test(apiSrc)) fail(`[${app}] api.js tanpa tokenStore.hasSession`);
+  if (!/\brestoreSession\b/.test(js)) fail(`[${app}] app.js tidak memakai restoreSession()`);
+  if (!/tokenStore\.hasSession/.test(js)) fail(`[${app}] app.js tidak memakai tokenStore.hasSession`);
+  if (/if\s*\(\s*tokenStore\.access\s*\)/.test(js)) {
+    fail(`[${app}] app.js masih bergantung hanya pada tokenStore.access`);
+  }
+}
+console.log('  pemeriksaan regresi bug login & produk selesai');
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;
