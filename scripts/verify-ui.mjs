@@ -277,6 +277,50 @@ if (/(^|\n)\.struk-(draft|reprint)\s*\{/.test(kCss)) {
 }
 console.log('  alur pratinjau struk dicek');
 
+// ------------------------------- Fitur 13 Okt 2026 (FASE 6) -----------------
+// Mengunci agar fitur V0.3 (laporan keuangan/laba, ekspor Excel, pengeluaran,
+// stok, pendapatan kasir) tidak hilang saat desain V2 & FASE 3 mengubah UI.
+console.log('\n[fitur 13 Okt 2026 (FASE 6)]');
+
+const readApp = (app, ...rel) => readFileSync(join(root, 'apps', app, ...rel), 'utf8');
+const ownerHtml6 = readApp('owner', 'index.html');
+const ownerJs6 = readApp('owner', 'src', 'app.js');
+const ownerApi6 = readApp('owner', 'src', 'api.js');
+const kasirHtml6 = readApp('kasir', 'index.html');
+const kasirJs6 = readApp('kasir', 'src', 'app.js');
+const kasirApi6 = readApp('kasir', 'src', 'api.js');
+const reportRoutes6 = readFileSync(join(root, 'server', 'src', 'modules', 'report', 'routes.js'), 'utf8');
+const cashierRoutes6 = readFileSync(join(root, 'server', 'src', 'modules', 'cashier-area', 'routes.js'), 'utf8');
+
+const featureChecks = [
+  // Owner — laporan keuangan & laba (Fase 4/6).
+  [ownerHtml6, 'apps/owner/index.html', ['finance-section', 'fin-summary', 'fin-export-xlsx', 'fin-refresh-btn', 'fin-method-body', 'fin-expense-body', 'fin-outlet-body']],
+  [ownerJs6, 'apps/owner/src/app.js', ['api.reports.finance(', 'api.reports.financeXlsx(']],
+  [ownerApi6, 'apps/owner/src/api.js', ['finance:', 'financeXlsx:']],
+  // Owner — ekspor Excel (rekap transaksi, per-outlet, lintas-bisnis).
+  [ownerJs6, 'apps/owner/src/app.js', ['api.reports.downloadXlsx(', 'api.reports.outletsXlsx(', 'api.reports.businessesXlsx(', 'api.reports.outlets(']],
+  [ownerApi6, 'apps/owner/src/api.js', ['downloadXlsx:', 'outletsXlsx:', 'businessesXlsx:']],
+  // Owner — pengeluaran & pergerakan stok.
+  [ownerHtml6, 'apps/owner/index.html', ['expense-section', 'exp-body', 'exp-new-btn']],
+  [ownerJs6, 'apps/owner/src/app.js', ['api.expenses.list(', 'api.expenses.create(', 'api.inventoryMovements.list(']],
+  [ownerApi6, 'apps/owner/src/api.js', ['expenses:', 'inventoryMovements:']],
+  // Owner — perbandingan lintas-bisnis.
+  [ownerHtml6, 'apps/owner/index.html', ['cross-section', 'cross-summary', 'cross-export-xlsx', 'cross-body']],
+  // Kasir — pendapatan harian, pengeluaran, stok (tab/pane).
+  [kasirHtml6, 'apps/kasir/index.html', ['data-pane="pendapatan"', 'data-pane="pengeluaran"', 'data-pane="stok"', 'data-pane="produk"']],
+  [kasirJs6, 'apps/kasir/src/app.js', ['api.daily(', 'api.expenses(', 'api.createExpense(', 'api.voidExpense(', 'api.inventoryMovements(', 'api.setStock(', 'api.setStockStatus(']],
+  [kasirApi6, 'apps/kasir/src/api.js', ['daily:', 'expenses:', 'createExpense:', 'voidExpense:', 'inventoryMovements:', 'setStock:', 'setStockStatus:']],
+  // Server — endpoint laporan/ekspor/pengeluaran/stok tetap terdaftar.
+  [reportRoutes6, 'server/src/modules/report/routes.js', ["'/summary'", "'/outlets'", "'/export'", "'/finance'", "'/finance/export'"]],
+  [cashierRoutes6, 'server/src/modules/cashier-area/routes.js', ["'/reports/daily'", "'/expenses'", "'/inventory-movements'"]],
+];
+for (const [src, where, needles] of featureChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) fail(`${where} tanpa ${needle} (fitur 13 Okt 2026 hilang?)`);
+  }
+}
+console.log(`  fitur dicek: ${featureChecks.reduce((n, c) => n + c[2].length, 0)} penanda pada ${featureChecks.length} berkas`);
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;

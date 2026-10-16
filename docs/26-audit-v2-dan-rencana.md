@@ -224,9 +224,9 @@ memenuhi syarat "PNG transparan" untuk logo di UI/splash. Perlu aset final
 | 1b | Aset brand transparan (logo Login/topbar + ikon PWA) | aset pemilik | **selesai** (docs/29 — ikon launcher Android menunggu build APK) |
 | 2 | Smart Product Image (otomatis dari nama/kategori; pustaka SVG internal) | — | **selesai** (docs/28) |
 | 3 | Smart Receipt Preview + alur cetak | — (dapat dikerjakan) | **selesai** (docs/30) |
-| 6 | Verifikasi fitur 13 Okt (laporan, Excel, laba) | — | siap diverifikasi |
-| 7b | QA menyeluruh (auth/produk/transaksi/UI) | FASE 1–3 | menunggu |
-| 8 | Laporan akhir + screenshot before/after | FASE 1–3 | menunggu |
+| 6 | Verifikasi fitur 13 Okt (laporan, Excel, laba) | — | **selesai** (docs/31; 66/66 tes terkait + guard verify-ui) |
+| 7b | QA menyeluruh (auth/produk/transaksi/UI) | FASE 1–3 | **selesai** (docs/32) |
+| 8 | Laporan akhir + screenshot before/after | FASE 1–3 | **selesai** (docs/33) |
 
 Urutan teknis yang saya usulkan: **3 → 2 → 1 → 6 → 7 → 8**, karena Smart
 Receipt hanya menyentuh Kasir dan tidak bergantung object storage, sedangkan
