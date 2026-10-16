@@ -26,14 +26,21 @@ export const fmtDate = (iso) => {
 
 export const METHOD_LABELS = { cash: 'Tunai', card: 'Kartu', qr: 'QRIS', wallet: 'E-Wallet' };
 
+/** Status pratinjau (draft) — dipakai bersama `sale-flow.js`. */
+export const DRAFT_STATUS = 'draft';
+export const DRAFT_LABEL = 'BELUM DIBAYAR';
+export const DRAFT_NOTICE = 'Pratinjau — transaksi belum dicatat.';
+
 /**
  * Status pembayaran AKTUAL dari data transaksi (tidak mengarang "Lunas").
+ * - Draft (pratinjau FASE 3) -> BELUM DIBAYAR (tidak pernah LUNAS).
  * - Transaksi batal -> DIBATALKAN; refund -> DIKEMBALIKAN.
  * - Pembayaran pending -> BELUM LUNAS; gagal -> GAGAL.
  * - Selain itu (completed + paid) -> LUNAS.
  */
 export const paymentStatusLabel = (t = {}) => {
   const pay = t.payments?.[0]?.status;
+  if (t.status === DRAFT_STATUS) return DRAFT_LABEL;
   if (t.status === 'voided') return 'DIBATALKAN';
   if (t.status === 'refunded' || pay === 'refunded') return 'DIKEMBALIKAN';
   if (pay === 'failed') return 'GAGAL';
@@ -66,6 +73,7 @@ export const buildStrukHtml = ({ transaction: t = {}, context = {}, cashier = ''
   const statusLabel = paymentStatusLabel(t);
   const isCash = method === 'cash';
   const isPaid = statusLabel === 'LUNAS';
+  const isDraft = statusLabel === DRAFT_LABEL;
 
   const business = context?.business ?? {};
   const outlet = context?.outlet ?? {};
@@ -109,6 +117,10 @@ export const buildStrukHtml = ({ transaction: t = {}, context = {}, cashier = ''
     outlet.address ? `<div class="struk-sub">${escapeHtml(outlet.address)}</div>` : '',
     outlet.phone ? `<div class="struk-sub">Telp. ${escapeHtml(outlet.phone)}</div>` : '',
     `<div class="struk-divider"></div>`,
+    isDraft
+      ? `<div class="struk-draft">${escapeHtml(DRAFT_LABEL)}</div>` +
+        `<div class="struk-draft-note">${escapeHtml(DRAFT_NOTICE)}</div>`
+      : '',
     `<div class="struk-info">`,
     `<span class="label">No. Struk</span><span class="value mono">${escapeHtml(t.invoice_no)}</span>`,
     `<span class="label">Tanggal</span><span class="value">${escapeHtml(fmtDate(t.created_at))}</span>`,
@@ -140,6 +152,13 @@ export const buildStrukHtml = ({ transaction: t = {}, context = {}, cashier = ''
     isCash && isPaid
       ? `<span class="label">Kembalian</span><span class="value">${escapeHtml(fmtIDR(change))}</span>`
       : '',
+    // Pratinjau: tampilkan RENCANA bayar tunai (bukan klaim sudah dibayar).
+    isCash && isDraft
+      ? `<span class="label">Rencana Bayar</span><span class="value">${escapeHtml(fmtIDR(paid))}</span>`
+      : '',
+    isCash && isDraft
+      ? `<span class="label">Kembalian</span><span class="value">${escapeHtml(fmtIDR(change))}</span>`
+      : '',
     `</div>`,
     `<div class="struk-divider"></div>`,
     `<div class="struk-foot">Terima kasih atas kunjungan Anda</div>`,
@@ -147,4 +166,15 @@ export const buildStrukHtml = ({ transaction: t = {}, context = {}, cashier = ''
   ].join('');
 };
 
-export default { escapeHtml, fmtIDR, fmtDate, METHOD_LABELS, paymentStatusLabel, strukPageCss, buildStrukHtml };
+export default {
+  escapeHtml,
+  fmtIDR,
+  fmtDate,
+  METHOD_LABELS,
+  DRAFT_STATUS,
+  DRAFT_LABEL,
+  DRAFT_NOTICE,
+  paymentStatusLabel,
+  strukPageCss,
+  buildStrukHtml,
+};

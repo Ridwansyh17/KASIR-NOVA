@@ -39,12 +39,18 @@ export const fmtDate = (iso) => {
 
 export const METHOD_LABELS = { cash: 'Tunai', card: 'Kartu', qr: 'QRIS', wallet: 'E-Wallet' };
 
+/** Status pratinjau (draft) — dipakai bersama `receipt.js`/`sale-flow.js`. */
+export const DRAFT_STATUS = 'draft';
+export const DRAFT_LABEL = 'BELUM DIBAYAR';
+export const REPRINT_LABEL = 'CETAK ULANG';
+
 /**
  * Status pembayaran AKTUAL (tidak mengarang "LUNAS"). Logika ini identik
  * dengan `receipt.js`; kesamaan dijaga oleh tes (`printer-escpos.test.js`).
  */
 export const paymentStatusLabel = (t = {}) => {
   const pay = t.payments?.[0]?.status;
+  if (t.status === DRAFT_STATUS) return DRAFT_LABEL;
   if (t.status === 'voided') return 'DIBATALKAN';
   if (t.status === 'refunded' || pay === 'refunded') return 'DIKEMBALIKAN';
   if (pay === 'failed') return 'GAGAL';
@@ -131,9 +137,17 @@ const CMD = {
  * @param {string} [p.cashier] nama kasir.
  * @param {'58'|'80'|number} [p.width] lebar kertas (mm). Default '58'.
  * @param {boolean} [p.cut] kirim perintah potong kertas. Default true.
+ * @param {boolean} [p.reprint] tandai struk sebagai CETAK ULANG (FASE 3).
  * @returns {Uint8Array} byte ESC/POS siap dikirim ke printer.
  */
-export const buildStrukEscPos = ({ transaction: t = {}, context = {}, cashier = '', width = '58', cut = true } = {}) => {
+export const buildStrukEscPos = ({
+  transaction: t = {},
+  context = {},
+  cashier = '',
+  width = '58',
+  cut = true,
+  reprint = false,
+} = {}) => {
   const cols = columnsFor(width);
   const payment = t.payments?.[0];
   const method = payment?.method ?? 'cash';
@@ -141,6 +155,7 @@ export const buildStrukEscPos = ({ transaction: t = {}, context = {}, cashier = 
   const status = paymentStatusLabel(t);
   const isCash = method === 'cash';
   const isPaid = status === 'LUNAS';
+  const isDraft = status === DRAFT_LABEL;
 
   const business = context?.business ?? {};
   const outlet = context?.outlet ?? {};
@@ -169,6 +184,15 @@ export const buildStrukEscPos = ({ transaction: t = {}, context = {}, cashier = 
 
   put(CMD.init());
 
+  // --- Penanda cetak ulang (FASE 3) ---------------------------------------
+  if (reprint) {
+    put(CMD.align('center'));
+    put(CMD.bold(true));
+    line(`*** ${REPRINT_LABEL} ***`);
+    put(CMD.bold(false));
+    put(CMD.align('left'));
+  }
+
   // --- Header toko (terpusat, nama ditebalkan & tinggi ganda) --------------
   put(CMD.align('center'));
   put(CMD.bold(true));
@@ -181,6 +205,15 @@ export const buildStrukEscPos = ({ transaction: t = {}, context = {}, cashier = 
   if (outlet.phone) line(`Telp. ${outlet.phone}`);
   put(CMD.align('left'));
   divider();
+
+  // --- Penanda pratinjau (tidak pernah dicetak sebagai LUNAS) -------------
+  if (isDraft) {
+    put(CMD.align('center'));
+    put(CMD.bold(true));
+    line(DRAFT_LABEL);
+    put(CMD.bold(false));
+    put(CMD.align('left'));
+  }
 
   // --- Info transaksi ------------------------------------------------------
   row('No. Struk', t.invoice_no ?? '');
@@ -219,6 +252,10 @@ export const buildStrukEscPos = ({ transaction: t = {}, context = {}, cashier = 
   row('Status', status);
   if (isCash && isPaid) {
     row('Uang Diterima', fmtIDR(paid));
+    row('Kembalian', fmtIDR(change));
+  }
+  if (isCash && isDraft) {
+    row('Rencana Bayar', fmtIDR(paid));
     row('Kembalian', fmtIDR(change));
   }
   divider();
@@ -290,6 +327,9 @@ export default {
   fmtIDR,
   fmtDate,
   METHOD_LABELS,
+  DRAFT_STATUS,
+  DRAFT_LABEL,
+  REPRINT_LABEL,
   paymentStatusLabel,
   twoColumn,
   buildStrukEscPos,

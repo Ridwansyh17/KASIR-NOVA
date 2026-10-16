@@ -236,23 +236,32 @@
                 <div><dt>Kembalian</dt><dd id="calc-change">Rp 0</dd></div>
               </dl>
 
-              <button id="checkout-btn" class="btn primary block">Bayar</button>
+              <button id="checkout-btn" class="btn primary block">Tampilkan Pratinjau Struk</button>
               <p id="checkout-error" class="error hidden"></p>
             </div>
           </div>
         </section>
 
-        <!-- Hasil transaksi terakhir -->
+        <!-- Hasil transaksi terakhir / pratinjau struk (FASE 3) -->
         <div id="receipt" class="card receipt hidden">
           <div class="receipt-head">
-            <strong>Transaksi berhasil</strong>
+            <strong id="receipt-headline">Transaksi berhasil</strong>
             <div class="btn-row">
               <button id="print-struk-thermal" type="button" class="btn small primary hidden">
                 Cetak Thermal
               </button>
-              <button id="print-struk-btn" type="button" class="btn small">Cetak Struk 58mm</button>
-              <button id="print-struk-btn-80" type="button" class="btn small">Cetak Struk 80mm</button>
+              <button id="print-struk-btn" type="button" class="btn small">Cetak 58mm</button>
+              <button id="print-struk-btn-80" type="button" class="btn small">Cetak 80mm</button>
+              <button id="receipt-done-btn" type="button" class="btn small primary hidden">
+                Selesai
+              </button>
             </div>
+          </div>
+          <p id="receipt-note" class="receipt-note hidden"></p>
+          <p id="receipt-print-error" class="receipt-print-error hidden" role="status"></p>
+          <div id="receipt-pay-row" class="btn-row hidden">
+            <button id="receipt-pay-btn" type="button" class="btn primary">Bayar Sekarang</button>
+            <button id="receipt-cancel-btn" type="button" class="btn">Batal</button>
           </div>
         </div>
 

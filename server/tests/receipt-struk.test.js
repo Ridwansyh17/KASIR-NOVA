@@ -216,3 +216,51 @@ test('CSS cetak: hanya #print-struk yang tampil dan tidak memengaruhi layar', ()
   assert.match(css, /@page \{\s*size: 58mm auto;\s*margin: 5mm;\s*\}/);
   assert.ok(css.includes('@media print'));
 });
+
+// --- FASE 3: pratinjau (draft) & cetak ulang ---------------------------------
+
+test('draft: selalu BELUM DIBAYAR, tidak pernah LUNAS', () => {
+  assert.equal(paymentStatusLabel({ status: 'draft' }), 'BELUM DIBAYAR');
+  const html = buildStrukHtml({
+    transaction: baseTx({
+      id: '',
+      invoice_no: '(belum dicatat)',
+      status: 'draft',
+      payments: [{ method: 'cash', amount: 5000000, status: 'pending' }],
+      paid_amount: 5000000,
+      change_amount: 1900000,
+    }),
+    context: CONTEXT,
+  });
+  assert.match(html, /BELUM DIBAYAR/);
+  assert.doesNotMatch(html, /LUNAS/);
+  assert.match(html, /struk-draft/);
+  assert.match(html, /Pratinjau/);
+  // Pratinjau tunai memakai label "Rencana Bayar", bukan "Uang Diterima".
+  assert.match(html, /Rencana Bayar/);
+  assert.doesNotMatch(html, /Uang Diterima/);
+});
+
+test('draft non-tunai: tanpa baris uang diterima/kembalian', () => {
+  const html = buildStrukHtml({
+    transaction: baseTx({
+      status: 'draft',
+      payments: [{ method: 'qr', amount: 3100000, status: 'pending' }],
+    }),
+    context: CONTEXT,
+  });
+  assert.match(html, /BELUM DIBAYAR/);
+  assert.doesNotMatch(html, /Uang Diterima/);
+  assert.doesNotMatch(html, /Rencana Bayar/);
+  assert.doesNotMatch(html, /Kembalian/);
+});
+
+test('CSS cetak: gaya pratinjau & cetak ulang hanya di dalam #print-struk', () => {
+  assert.match(css, /#print-struk \.struk-draft \{/);
+  assert.match(css, /#print-struk \.struk-reprint \{/);
+  // Tidak boleh ada aturan global yang membocorkan ke layar.
+  assert.doesNotMatch(css, /(^|\n)\.struk-draft\s*\{/);
+  assert.doesNotMatch(css, /(^|\n)\.struk-reprint\s*\{/);
+  // Penanda pratinjau pada panel layar (bukan cetak).
+  assert.match(css, /\.receipt\.draft \{/);
+});

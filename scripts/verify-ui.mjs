@@ -213,6 +213,70 @@ if (!readFileSync(join(root, 'apps', 'kasir', 'styles', 'styles.css'), 'utf8').i
   fail('apps/kasir/styles/styles.css: kelas .pos-photo tidak ada');
 }
 
+// --------------------------------- Smart Receipt Preview (FASE 3) -----------
+// Mengunci alur: pratinjau (BELUM DIBAYAR) TIDAK pernah LUNAS, cetak hanya
+// setelah konfirmasi server, cetak ulang dari snapshot, dan gagal cetak tidak
+// membatalkan transaksi.
+console.log('\n[Smart Receipt Preview (FASE 3)]');
+const kHtml = readFileSync(join(root, 'apps', 'kasir', 'index.html'), 'utf8');
+const kJs = readFileSync(join(root, 'apps', 'kasir', 'src', 'app.js'), 'utf8');
+const kCss = readFileSync(join(root, 'apps', 'kasir', 'styles', 'styles.css'), 'utf8');
+const flowPath = join(root, 'apps', 'kasir', 'src', 'sale-flow.js');
+if (!existsSync(flowPath)) {
+  fail('apps/kasir/src/sale-flow.js tidak ada (modul alur pratinjau struk)');
+} else {
+  const flow = readFileSync(flowPath, 'utf8');
+  for (const needle of [
+    'MODE_DRAFT',
+    'MODE_FINAL',
+    'validateSale',
+    'createDraft',
+    'buildSalePayload',
+    'confirmDraft',
+    'isPrintable',
+    'isDraftState',
+    'afterPrintFailure',
+    'createSnapshot',
+    'markReprint',
+    'renderPrintHtml',
+  ]) {
+    if (!new RegExp(`\\b${needle}\\b`).test(flow)) fail(`sale-flow.js tanpa ${needle}`);
+  }
+  if (/from\s+['"]\.\//.test(flow)) {
+    fail('sale-flow.js mengimpor modul relatif (harus murni agar bisa diuji lewat data: URL)');
+  }
+}
+
+for (const id of [
+  'receipt-headline',
+  'receipt-note',
+  'receipt-print-error',
+  'receipt-pay-row',
+  'receipt-pay-btn',
+  'receipt-cancel-btn',
+  'receipt-done-btn',
+]) {
+  if (!kHtml.includes(`id="${id}"`)) fail(`apps/kasir/index.html tanpa #${id}`);
+}
+for (const imp of ['sale-flow.js', 'receipt.js', 'escpos.js']) {
+  if (!new RegExp(`from\\s+['"]\\./${imp.replace('.', '\\.')}['"]`).test(kJs)) {
+    fail(`apps/kasir/src/app.js tidak mengimpor ./${imp}`);
+  }
+}
+for (const cls of [
+  '.receipt.draft',
+  '.receipt-print-error',
+  '#print-struk .struk-draft',
+  '#print-struk .struk-reprint',
+]) {
+  if (!kCss.includes(cls)) fail(`apps/kasir/styles/styles.css: kelas ${cls} tidak ada`);
+}
+// Semua kelas struk harus tetap ter-scope ke #print-struk (tidak bocor ke layar).
+if (/(^|\n)\.struk-(draft|reprint)\s*\{/.test(kCss)) {
+  fail('aturan .struk-draft/.struk-reprint tidak boleh global (harus di bawah #print-struk)');
+}
+console.log('  alur pratinjau struk dicek');
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;

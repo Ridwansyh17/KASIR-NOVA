@@ -135,6 +135,31 @@ test('belum lunas: status BELUM LUNAS, tanpa kembalian', () => {
   assert.ok(!has(bytes, 'Kembalian'));
 });
 
+test('FASE 3 draft: BELUM DIBAYAR, rencana bayar, TIDAK pernah LUNAS', () => {
+  const bytes = escpos.buildStrukEscPos({
+    transaction: baseTx({
+      status: 'draft',
+      invoice_no: '(belum dicatat)',
+      paid_amount: 5000000,
+      change_amount: 1900000,
+    }),
+    context: CONTEXT,
+  });
+  assert.ok(has(bytes, 'BELUM DIBAYAR'));
+  assert.ok(!has(bytes, 'LUNAS'));
+  assert.ok(has(bytes, 'Rencana Bayar'));
+  assert.ok(!has(bytes, 'Uang Diterima'));
+});
+
+test('cetak ulang: penanda CETAK ULANG hanya bila reprint=true', () => {
+  const normal = escpos.buildStrukEscPos({ transaction: baseTx(), context: CONTEXT, reprint: false });
+  assert.ok(!has(normal, 'CETAK ULANG'));
+  const ulang = escpos.buildStrukEscPos({ transaction: baseTx(), context: CONTEXT, reprint: true });
+  assert.ok(has(ulang, 'CETAK ULANG'));
+  assert.ok(has(ulang, 'INV-0001'));
+  assert.ok(has(ulang, 'LUNAS'));
+});
+
 test('total ditebalkan & tinggi ganda (ESC E 1 / GS ! 1)', () => {
   const bytes = escpos.buildStrukEscPos({ transaction: baseTx(), context: CONTEXT });
   assert.ok(decode(bytes).includes(String.fromCharCode(0x1b, 0x45, 0x01)));
@@ -197,6 +222,7 @@ test('data minim tidak error', () => {
 test('label status escpos konsisten dengan receipt', () => {
   const cases = [
     baseTx(),
+    baseTx({ status: 'draft' }),
     baseTx({ status: 'voided' }),
     baseTx({ status: 'refunded' }),
     baseTx({ payments: [{ method: 'qr', status: 'refunded' }] }),
@@ -206,6 +232,9 @@ test('label status escpos konsisten dengan receipt', () => {
   for (const t of cases) {
     assert.equal(escpos.paymentStatusLabel(t), receipt.paymentStatusLabel(t));
   }
+  // Pratinjau TIDAK PERNAH dilaporkan sebagai LUNAS oleh kedua modul.
+  assert.equal(escpos.paymentStatusLabel(baseTx({ status: 'draft' })), 'BELUM DIBAYAR');
+  assert.equal(receipt.paymentStatusLabel(baseTx({ status: 'draft' })), 'BELUM DIBAYAR');
 });
 
 // --- printer.js -------------------------------------------------------------

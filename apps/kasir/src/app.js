@@ -12,10 +12,28 @@ import {
   fmtIDR,
   fmtDate,
   METHOD_LABELS,
+  DRAFT_LABEL,
+  DRAFT_NOTICE,
   paymentStatusLabel,
   strukPageCss,
   buildStrukHtml,
 } from './receipt.js';
+import {
+  MODE_DRAFT,
+  MODE_FINAL,
+  validateSale,
+  createDraft,
+  draftToTransaction,
+  buildSalePayload,
+  confirmDraft,
+  isPrintable,
+  isDraftState,
+  afterPrintFailure,
+  createSnapshot,
+  markReprint,
+  hasSnapshot,
+  renderPrintHtml,
+} from './sale-flow.js';
 import { buildStrukEscPos, buildTestEscPos } from './escpos.js';
 import * as printer from './printer.js';
 
@@ -271,6 +289,7 @@ const computeEstimate = () => {
 };
 
 const renderCart = () => {
+  invalidateDraft(); // keranjang berubah -> pratinjau lama tidak lagi cocok
   const list = $('cart-list');
   list.innerHTML = '';
   const hasItems = state.cart.size > 0;
@@ -300,6 +319,8 @@ const renderCart = () => {
 };
 
 const updateCalc = () => {
+  // Form pembayaran/diskon berubah -> pratinjau lama tidak lagi mewakili form.
+  invalidateDraft();
   const { subtotal, discountTotal, taxTotal, total } = computeEstimate();
   $('calc-subtotal').textContent = fmtIDR(subtotal);
   $('calc-discount').textContent = discountTotal > 0 ? `-${fmtIDR(discountTotal)}` : fmtIDR(0);
@@ -345,18 +366,84 @@ const resetSaleForm = () => {
   $('sale-note').value = '';
   hide($('checkout-error'));
   // Catatan: struk terakhir DIBIARKAN tampil (beserta tombol cetak) agar
-  // kasir bisa mencetak ulang; renderReceipt berikutnya yang menggantinya.
+  // kasir bisa mencetak ulang; renderReceiptView berikutnya yang menggantinya.
   renderCart();
 };
 
+/**
+ * Status struk yang sedang tampil (FASE 3 — Smart Receipt Preview).
+ *   - `receiptState`    : hasil `sale-flow.js` → `{ mode: 'draft' | 'final', ... }`.
+ *   - `receiptSnapshot` : HTML struk + data yang DIBEKUKAN saat konfirmasi,
+ *     dipakai untuk cetak & cetak ulang (tidak dihitung ulang dari state UI).
+ */
 let lastTx = null;
+let receiptState = null;
+let receiptSnapshot = null;
+let thermalPrinted = false;
 
-const renderReceipt = (t) => {
-  lastTx = t;
+/** Transaksi terkonfirmasi yang sedang tampil (null saat pratinjau). */
+const shownTransaction = () => receiptState?.transaction ?? null;
+
+/**
+ * Buang pratinjau yang sudah basi (keranjang/form berubah setelah pratinjau
+ * dibuat). Struk FINAL tidak pernah dibuang oleh perubahan form.
+ */
+const invalidateDraft = () => {
+  if (!isDraftState(receiptState)) return;
+  receiptState = null;
+  const el = $('receipt');
+  el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
+  el.classList.remove('draft', 'final');
+  hide(el);
+};
+
+/** Bangun objek transaksi TIRUAN untuk merender pratinjau struk. */
+const buildDraftTransaction = (draft) => {
+  const est = computeEstimate();
+  const items = [...state.cart.values()].map((it) => ({
+    product_name: it.product.name,
+    qty: it.qty,
+    unit_price: Number(it.product.price),
+    line_total: Number(it.product.price) * it.qty,
+  }));
+  return draftToTransaction(draft, {
+    items,
+    totals: {
+      subtotal: est.subtotal,
+      discount_total: est.discountTotal,
+      tax_total: est.taxTotal,
+      tax_rate: Number(state.context?.outlet?.tax_rate ?? 0),
+      total: est.total,
+    },
+  });
+};
+
+/** Tombol & gaya panel berbeda antara pratinjau (draft) dan struk final. */
+const applyReceiptMode = (mode) => {
+  const isDraft = mode === MODE_DRAFT;
+  const isFinal = mode === MODE_FINAL;
+  const el = $('receipt');
+  el.classList.toggle('draft', isDraft);
+  el.classList.toggle('final', isFinal);
+  $('receipt-pay-row').classList.toggle('hidden', !isDraft);
+  $('receipt-done-btn').classList.toggle('hidden', !isFinal);
+  // CETAK hanya tersedia setelah pembayaran terkonfirmasi server.
+  $('print-struk-btn').classList.toggle('hidden', !isFinal);
+  $('print-struk-btn-80').classList.toggle('hidden', !isFinal);
+  hide($('receipt-print-error'));
+  updateThermalButton();
+};
+
+/**
+ * Isi panel struk di layar.
+ * @param {object} t detail transaksi (asli dari server atau tiruan pratinjau).
+ * @param {'draft'|'final'} mode mode tampilan.
+ */
+const renderReceiptView = (t, mode) => {
   const el = $('receipt');
   el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
 
-  const rows = t.items
+  const rows = (t.items ?? [])
     .map(
       (it) => `
       <div class="cart-row">
@@ -370,9 +457,22 @@ const renderReceipt = (t) => {
   const method = t.payments?.[0]?.method ?? 'cash';
   const methodLabel = METHOD_LABELS[method] ?? '-';
   const statusLabel = paymentStatusLabel(t);
+  const isDraft = mode === MODE_DRAFT;
 
-  el.querySelector('.receipt-head strong').textContent =
-    statusLabel === 'LUNAS' ? 'Transaksi berhasil' : `Transaksi ${statusLabel.toLowerCase()}`;
+  $('receipt-headline').textContent = isDraft
+    ? 'Pratinjau struk (belum dibayar)'
+    : statusLabel === 'LUNAS'
+      ? 'Transaksi berhasil'
+      : `Transaksi ${statusLabel.toLowerCase()}`;
+
+  const note = $('receipt-note');
+  if (isDraft) {
+    note.textContent = `${DRAFT_LABEL}: ${DRAFT_NOTICE}`;
+    show(note);
+  } else {
+    hide(note);
+  }
+
   const info = document.createElement('div');
   info.className = 'receipt-body';
   info.innerHTML = `
@@ -386,26 +486,56 @@ const renderReceipt = (t) => {
       <div><dt>Pembayaran</dt><dd>${escapeHtml(methodLabel)}</dd></div>
       <div><dt>Status</dt><dd class="strong">${escapeHtml(statusLabel)}</dd></div>
       ${
-        method === 'cash' && statusLabel === 'LUNAS'
+        method === 'cash' && !isDraft && statusLabel === 'LUNAS'
           ? `<div><dt>Uang Diterima</dt><dd>${escapeHtml(fmtIDR(t.paid_amount))}</dd></div>
+             <div><dt>Kembalian</dt><dd>${escapeHtml(fmtIDR(t.change_amount))}</dd></div>`
+          : ''
+      }
+      ${
+        method === 'cash' && isDraft
+          ? `<div><dt>Rencana Bayar</dt><dd>${escapeHtml(fmtIDR(t.paid_amount))}</dd></div>
              <div><dt>Kembalian</dt><dd>${escapeHtml(fmtIDR(t.change_amount))}</dd></div>`
           : ''
       }
     </dl>
     <p class="muted small">${escapeHtml(fmtDate(t.created_at))}</p>`;
   el.appendChild(info);
+
+  applyReceiptMode(mode);
   show(el);
-  updateThermalButton();
   el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 
-/** Buang struk terakhir (mis. saat keluar) agar tidak tampil di sesi lain. */
+/** Buang struk/pratinjau (mis. saat keluar) agar tidak tampil di sesi lain. */
 const clearReceipt = () => {
   lastTx = null;
+  receiptState = null;
+  receiptSnapshot = null;
+  thermalPrinted = false;
   const el = $('receipt');
   el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
-  el.querySelector('.receipt-head strong').textContent = 'Transaksi berhasil';
+  el.classList.remove('draft', 'final');
+  $('receipt-headline').textContent = 'Transaksi berhasil';
+  hide($('receipt-note'));
+  hide($('receipt-print-error'));
   hide(el);
+};
+
+/** Batalkan pratinjau. Keranjang TIDAK diubah agar kasir bisa memperbaiki. */
+const cancelPreview = () => {
+  receiptState = null;
+  const el = $('receipt');
+  el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
+  el.classList.remove('draft', 'final');
+  hide(el);
+  alertBox('Pratinjau dibatalkan. Keranjang tidak diubah.', 'ok');
+};
+
+/** Tutup struk final -> siap untuk transaksi berikutnya. */
+const finishReceipt = () => {
+  clearReceipt();
+  $('payment-amount').value = '';
+  updateCalc();
 };
 
 /**
@@ -424,25 +554,28 @@ const setPrintPageSize = (width) => {
 };
 
 /**
- * Isi template struk thermal lalu buka dialog cetak browser.
+ * Cetak struk lewat dialog cetak browser — SELALU dari snapshot (FASE 3).
+ *
+ * Cetakan PERTAMA = HTML apa adanya; cetakan berikutnya memakai snapshot yang
+ * sama + penanda "CETAK ULANG" (bukan menghitung ulang dari state UI).
  * @param {'58'|'80'} width lebar kertas (mm). Default 58.
  */
 const printStruk = (width = '58') => {
-  const t = lastTx;
-  if (!t) {
-    alertBox('Belum ada transaksi untuk dicetak.', 'error');
+  // Pratinjau TIDAK boleh dicetak: hanya transaksi terkonfirmasi server.
+  if (!isPrintable(receiptState) || !hasSnapshot(receiptSnapshot)) {
+    alertBox('Cetak tersedia setelah pembayaran dikonfirmasi.', 'error');
     return;
   }
 
-  setPrintPageSize(width);
-  const struk = $('print-struk');
-  struk.innerHTML = buildStrukHtml({
-    transaction: t,
-    context: state.context ?? {},
-    cashier: state.user?.fullName ?? '',
-  });
+  const w = String(width) === '80' ? '80' : '58';
+  setPrintPageSize(w);
+  $('print-struk').innerHTML = renderPrintHtml(receiptSnapshot);
 
   window.print();
+
+  // Cetakan berikutnya dari snapshot yang sama = cetak ulang.
+  receiptSnapshot = markReprint(receiptSnapshot);
+  alertBox('Struk dikirim ke dialog cetak. Cek tombol cetak ulang bila perlu.', 'ok');
 };
 
 $('print-struk-btn').addEventListener('click', () => printStruk('58'));
@@ -464,7 +597,9 @@ const setPrinterStatus = (text, kind = '') => {
 const updateThermalButton = () => {
   const btn = $('print-struk-thermal');
   if (!btn) return;
-  btn.classList.toggle('hidden', !(printer.isNative() && printerState.connected));
+  // Hanya setelah transaksi TERKONFIRMASI (bukan pratinjau) & printer siap.
+  const printable = isPrintable(receiptState);
+  btn.classList.toggle('hidden', !(printable && printer.isNative() && printerState.connected));
 };
 
 const renderPrinterDevices = () => {
@@ -557,8 +692,8 @@ const disconnectPrinter = async () => {
   $('printer-hint').textContent = 'Printer diputuskan.';
 };
 
-const sendThermal = async (transaction, { silent = false } = {}) => {
-  const t = transaction ?? lastTx;
+const sendThermal = async (transaction, { silent = false, reprint = false } = {}) => {
+  const t = transaction ?? receiptSnapshot?.transaction ?? lastTx;
   if (!t) {
     if (!silent) alertBox('Belum ada transaksi untuk dicetak.', 'error');
     return;
@@ -572,8 +707,41 @@ const sendThermal = async (transaction, { silent = false } = {}) => {
     context: state.context ?? {},
     cashier: state.user?.fullName,
     width: printer.getSettings().width,
+    reprint,
   });
   await printer.printBytes(bytes);
+};
+
+/**
+ * Cetak thermal dari STRUCT yang tampil (setelah konfirmasi). Kegagalan printer
+ * TIDAK membatalkan transaksi — hanya menampilkan catatan yang tidak memblokir.
+ */
+const printReceiptThermal = async ({ silent = false } = {}) => {
+  if (!isPrintable(receiptState)) {
+    if (!silent) alertBox('Cetak thermal tersedia setelah pembayaran dikonfirmasi.', 'error');
+    return;
+  }
+  if (!printerState.connected) {
+    // Belum tersambung ≠ gagal cetak; jangan tandai sudah pernah dicetak.
+    if (!silent) alertBox('Printer belum tersambung.', 'error');
+    return;
+  }
+  const errEl = $('receipt-print-error');
+  try {
+    await sendThermal(receiptSnapshot?.transaction ?? shownTransaction(), {
+      silent,
+      reprint: thermalPrinted,
+    });
+    thermalPrinted = true;
+    hide(errEl);
+  } catch (err) {
+    const msg = describePrinterError(err);
+    // Transaksi tetap final & tetap bisa dicetak ulang (lihat sale-flow.js).
+    receiptState = afterPrintFailure(receiptState, msg);
+    errEl.textContent = `Cetak gagal: ${msg} Transaksi tetap tersimpan — tekan cetak lagi.`;
+    show(errEl);
+    if (!silent) alertBox(`Cetak gagal: ${msg}`, 'error');
+  }
 };
 
 const testPrint = async () => {
@@ -645,72 +813,135 @@ $('printer-autoprint').addEventListener('change', () => {
   printer.saveSettings({ autoPrint: $('printer-autoprint').checked });
 });
 $('print-struk-thermal').addEventListener('click', () => {
-  sendThermal(null).catch((err) => alertBox(describePrinterError(err), 'error'));
+  printReceiptThermal().catch((err) => alertBox(describePrinterError(err), 'error'));
 });
 
-$('checkout-btn').addEventListener('click', async () => {
-  hide($('checkout-error'));
-  if (!state.cart.size) {
-    $('checkout-error').textContent = 'Keranjang masih kosong.';
-    show($('checkout-error'));
-    return;
-  }
-
-  const { total } = computeEstimate();
+/**
+ * Ambil nilai form pembayaran saat ini (dipakai pratinjau & konfirmasi).
+ * Nominal dalam SEN; perhitungan FINAL tetap milik server.
+ */
+const readSaleForm = () => {
   const rawDiscount = parseFloat($('discount-value').value);
+  const discountType = $('discount-type').value;
   const method = $('payment-method').value;
-  const paidRp = Math.round((parseFloat($('payment-amount').value) || 0) * 100);
-  if (method === 'cash' && paidRp < total) {
-    $('checkout-error').textContent = 'Uang tunai kurang dari total.';
-    show($('checkout-error'));
-    return;
-  }
-  if (method !== 'cash' && paidRp !== total) {
-    $('checkout-error').textContent = 'Jumlah bayar non-tunai harus sama dengan total.';
-    show($('checkout-error'));
-    return;
-  }
-
-  const payload = {
-    items: [...state.cart.values()].map((it) => ({ productId: it.product.id, qty: it.qty })),
-    payment: {
-      method,
-      amount: paidRp,
-    },
-    clientRef: crypto.randomUUID(),
-  };
+  const amount = Math.round((parseFloat($('payment-amount').value) || 0) * 100);
+  let discount = null;
   if (rawDiscount > 0) {
-    payload.discount = {
-      type: $('discount-type').value,
-      value:
-        $('discount-type').value === 'percent' ? rawDiscount : Math.round(rawDiscount * 100),
+    discount = {
+      type: discountType,
+      value: discountType === 'percent' ? rawDiscount : Math.round(rawDiscount * 100),
     };
   }
-  const note = $('sale-note').value.trim();
-  if (note) payload.note = note;
+  return { method, amount, discount, note: $('sale-note').value.trim() };
+};
 
-  const btn = $('checkout-btn');
+/**
+ * LANGKAH 1 — tampilkan pratinjau struk berstatus BELUM DIBAYAR.
+ * Belum ada permintaan tulis ke server; keranjang & total belum diubah.
+ */
+const openPreview = () => {
+  hide($('checkout-error'));
+  const { total } = computeEstimate();
+  const form = readSaleForm();
+  const items = [...state.cart.values()].map((it) => ({ productId: it.product.id, qty: it.qty }));
+
+  const check = validateSale({ items, method: form.method, amount: form.amount, total });
+  if (!check.ok) {
+    const el = $('checkout-error');
+    el.textContent = check.error;
+    show(el);
+    return;
+  }
+
+  // clientRef dibuat SEKALI di sini dan dipakai ulang saat konfirmasi sehingga
+  // percobaan ulang tidak pernah membuat transaksi ganda (idempoten server).
+  const draft = createDraft({
+    items,
+    method: form.method,
+    amount: form.amount,
+    discount: form.discount,
+    note: form.note,
+    context: state.context,
+    cashier: state.user?.fullName ?? '',
+  });
+  receiptState = draft;
+  renderReceiptView(buildDraftTransaction(draft), MODE_DRAFT);
+};
+
+/**
+ * Tampilkan struk FINAL (dari konfirmasi server atau dari riwayat) dan bekukan
+ * snapshot HTML-nya sebagai dasar semua cetak/cetak ulang.
+ */
+const showFinalReceipt = (transaction, { idempotent = false } = {}) => {
+  const context = state.context ?? {};
+  const cashier = state.user?.fullName ?? '';
+  lastTx = transaction;
+  receiptState = confirmDraft(isDraftState(receiptState) ? receiptState : null, transaction, {
+    at: transaction.created_at,
+  });
+  receiptState.idempotent = Boolean(idempotent);
+  thermalPrinted = false;
+  receiptSnapshot = createSnapshot({
+    transaction,
+    context,
+    cashier,
+    html: buildStrukHtml({ transaction, context, cashier }),
+    width: printer.getSettings().width,
+    at: transaction.created_at,
+  });
+  renderReceiptView(transaction, MODE_FINAL);
+};
+
+/**
+ * LANGKAH 2 — konfirmasi: catat transaksi ke server, lalu tampilkan struk FINAL.
+ * Status LUNAS hanya muncul dari respons server. Kegagalan cetak printer tidak
+ * membatalkan transaksi (lihat `printReceiptThermal`).
+ */
+const confirmPayment = async () => {
+  if (!isDraftState(receiptState)) return;
+  const draft = receiptState;
+  const btn = $('receipt-pay-btn');
+  const hint = $('checkout-error');
   btn.disabled = true;
+  btn.textContent = 'Memproses…';
+  hide(hint);
   try {
-    const { transaction } = await guard(() => api.createTransaction(payload));
-    renderReceipt(transaction);
-    alertBox(`Transaksi ${transaction.invoice_no} berhasil.`, 'ok');
-    if (printer.getSettings().autoPrint && printerState.connected) {
-      sendThermal(transaction, { silent: true }).catch((err) =>
-        alertBox(`Cetak otomatis gagal: ${describePrinterError(err)}`, 'error')
-      );
-    }
+    const res = await guard(() => api.createTransaction(buildSalePayload(draft)));
+    // `guard()` mengembalikan undefined saat sesi berakhir (401) — keluar saja.
+    if (!res?.transaction) return;
+    const { transaction, idempotent } = res;
+
+    showFinalReceipt(transaction, { idempotent });
+    alertBox(
+      idempotent
+        ? `Transaksi ${transaction.invoice_no} sudah tercatat sebelumnya (tidak dibuat ganda).`
+        : `Transaksi ${transaction.invoice_no} berhasil — pembayaran terkonfirmasi.`,
+      'ok'
+    );
+
     resetSaleForm();
     await loadProducts();
     await loadHistory();
+
+    if (printer.getSettings().autoPrint && printerState.connected) {
+      // Cetak otomatis bersifat opsional; gagal cetak tidak membatalkan apa pun.
+      await printReceiptThermal({ silent: true });
+    }
   } catch (err) {
-    const el = $('checkout-error');
-    el.textContent = describeError(err);
-    show(el);
+    hint.textContent = describeError(err);
+    show(hint);
   } finally {
     btn.disabled = false;
+    btn.textContent = 'Bayar Sekarang';
   }
+};
+
+$('checkout-btn').addEventListener('click', openPreview);
+$('receipt-pay-btn').addEventListener('click', () => {
+  confirmPayment().catch((err) => alertBox(describeError(err), 'error'));
 });
+$('receipt-cancel-btn').addEventListener('click', cancelPreview);
+$('receipt-done-btn').addEventListener('click', finishReceipt);
 
 // ----------------------------------------------------------- Riwayat ---------
 const loadHistory = async () => {
@@ -746,7 +977,7 @@ $('history-list').addEventListener('click', async (event) => {
   if (!btn) return;
   try {
     const { transaction } = await guard(() => api.transaction(btn.dataset.id));
-    if (transaction) renderReceipt(transaction);
+    if (transaction) showFinalReceipt(transaction);
   } catch (err) {
     alertBox(describeError(err), 'error');
   }
@@ -996,7 +1227,7 @@ const switchTab = (tab) => {
     btn.classList.toggle('active', btn.dataset.tab === tab);
   }
   // Struk terakhir hanya relevan di tab Kasir.
-  if (tab === 'kasir') $('receipt').classList.toggle('hidden', !lastTx);
+  if (tab === 'kasir') $('receipt').classList.toggle('hidden', !receiptState);
   else $('receipt').classList.add('hidden');
 
   if (tab === 'produk') loadMgmtProducts();

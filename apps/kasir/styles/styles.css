@@ -41,6 +41,8 @@
   --danger: #d64545;
   --danger-tint: rgba(214, 69, 69, 0.10);
   --danger-border: rgba(214, 69, 69, 0.35);
+  --warning: #b8860b;
+  --warning-tint: rgba(184, 134, 11, 0.16);
   --ok-fg: #0e8f63;
   --ok-bg: rgba(14, 143, 99, 0.12);
   --ok-border: rgba(14, 143, 99, 0.35);
@@ -753,6 +755,52 @@ select:focus {
   margin-bottom: 14px;
 }
 
+/* ---------- Smart Receipt Preview (FASE 3) ---------- */
+/* Pratinjau (BELUM DIBAYAR) dibedakan tegas dari struk final: garis putus & nada
+   kuning lembut, sehingga kasir tidak salah mengira transaksi sudah lunas. */
+.receipt.draft {
+  border-left: 4px dashed var(--warning);
+  background: var(--warning-tint);
+}
+
+.receipt.final {
+  border-left: 4px solid var(--ok-fg);
+}
+
+.receipt-note {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--card-2);
+  font-weight: 600;
+}
+
+.receipt.draft .receipt-note {
+  background: var(--warning-tint);
+  color: #6b4e06;
+}
+
+.receipt-print-error {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  background: var(--danger-tint);
+}
+
+.receipt-body .meta {
+  margin-bottom: 10px;
+}
+
+#receipt-pay-row {
+  margin-top: 12px;
+}
+
+#receipt-pay-row .btn.primary {
+  flex: 1;
+}
+
 /* ---------- Printer thermal (Bluetooth) ---------- */
 .printer-panel {
   display: grid;
@@ -982,6 +1030,32 @@ select:focus {
   #print-struk .struk-divider {
     border-top: 1px dashed #000;
     margin: 4px 0;
+  }
+
+  /* FASE 3: pratinjau (BELUM DIBAYAR) tidak pernah tercetak sebagai LUNAS, dan
+     cetak ulang diberi penanda jelas di bagian atas struk. */
+  #print-struk .struk-draft {
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border: 1px solid #000;
+    padding: 2px 0;
+    margin: 4px 0;
+  }
+
+  #print-struk .struk-draft-note {
+    text-align: center;
+    font-size: 9px;
+    margin-bottom: 4px;
+  }
+
+  #print-struk .struk-reprint {
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 3px;
+    margin-bottom: 4px;
   }
 
   #print-struk .struk-info {
