@@ -228,6 +228,8 @@ memenuhi syarat "PNG transparan" untuk logo di UI/splash. Perlu aset final
 | 7b | QA menyeluruh (auth/produk/transaksi/UI) | FASE 1–3 | **selesai** (docs/32) |
 | 8 | Laporan akhir + screenshot before/after | FASE 1–3 | **selesai** (docs/33) |
 | 9 | E2E lokal & QA satu perintah (`scripts/e2e-local.ps1`, `scripts/qa-local.ps1`) | — | **selesai** (E2E 31/31 + QA 6/6 tahap lulus; docs/32 §3a) |
+| 10 | Desain Kasir Mobile V2 (bilah bawah 5 butir, Beranda + grafik omzet, pane Lainnya, bilah atas terang di HP) | referensi `05-KASIR-MOBILE` | **selesai** (docs/34 — menunggu tinjauan visual pemilik) |
+| 11 | Tata letak rinci halaman placeholder (Riwayat Transaksi, Pengeluaran, Pengaturan Printer) & paket mobile Owner/Admin | spesifikasi pemilik | **tertunda** |
 
 Urutan teknis yang saya usulkan: **3 → 2 → 1 → 6 → 7 → 8**, karena Smart
 Receipt hanya menyentuh Kasir dan tidak bergantung object storage, sedangkan

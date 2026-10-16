@@ -60,7 +60,7 @@ const state = {
   canViewProfit: false, // izin HPP dari server (bukan dari UI)
   categories: [],
   mgmt: { items: [], total: 0 }, // katalog di tab "Produk"
-  activeTab: 'kasir',
+  activeTab: 'beranda',
   formPhoto: undefined, // perubahan foto pada modal produk (undefined = tak diubah)
   formPhotoCurrent: '', // foto tersimpan saat modal dibuka (untuk blok gambar otomatis)
 };
@@ -116,6 +116,10 @@ const renderProfile = () => {
   if (!user) return;
 
   $('current-user').textContent = user.fullName;
+  // Konteks pada bilah atas versi HP: "Kasir • <nama outlet>".
+  $('brand-context').textContent = `${user.role === 'cashier' ? 'Kasir' : user.role} • ${
+    context?.outlet?.name ?? 'Tanpa outlet'
+  }`;
   $('profile-name').textContent = user.fullName;
   $('profile-email').textContent = user.email;
   $('profile-status').textContent = user.status === 'active' ? 'Aktif' : 'Nonaktif';
@@ -993,7 +997,7 @@ const enterApp = async () => {
   await loadCashierInfo();
   await loadProducts();
   await loadHistory();
-  switchTab(state.activeTab || 'kasir');
+  switchTab(state.activeTab || 'beranda');
 };
 
 /** Muat kartu kasir ber-PIN untuk outlet yang terikat perangkat ini. */
@@ -1100,6 +1104,7 @@ $('refresh-btn').addEventListener('click', async () => {
   await loadCashierInfo();
   await loadProducts();
   await loadHistory();
+  if (state.activeTab === 'beranda') await loadHome();
   if (state.activeTab === 'produk') await loadMgmtProducts();
   if (state.activeTab === 'pendapatan') await loadDaily();
   if (state.activeTab === 'pengeluaran') await loadExpenses();
@@ -1173,7 +1178,7 @@ boot();
 // menyesuaikan tampilan berdasarkan izin yang dikirim server.
 // ============================================================================
 
-const TABS = ['kasir', 'produk', 'pendapatan', 'pengeluaran', 'stok'];
+const TABS = ['beranda', 'kasir', 'produk', 'pendapatan', 'pengeluaran', 'stok', 'lainnya'];
 
 const CATEGORY_LABELS = {
   operational: 'Operasional',
@@ -1217,8 +1222,23 @@ const loadCashierInfo = async () => {
 };
 
 // ---------------------------------------------------------------- Tab ------
+/** Judul & subjudul halaman tiap pane (judul mengikuti referensi desain V2). */
+const PAGE_INFO = {
+  beranda: ['Beranda', 'Ringkasan penjualan outlet Anda'],
+  kasir: ['Transaksi', 'Pilih produk, lalu konfirmasi pembayaran ke server'],
+  produk: ['Katalog Produk', 'Cari produk, atur stok, dan tambah produk outlet'],
+  pendapatan: ['Laporan', 'Ringkasan pendapatan, metode bayar, dan laba outlet'],
+  pengeluaran: ['Pengeluaran', 'Catat & telusuri pengeluaran outlet'],
+  stok: ['Riwayat Stok', 'Catatan pergerakan stok (append-only)'],
+  lainnya: ['Lainnya', 'Pengeluaran, riwayat stok, printer, dan akun kasir'],
+};
+
+/** Butir bilah navigasi bawah (HP). Pane lain diwakili butir "Lainnya". */
+const BOTTOM_NAV = ['beranda', 'produk', 'kasir', 'pendapatan', 'lainnya'];
+const bottomNavKey = (tab) => (BOTTOM_NAV.includes(tab) ? tab : 'lainnya');
+
 const switchTab = (tab) => {
-  if (!TABS.includes(tab)) tab = 'kasir';
+  if (!TABS.includes(tab)) tab = 'beranda';
   state.activeTab = tab;
   for (const el of document.querySelectorAll('[data-pane]')) {
     el.classList.toggle('hidden', el.dataset.pane !== tab);
@@ -1226,18 +1246,28 @@ const switchTab = (tab) => {
   for (const btn of document.querySelectorAll('#main-tabs .tab')) {
     btn.classList.toggle('active', btn.dataset.tab === tab);
   }
+  for (const btn of document.querySelectorAll('#bottom-nav .bn-item')) {
+    btn.classList.toggle('active', btn.dataset.tab === bottomNavKey(tab));
+  }
+  const [title, subtitle] = PAGE_INFO[tab] ?? PAGE_INFO.beranda;
+  $('page-title').textContent = title;
+  $('page-subtitle').textContent = subtitle;
   // Struk terakhir hanya relevan di tab Kasir.
   if (tab === 'kasir') $('receipt').classList.toggle('hidden', !receiptState);
   else $('receipt').classList.add('hidden');
 
-  if (tab === 'produk') loadMgmtProducts();
+  if (tab === 'beranda') loadHome();
+  else if (tab === 'produk') loadMgmtProducts();
   else if (tab === 'pendapatan') loadDaily();
   else if (tab === 'pengeluaran') loadExpenses();
   else if (tab === 'stok') loadMovements();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-$('main-tabs').addEventListener('click', (event) => {
-  const btn = event.target.closest('.tab');
+// Satu penanganan untuk semua navigasi: tab desktop, bilah bawah HP, dan
+// pintasan di Beranda / menu Lainnya (semuanya memakai `data-tab`).
+document.addEventListener('click', (event) => {
+  const btn = event.target.closest('button[data-tab]');
   if (btn) switchTab(btn.dataset.tab);
 });
 
@@ -1660,6 +1690,112 @@ $('fin-range').addEventListener('change', () => {
 });
 $('fin-date').addEventListener('change', loadDaily);
 $('fin-date').classList.add('hidden');
+
+// ------------------------------------------------- Beranda (ringkasan) ------
+/**
+ * Beranda kasir: kartu ringkasan hari ini + grafik omzet 7 hari terakhir.
+ *
+ * Angka diambil dari endpoint laporan yang SAMA dengan tab Laporan
+ * (`/reports/daily` dan `/reports/daily-series`), jadi tidak ada perhitungan
+ * ulang di klien dan outlet tetap ditentukan server (bukan dari browser).
+ */
+/** Daftar tanggal YYYY-MM-DD dari `from` s.d. `to` (maksimal `max` hari). */
+const eachDate = (from, to, max = 31) => {
+  const out = [];
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  if (!from || !to || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return out;
+  for (let d = start; d <= end && out.length < max; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+};
+
+const DAY_SHORT = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+/** Nominal ringkas untuk label di atas batang grafik (input: sen). */
+const shortIDR = (sen) => {
+  const value = Number(sen ?? 0) / 100;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace('.', ',')} jt`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)} rb`;
+  return String(Math.round(value));
+};
+
+const renderHomeSummary = (data) => {
+  const income = data.income ?? {};
+  const tx = data.transactions ?? {};
+  const cards = [
+    { label: 'Omzet Hari Ini', value: fmtIDR(income.total ?? 0), sub: data.period?.from ?? '' },
+    {
+      label: 'Transaksi',
+      value: String(tx.completed ?? 0),
+      sub: `${tx.items_sold ?? 0} item terjual`,
+    },
+    {
+      label: 'Tunai / QRIS',
+      value: `${fmtIDR(income.cash ?? 0)} / ${fmtIDR(income.qris ?? 0)}`,
+      sub: 'Pendapatan per metode',
+    },
+  ];
+  // Laba hanya ditampilkan bila server mengizinkan (izin `can_view_profit`).
+  if (data.can_view_profit) {
+    cards.push({
+      label: 'Laba Bersih',
+      value: fmtIDR(data.net_profit ?? 0),
+      sub: `Laba kotor ${fmtIDR(data.gross_profit ?? 0)}`,
+    });
+  }
+  $('home-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(c.value)}</strong>
+        ${c.sub ? `<span class="muted small">${escapeHtml(c.sub)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+};
+
+const renderHomeChart = (series) => {
+  const byDate = new Map((series?.points ?? []).map((p) => [p.date, p]));
+  const days = eachDate(series?.period?.from ?? '', series?.period?.to ?? '').map((date) => ({
+    date,
+    total: Number(byDate.get(date)?.total ?? 0),
+    transactions: Number(byDate.get(date)?.transactions ?? 0),
+  }));
+  const max = Math.max(1, ...days.map((d) => d.total));
+  $('home-chart').innerHTML = days
+    .map((d) => {
+      const wd = DAY_SHORT[new Date(`${d.date}T00:00:00Z`).getUTCDay()];
+      const pct = d.total > 0 ? Math.max(6, Math.round((d.total / max) * 100)) : 1;
+      const title = `${d.date} • ${fmtIDR(d.total)} • ${d.transactions} transaksi`;
+      return `
+      <div class="chart-col" title="${escapeHtml(title)}">
+        <span class="chart-value">${d.total > 0 ? escapeHtml(shortIDR(d.total)) : ''}</span>
+        <span class="chart-bar${d.total > 0 ? '' : ' empty'}" style="height:${pct}%"></span>
+        <span class="chart-label">${wd}</span>
+      </div>`;
+    })
+    .join('');
+  const { from, to } = series?.period ?? {};
+  $('home-chart-caption').textContent =
+    from && to ? `Omzet harian ${from} s.d. ${to}` : '7 hari terakhir';
+  $('home-chart-empty').classList.toggle('hidden', days.some((d) => d.total > 0));
+};
+
+const loadHome = async () => {
+  try {
+    const [daily, series] = await Promise.all([
+      guard(() => api.daily({ period: 'today' })),
+      guard(() => api.dailySeries({ period: 'week' })),
+    ]);
+    if (daily) renderHomeSummary(daily);
+    if (series) renderHomeChart(series);
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  }
+};
 
 // ------------------------------------------------------------ Pengeluaran --
 const expenseQuery = () => ({

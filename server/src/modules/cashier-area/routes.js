@@ -128,6 +128,14 @@ router.get(
   controller.dailyReport
 );
 
+// Grafik penjualan Beranda (seri omzet per hari, outlet dari akun kasir).
+router.get(
+  '/reports/daily-series',
+  ...cashierOnly,
+  ...validate({ query: financeQuerySchema }),
+  controller.dailySeries
+);
+
 // ------------------------------------------- Histori pergerakan stok (Fase 2)
 router.use('/inventory-movements', ...cashierOnly, createInventoryRouter({ scoped: 'cashier' }));
 

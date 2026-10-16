@@ -301,6 +301,9 @@ export const api = {
   /** Laporan harian outlet (Fase 4). `params`: { date | period | from, to }. */
   daily: (params = {}) => request(`/api/cashier/reports/daily${qs(params)}`),
 
+  /** Seri omzet per hari untuk grafik Beranda. `params`: { period }. */
+  dailySeries: (params = {}) => request(`/api/cashier/reports/daily-series${qs(params)}`),
+
   /** Histori pergerakan stok outlet (append-only, Fase 2). */
   inventoryMovements: (params = {}) =>
     request(`/api/cashier/inventory-movements${qs(params)}`),

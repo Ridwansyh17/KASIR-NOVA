@@ -461,6 +461,33 @@ test('Fase 4/6: laporan keuangan harian akurat (Tunai/QRIS/HPP/laba)', async () 
   assert.strictEqual(b.transactions.completed, 2);
 });
 
+// ------------------------------------------------- Seri omzet Beranda (V2) --
+test('Fase 12: seri omzet Beranda (grafik 7 hari) sesuai laporan & hanya omzet outlet sendiri', async () => {
+  const s = await cashierGet('/reports/daily-series', cashierFinToken);
+  assert.strictEqual(s.status, 200);
+  assert.strictEqual(s.body.outlet.id, outletF);
+  // Rentang default: 7 hari terakhir termasuk hari ini (zona waktu bisnis).
+  const span =
+    (new Date(`${s.body.period.to}T00:00:00Z`) - new Date(`${s.body.period.from}T00:00:00Z`)) /
+    86400000;
+  assert.strictEqual(Math.round(span), 6);
+
+  const point = s.body.points.find((p) => p.date === s.body.period.to);
+  assert.ok(point, 'titik untuk hari ini harus ada');
+  assert.strictEqual(point.transactions, 2); // 2 penjualan uji Fase 4/6
+  assert.strictEqual(point.total, 40000);
+  // Data yang dikirim ke Beranda TIDAK memuat HPP/laba (aman tanpa izin laba).
+  assert.deepStrictEqual(Object.keys(point).sort(), ['date', 'total', 'transactions']);
+});
+
+test('Fase 12: seri omzet Beranda menolak tanpa sesi & period tidak dikenal', async () => {
+  const noAuth = await request.get('/api/cashier/reports/daily-series');
+  assert.strictEqual(noAuth.status, 401);
+
+  const bad = await cashierGet('/reports/daily-series?period=pekan', cashierFinToken);
+  assert.strictEqual(bad.status, 422);
+});
+
 test('Fase 4: kasir melihat pendapatan outletnya; HPP/laba disembunyikan tanpa izin', async () => {
   const d = await today();
   const rep = await cashierGet(`/reports/daily?date=${d}`, cashierFinToken);

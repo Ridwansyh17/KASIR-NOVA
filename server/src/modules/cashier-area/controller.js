@@ -181,6 +181,46 @@ export const dailyReport = async (req, res, next) => {
   }
 };
 
+// --------------------------------------------- Grafik penjualan (Beranda) ---
+/**
+ * Seri omzet per hari untuk grafik "7 hari terakhir" di Beranda kasir.
+ *
+ * Memakai agregasi laporan yang sudah teruji (`groupedReport`) dengan sumber
+ * data yang SAMA seperti laporan harian, sehingga angka Beranda tidak pernah
+ * berbeda dari tab Laporan. Outlet diturunkan dari akun kasir (bukan URL).
+ *
+ * Hanya omzet & jumlah transaksi (tanpa HPP/laba), sehingga aman untuk kasir
+ * yang tidak berizin melihat laba.
+ */
+export const dailySeries = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const requested = req.query.period ?? 'week';
+    const period = requested === 'today' ? 'week' : requested;
+    const range = await reportService.resolveFinanceRange(scope.timezone, { period });
+    const rows = await reportService.groupedReport({
+      businessId: scope.business_id,
+      filters: {
+        from: range.from,
+        to: range.to,
+        groupBy: 'day',
+        outletId: scope.outlet_id,
+      },
+    });
+    res.json({
+      period: { from: range.from, to: range.to, preset: range.period },
+      outlet: { id: scope.outlet_id, name: scope.outlet_name },
+      points: rows.map((r) => ({
+        date: r.period_start,
+        transactions: r.transactions,
+        total: r.total,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ---------------------------------------------------------------- Info -----
 /** Info outlet/bisnis + izin kasir (dipakai UI untuk menyesuaikan tampilan). */
 export const me = async (req, res, next) => {
@@ -207,5 +247,6 @@ export default {
   listTransactions,
   getTransaction,
   dailyReport,
+  dailySeries,
   me,
 };

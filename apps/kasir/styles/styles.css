@@ -1434,3 +1434,209 @@ body {
   background: #fff;
   object-fit: contain;
 }
+
+/* ======================================================================
+   DESAIN KASIR MOBILE V2 — referensi `05-KASIR-MOBILE` (ekstraksi programatik)
+   ----------------------------------------------------------------------
+   Hasil ekstraksi dari mockup (lihat docs/30-desain-kasir-mobile-v2.md):
+     bilah atas (HP) ......... PUTIH, logo versi latar terang + "Kasir • Outlet"
+     judul halaman ........... judul + subjudul di bawah bilah atas
+     bilah navigasi bawah .... PUTIH, 5 butir, butir aktif biru (#0072F6)
+     latar konten ............ #F3F7FD / kartu putih / aksen biru
+   Desktop TIDAK berubah (bilah atas navy + tab horizontal tetap dipakai).
+   Aturan ini diletakkan paling akhir agar menang atas aturan .topbar lama.
+   ====================================================================== */
+
+/* Logo ganda: versi navy (desktop) vs versi latar terang (HP). */
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.brand-text small {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.logo-on-light {
+  display: none;
+}
+
+/* Judul halaman aktif (menggantikan judul tunggal "Kasir"). */
+.page-head {
+  align-items: flex-start;
+}
+
+.page-head p {
+  margin: 4px 0 0;
+}
+
+/* Daftar menu (Beranda & Lainnya). */
+.menu-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.menu-item {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 13px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.menu-item:hover {
+  border-color: var(--blue-400);
+  box-shadow: var(--shadow-sm);
+}
+
+.menu-label {
+  font-weight: 700;
+}
+
+/* ---------- Grafik penjualan (tanpa pustaka luar) ---------- */
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 170px;
+  margin: 6px 0 2px;
+  padding: 10px 8px 6px;
+  border-radius: 12px;
+  background: var(--card-2);
+}
+
+.chart-col {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.chart-value {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.chart-bar {
+  display: block;
+  width: 100%;
+  max-width: 44px;
+  min-height: 3px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, var(--blue-400), var(--blue-600));
+}
+
+.chart-bar.empty {
+  background: var(--card-3);
+}
+
+.chart-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- Daftar menu tambahan (Beranda / Lainnya) ---------- */
+.menu-item.shortcut .menu-label {
+  font-size: 15px;
+}
+
+/* ---------- Bilah navigasi bawah (khusus HP) ---------- */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 22px rgba(11, 27, 51, 0.08);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.bn-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 4px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bn-item.active {
+  color: var(--blue-500);
+}
+
+.bn-icon {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------- Tata letak HP: bilah atas terang + navigasi bawah ---------- */
+@media (max-width: 900px) {
+  .topbar {
+    background: #ffffff;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  .topbar .brand,
+  .topbar .brand-text strong {
+    color: var(--text);
+  }
+
+  .topbar small,
+  .topbar .muted {
+    color: var(--muted);
+  }
+
+  .topbar .logo-on-dark {
+    display: none;
+  }
+
+  .topbar .logo-on-light {
+    display: block;
+  }
+
+  #main-tabs {
+    display: none;
+  }
+
+  .bottom-nav {
+    display: flex;
+  }
+
+  /* Ruang agar konten terakhir tidak tertutup bilah navigasi. */
+  .container,
+  .container.wide {
+    padding-bottom: 104px;
+  }
+}

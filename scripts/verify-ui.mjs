@@ -321,6 +321,60 @@ for (const [src, where, needles] of featureChecks) {
 }
 console.log(`  fitur dicek: ${featureChecks.reduce((n, c) => n + c[2].length, 0)} penanda pada ${featureChecks.length} berkas`);
 
+// -------------------------------------- Desain Kasir Mobile V2 (FASE 12) -----
+// Referensi: KASIR-NOVA-V3-REFERENSI-LENGKAP/05-KASIR-MOBILE; spesifikasi hasil
+// ekstraksi ada di docs/30-desain-kasir-mobile-v2.md. Mengunci tata letak HP:
+// bilah navigasi bawah 5 butir, Beranda (ringkasan + grafik), menu Lainnya,
+// judul halaman, dan bilah atas terang untuk layar kecil.
+console.log('\n[desain kasir mobile V2 (FASE 12)]');
+
+const kasirCss12 = readApp('kasir', 'styles', 'styles.css');
+const mobileShellChecks = [
+  [
+    kasirHtml6,
+    'apps/kasir/index.html',
+    [
+      'id="bottom-nav"',
+      'data-tab="beranda"',
+      'data-tab="produk"',
+      'data-tab="kasir"',
+      'data-tab="pendapatan"',
+      'data-tab="lainnya"',
+      'data-pane="beranda"',
+      'data-pane="lainnya"',
+      'id="page-title"',
+      'id="page-subtitle"',
+      'id="brand-context"',
+      'id="home-summary"',
+      'id="home-chart"',
+    ],
+  ],
+  [
+    kasirJs6,
+    'apps/kasir/src/app.js',
+    ["const TABS = ['beranda'", 'PAGE_INFO', 'bottomNavKey', 'loadHome', 'renderHomeChart', 'api.dailySeries('],
+  ],
+  [kasirApi6, 'apps/kasir/src/api.js', ['dailySeries:']],
+  [cashierRoutes6, 'server/src/modules/cashier-area/routes.js', ["'/reports/daily-series'"]],
+  [
+    kasirCss12,
+    'apps/kasir/styles/styles.css',
+    ['.bottom-nav {', '.bn-item {', '.bn-icon {', '.chart-bar {', '.menu-item {', 'max-width: 900px'],
+  ],
+];
+let mobileShellMissing = 0;
+for (const [src, label, needles] of mobileShellChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (desain Kasir Mobile V2 hilang?)`);
+      mobileShellMissing++;
+    }
+  }
+}
+if (mobileShellMissing === 0) {
+  console.log('  bilah navigasi bawah, Beranda, menu Lainnya, dan CSS HP lengkap.');
+}
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;
