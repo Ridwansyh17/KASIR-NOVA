@@ -126,6 +126,41 @@ firebase deploy --only hosting
 
 ---
 
+## Status pembaruan (16 Okt 2026) — penting
+
+**Gejala yang dilaporkan pemilik:** tombol **Simpan Produk** dan **Tambah
+Pengeluaran** di aplikasi Kasir tidak menyimpan apa pun.
+
+**Akar masalah (bukan bug kode):** backend produksi Vercel **masih versi lama**.
+Hasil pemeriksaan rute produksi sebelum deploy:
+
+| Permintaan | Sebelum | Sesudah deploy |
+|---|---|---|
+| `GET /api/cashier/products` | 401 | 401 |
+| `POST /api/cashier/products` | **404** | 401 → **201** (terverifikasi) |
+| `GET/POST /api/cashier/expenses` | **404** | 401 → **201** (terverifikasi) |
+| `GET /api/cashier/me` | 404 | 401 |
+| `GET /api/cashier/reports/daily` | 404 | 401 |
+
+Artinya: kode `server/` sudah benar (rute ada), tetapi **belum pernah
+di-deploy** ke Vercel setelah Fase 1/2 & 5 ditambahkan. Karena itu tombol
+menembak alamat yang belum ada → 404 → data tidak tersimpan.
+
+**Tindakan:** `npx vercel deploy --prod --yes` (16 Okt 2026, CLI login akun
+pemilik). Produksi: https://kasir-nova.vercel.app
+
+**Verifikasi setelah deploy:**
+- E2E online produksi `scripts/e2e-online.mjs` → **28/28 PASS** (termasuk 2
+  langkah regresi baru: Kasir menyimpan produk & menambah pengeluaran, lalu
+  dibersihkan).
+- `/api/health` → `database: up`.
+- CORS: `Origin: https://localhost` (APK) & `https://kasir-nova.web.app` → 200;
+  preflight `OPTIONS` POST → 204.
+
+> **Pelajaran operasional:** setiap perubahan `server/` **wajib** diikuti
+> `vercel deploy --prod` sebelum dinyatakan selesai. Fitur yang hanya lulus tes
+> lokal belum tentu aktif di produksi.
+
 ## Status (12 Okt 2026)
 
 - ✅ Adaptasi serverless disiapkan & **diuji lokal**: health OK, `/kasir` `/admin`

@@ -343,6 +343,65 @@ if (cashierToken) {
   }
 }
 
+// ---------------------- 13a/13b. Kasir MENULIS: produk & pengeluaran (regresi)
+// Menutup bug "tombol Simpan tidak menyimpan": dulu rutenya 404 di produksi.
+// Data uji langsung dibersihkan (produk dihapus, pengeluaran di-void).
+if (cashierToken && ownerToken && businessId) {
+  try {
+    const name = `VERIF E2E PRODUK ${Date.now()}`;
+    const cr = await api('/api/cashier/products', {
+      method: 'POST',
+      token: cashierToken,
+      body: { name, price: 100_000, trackStock: false },
+    });
+    const pid = cr.json?.product?.id;
+    const list = await api(`/api/cashier/products?search=${encodeURIComponent('VERIF E2E PRODUK')}`, { token: cashierToken });
+    const found = asList(list.json).some((p) => p.name === name);
+    const del = pid
+      ? await api(`/api/owner/businesses/${businessId}/products/${pid}`, { method: 'DELETE', token: ownerToken })
+      : null;
+    step(
+      '13a. Kasir MENYIMPAN produk (POST /api/cashier/products) lalu dibersihkan',
+      cr.status === 201 && found && del?.status === 200,
+      `buat=${cr.status} terbaca=${found} hapus=${del?.status}`
+    );
+  } catch (e) {
+    step('13a. Kasir MENYIMPAN produk (POST /api/cashier/products) lalu dibersihkan', false, String(e));
+  }
+
+  try {
+    const note = `VERIF E2E PENGELUARAN ${Date.now()}`;
+    const cr = await api('/api/cashier/expenses', {
+      method: 'POST',
+      token: cashierToken,
+      body: {
+        category: 'other',
+        amount: 100_000,
+        method: 'cash',
+        note,
+        date: new Date().toISOString().slice(0, 10),
+      },
+    });
+    const eid = cr.json?.expense?.id;
+    const list = await api('/api/cashier/expenses?status=recorded&limit=100', { token: cashierToken });
+    const found = asList(list.json).some((x) => String(x.note ?? '').includes(note));
+    const v = eid
+      ? await api(`/api/owner/businesses/${businessId}/expenses/${eid}/void`, {
+          method: 'POST',
+          token: ownerToken,
+          body: { reason: 'verifikasi e2e (dibersihkan)' },
+        })
+      : null;
+    step(
+      '13b. Kasir MENAMBAH pengeluaran (POST /api/cashier/expenses) lalu dibatalkan',
+      cr.status === 201 && found && v?.status === 200,
+      `buat=${cr.status} terbaca=${found} void=${v?.status}`
+    );
+  } catch (e) {
+    step('13b. Kasir MENAMBAH pengeluaran (POST /api/cashier/expenses) lalu dibatalkan', false, String(e));
+  }
+}
+
 // ------------------------------------------------------------- 14. Penjualan
 let saleAId;
 if (cashierToken && businessId && outletId) {
