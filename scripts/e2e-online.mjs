@@ -176,9 +176,18 @@ if (ownerToken && businessId) {
 if (ownerToken && businessId) {
   try {
     const r = await api(`/api/owner/businesses/${businessId}/subscription`, { token: ownerToken });
-    const v = r.json?.subscription ?? r.json?.plan ?? r.json;
-    const ok = r.status === 200 && v && /active/i.test(String(v.status ?? ''));
-    step('6. Langganan bisnis aktif (plan gratis)', ok, `status=${r.status} plan=${v?.plan_name ?? v?.name ?? '?'} sub=${v?.status ?? '?'}`);
+    const sub = r.json?.subscription ?? r.json;
+    const plan = r.json?.plan ?? null;
+    const ok =
+      r.status === 200 &&
+      sub &&
+      /active/i.test(String(sub.status ?? '')) &&
+      Boolean(plan?.name);
+    step(
+      '6. Langganan bisnis aktif (plan gratis)',
+      ok,
+      `status=${r.status} plan=${plan?.name ?? '?'} sub=${sub?.status ?? '?'}`
+    );
   } catch (e) {
     step('6. Langganan bisnis aktif (plan gratis)', false, String(e));
   }
