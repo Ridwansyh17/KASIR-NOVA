@@ -832,10 +832,10 @@ body {
   color: var(--sidebar-muted);
 }
 
+/* Logo topbar = PNG aset brand (membawa latar navy-nya sendiri). */
 .topbar .brand-logo {
-  box-shadow: 0 0 0 1px var(--sidebar-border);
   border-radius: 8px;
-  background: var(--navy-900);
+  box-shadow: 0 2px 8px rgba(2, 16, 43, 0.5);
 }
 
 .topbar .btn {

@@ -74,13 +74,15 @@ agar mudah ditinjau dan di-revert.
 
 ## 4. Batasan yang harus diketahui pemilik
 
-1. **Aset brand V2 masih RASTER.** Folder `KASIR-NOVA-V2-BRAND-ASSETS/` berisi
-   potongan gambar (JPEG) tanpa transparansi — **bukan** vektor/PNG transparan.
-   Karena itu logo yang dipakai di aplikasi **masih aset lama**
-   (`assets/logo-kasir-nova.jpeg`, latar navy `#02102B`), ditempatkan dalam
-   "chip" navy bergaris agar terlihat disengaja. Bila pemilik menyediakan
-   **SVG/PNG transparan** logo V2, penggantian hanya perlu menimpa satu berkas
-   tersebut di tiap panel — tanpa perubahan kode.
+1. **Aset brand V2 sudah transparan (PNG ber-alpha).** Pemilik menyediakan
+   `KASIR-NOVA-V2-TRANSPARENT.zip`; transparansinya diverifikasi programatik
+   (piksel sudut `A=0`). Logo yang dipakai sekarang: `assets/logo-kasir-nova.png`
+   (tanda berwarna untuk kartu putih/login) dan `assets/logo-kasir-nova-inverse.png`
+   (ikon berlatar navy untuk topbar) — lihat `docs/29-aset-brand-v2.md`.
+   Ikon PWA (`favicon-32`, `apple-touch-icon`, `icon-192/512`, `icon-maskable-512`)
+   diregenerasi dari aset yang sama lewat `scripts/generate-icons.ps1`.
+   Belum ada **SVG vektor**; bila pemilik menyediakannya, penimpaan tetap
+   hanya satu berkas per panel tanpa perubahan kode.
 2. **Belum ada sidebar vertikal.** Struktur aplikasi memakai *topbar* horizontal.
    Identitas navy diterapkan pada topbar (aman, tanpa mengubah struktur HTML
    setiap halaman). Bila pemilik menginginkan sidebar vertikal penuh (seperti

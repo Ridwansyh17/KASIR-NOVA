@@ -1,35 +1,61 @@
 <#
-  Generator aset ikon KASIR NOVA dari logo sumber.
+  Generator aset brand & ikon KASIR NOVA (V2) dari aset logo transparan.
 
-  Sumber tunggal: "Logo KASIR NOVA.jpeg" di root repo.
+  Sumber (arsip KASIR-NOVA-V2-TRANSPARENT.zip di root repo, atau folder
+  hasil ekstraksi bila -SourceDir diberikan):
+    - 03-app-icon-light-reference.png .. tanda versi TERANG warna-warni, latar
+                                          transparan -> untuk permukaan TERANG
+                                          (kartu login putih).
+    - 04-app-icon-dark-reference.png ... ikon kotak navy + tanda terang)
+                                          -> untuk latar gelap (topbar navy) & ikon aplikasi.
+
+  Keduanya PNG berkanal alpha (sudah diverifikasi: piksel sudut A=0).
+  Berkas 01 (lockup lengkap: tanda + kata + tagline) dan 02 (lockup gelap)
+  TIDAK dipakai karena tabel logo hanya memuat ikon 34-128 px sehingga
+  kata/tagline tidak terbaca dan akan menduplikasi judul "KASIR NOVA".
+
   Output:
+    - apps/{admin,owner,kasir}/assets/logo-kasir-nova.png          (varian gelap, latar terang -> login)
+    - apps/{admin,owner,kasir}/assets/logo-kasir-nova-inverse.png  (varian terang, latar navy -> topbar)
     - apps/{admin,owner,kasir}/assets/favicon-32.png
     - apps/{admin,owner,kasir}/assets/apple-touch-icon.png (180)
     - apps/{admin,owner,kasir}/assets/icon-192.png
     - apps/{admin,owner,kasir}/assets/icon-512.png
     - apps/kasir/assets/icon-maskable-512.png
-    - apps/kasir-mobile/android/.../mipmap-*/ic_launcher(.png|_round|_foreground)
 
   Pemakaian (dari root repo):
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icons.ps1
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-icons.ps1 -SourceDir C:\path\hasil-ekstrak
 #>
+param(
+  [string]$SourceDir = ''
+)
+
 Add-Type -AssemblyName System.Drawing
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$src = Join-Path $root 'Logo KASIR NOVA.jpeg'
-if (-not (Test-Path $src)) { throw "Logo sumber tidak ditemukan: $src" }
 
-$SRC = [System.Drawing.Image]::FromFile($src)
-$SRC_W = $SRC.Width
-$SRC_H = $SRC.Height
-$SIDE = [Math]::Min($SRC_W, $SRC_H)
-$CROP_X = [int](($SRC_W - $SIDE) / 2)
-$CROP_Y = [int](($SRC_H - $SIDE) / 2)
+# --------------------------------------------------------- Sumber aset ------
+if ([string]::IsNullOrWhiteSpace($SourceDir)) {
+  $zipPath = Join-Path $root 'KASIR-NOVA-V2-TRANSPARENT.zip'
+  if (-not (Test-Path $zipPath)) { throw "Arsip sumber tidak ditemukan: $zipPath (atau isi -SourceDir)" }
+  $SourceDir = Join-Path ([System.IO.Path]::GetTempPath()) 'kn-brand-src'
+  if (Test-Path $SourceDir) { Remove-Item $SourceDir -Recurse -Force }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $SourceDir)
+  Write-Output "Sumber: ekstraksi $zipPath"
+} else {
+  if (-not (Test-Path $SourceDir)) { throw "Folder sumber tidak ditemukan: $SourceDir" }
+  Write-Output "Sumber: $SourceDir"
+}
 
-# Warna latar diambil dari sudut kanan-atas logo (navy seragam).
-$bg = $SRC.GetPixel($SRC_W - 1, 0)
+$srcMarkLight = Join-Path $SourceDir '03-app-icon-light-reference.png'
+$srcIconDark = Join-Path $SourceDir '04-app-icon-dark-reference.png'
+if (-not (Test-Path $srcMarkLight)) { throw "Aset tidak ditemukan: $srcMarkLight" }
+if (-not (Test-Path $srcIconDark)) { throw "Aset tidak ditemukan: $srcIconDark" }
 
+# ------------------------------------------------------------- Helper ------
 function Set-HighQuality([System.Drawing.Graphics]$g) {
   $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
   $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
@@ -37,109 +63,112 @@ function Set-HighQuality([System.Drawing.Graphics]$g) {
   $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
 }
 
-# Logo -> kotak $size, penuh (crop tengah persegi sumber).
-function Save-Square([int]$size, [string]$out) {
-  $dst = New-Object System.Drawing.Bitmap($size, $size)
-  $g = [System.Drawing.Graphics]::FromImage($dst)
-  try {
-    Set-HighQuality $g
-    $rect = New-Object System.Drawing.Rectangle(0, 0, $size, $size)
-    $srcRect = New-Object System.Drawing.Rectangle($CROP_X, $CROP_Y, $SIDE, $SIDE)
-    $g.DrawImage($SRC, $rect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
-  } finally { $g.Dispose() }
-  $dst.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-  $dst.Dispose()
-}
-
-# Logo -> lingkaran $size (menggunakan mask ellipse).
-function Save-Circle([int]$size, [string]$out) {
-  $dst = New-Object System.Drawing.Bitmap($size, $size)
-  $g = [System.Drawing.Graphics]::FromImage($dst)
-  try {
-    Set-HighQuality $g
-    $g.Clear([System.Drawing.Color]::Transparent)
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddEllipse(0, 0, $size, $size)
-    $g.SetClip($path)
-    $rect = New-Object System.Drawing.Rectangle(0, 0, $size, $size)
-    $srcRect = New-Object System.Drawing.Rectangle($CROP_X, $CROP_Y, $SIDE, $SIDE)
-    $g.DrawImage($SRC, $rect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
-    $g.ResetClip()
-    $path.Dispose()
-  } finally { $g.Dispose() }
-  $dst.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-  $dst.Dispose()
-}
-
-# Logo -> foreground adaptive: kanvas $size, konten ~66% (safe zone), latar transparan.
-function Save-Adaptive([int]$size, [string]$out) {
-  $inner = [int]($size * 0.66)
-  $offset = [int](($size - $inner) / 2)
-  $dst = New-Object System.Drawing.Bitmap($size, $size)
-  $g = [System.Drawing.Graphics]::FromImage($dst)
-  try {
-    Set-HighQuality $g
-    $g.Clear([System.Drawing.Color]::Transparent)
-    $rect = New-Object System.Drawing.Rectangle($offset, $offset, $inner, $inner)
-    $srcRect = New-Object System.Drawing.Rectangle($CROP_X, $CROP_Y, $SIDE, $SIDE)
-    $g.DrawImage($SRC, $rect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
-  } finally { $g.Dispose() }
-  $dst.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-  $dst.Dispose()
-}
-
-# Logo di atas latar berwarna penuh (untuk maskable PWA).
-function Save-Maskable([int]$size, [string]$out) {
-  $dst = New-Object System.Drawing.Bitmap($size, $size)
-  $g = [System.Drawing.Graphics]::FromImage($dst)
-  try {
-    Set-HighQuality $g
-    $g.Clear([System.Drawing.Color]::FromArgb($bg.R, $bg.G, $bg.B))
-    $inner = [int]($size * 0.72)
-    $off = [int](($size - $inner) / 2)
-    $rect = New-Object System.Drawing.Rectangle($off, $off, $inner, $inner)
-    $srcRect = New-Object System.Drawing.Rectangle($CROP_X, $CROP_Y, $SIDE, $SIDE)
-    $g.DrawImage($SRC, $rect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
-  } finally { $g.Dispose() }
-  $dst.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
-  $dst.Dispose()
-}
-
 function Ensure-Dir([string]$p) { if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null } }
 
-# ---------------------------------------------------------- Ikon web 3 app --
+# Kotak pembatas konten (alpha >= 16). Baris/kolom dengan piksel konten kurang
+# dari $minPixels diabaikan agar bintik anti-alias di tepi tidak ikut terhitung.
+function Get-ContentBounds([System.Drawing.Bitmap]$bmp, [int]$minPixels) {
+  $w = $bmp.Width; $h = $bmp.Height
+  $rows = New-Object 'int[]' $h
+  for ($y = 0; $y -lt $h; $y++) {
+    $n = 0
+    for ($x = 0; $x -lt $w; $x++) { if ($bmp.GetPixel($x, $y).A -ge 16) { $n++ } }
+    $rows[$y] = $n
+  }
+  $top = -1
+  for ($y = 0; $y -lt $h; $y++) { if ($rows[$y] -ge $minPixels) { $top = $y; break } }
+  if ($top -lt 0) { return $null }
+  $bottom = $top
+  for ($y = $h - 1; $y -ge $top; $y--) { if ($rows[$y] -ge $minPixels) { $bottom = $y; break } }
+
+  $cols = New-Object 'int[]' $w
+  for ($x = 0; $x -lt $w; $x++) {
+    $n = 0
+    for ($y = $top; $y -le $bottom; $y++) { if ($bmp.GetPixel($x, $y).A -ge 16) { $n++ } }
+    $cols[$x] = $n
+  }
+  $left = -1
+  for ($x = 0; $x -lt $w; $x++) { if ($cols[$x] -ge $minPixels) { $left = $x; break } }
+  $right = $left
+  for ($x = $w - 1; $x -ge $left; $x--) { if ($cols[$x] -ge $minPixels) { $right = $x; break } }
+
+  return @{ X = $left; Y = $top; W = ($right - $left + 1); H = ($bottom - $top + 1) }
+}
+
+function Get-Trimmed([System.Drawing.Bitmap]$bmp, [int]$minPixels) {
+  $b = Get-ContentBounds $bmp $minPixels
+  if ($null -eq $b) { throw 'Gambar tidak memiliki piksel konten.' }
+  $rect = New-Object System.Drawing.Rectangle -ArgumentList @($b.X, $b.Y, $b.W, $b.H)
+  return [System.Drawing.Bitmap]$bmp.Clone($rect, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+}
+
+# Gambar -> kanvas persegi $size. $padFrac = proporsi sisi yang dikosongkan (per sisi).
+function New-Composed([System.Drawing.Bitmap]$img, [int]$size, [double]$padFrac, [System.Drawing.Color]$bg, [switch]$Circle) {
+  $dst = New-Object System.Drawing.Bitmap -ArgumentList @($size, $size, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($dst)
+  try {
+    Set-HighQuality $g
+    $g.Clear([System.Drawing.Color]::Transparent)
+    if ($bg.A -gt 0) {
+      $brush = New-Object System.Drawing.SolidBrush -ArgumentList @($bg)
+      if ($Circle) { $g.FillEllipse($brush, 0, 0, $size, $size) } else { $g.FillRectangle($brush, 0, 0, $size, $size) }
+      $brush.Dispose()
+    }
+    $box = [int][Math]::Round($size * (1.0 - 2.0 * $padFrac))
+    $scale = [Math]::Min($box / [double]$img.Width, $box / [double]$img.Height)
+    $w = [int][Math]::Max(1, [Math]::Round($img.Width * $scale))
+    $h = [int][Math]::Max(1, [Math]::Round($img.Height * $scale))
+    $x = [int][Math]::Round(($size - $w) / 2.0)
+    $y = [int][Math]::Round(($size - $h) / 2.0)
+    $rect = New-Object System.Drawing.Rectangle -ArgumentList @($x, $y, $w, $h)
+    $g.DrawImage($img, $rect)
+  } finally { $g.Dispose() }
+  return $dst
+}
+
+function Save-Png([System.Drawing.Bitmap]$bmp, [string]$out) {
+  Ensure-Dir (Split-Path -Parent $out)
+  $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp.Dispose()
+}
+
+# --------------------------------------------------------- Siapkan sumber --
+$imgMarks = [System.Drawing.Bitmap][System.Drawing.Image]::FromFile($srcMarkLight)
+$imgIcon  = [System.Drawing.Bitmap][System.Drawing.Image]::FromFile($srcIconDark)
+
+# 03 = varian "untuk latar terang" -> tanda biru/hijau di atas latar transparan.
+$markOnLight = Get-Trimmed $imgMarks 2
+$iconBg = $imgIcon.GetPixel(2, [int]($imgIcon.Height / 2))   # warna latar tepi ikon gelap
+
+Write-Output ("Tanda varian latar-terang (transparan): {0}x{1}" -f $markOnLight.Width, $markOnLight.Height)
+Write-Output ("Ikon latar gelap: {0}x{1}, warna latar contoh #{2:X2}{3:X2}{4:X2}" -f $imgIcon.Width, $imgIcon.Height, $iconBg.R, $iconBg.G, $iconBg.B)
+
+# ------------------------------------------------------------- Keluaran ----
 foreach ($app in @('admin', 'owner', 'kasir')) {
   $dir = Join-Path $root "apps/$app/assets"
   Ensure-Dir $dir
-  Save-Square 32  (Join-Path $dir 'favicon-32.png')
-  Save-Square 180 (Join-Path $dir 'apple-touch-icon.png')
-  Save-Square 192 (Join-Path $dir 'icon-192.png')
-  Save-Square 512 (Join-Path $dir 'icon-512.png')
-  Write-Output "ikan web: apps/$app/assets"
-}
-Save-Maskable 512 (Join-Path $root 'apps/kasir/assets/icon-maskable-512.png')
-Write-Output "ikon maskable: apps/kasir/assets/icon-maskable-512.png"
 
-# ------------------------------------------------- Ikon launcher Android ---
-$density = @{
-  'mdpi'    = 48
-  'hdpi'    = 72
-  'xhdpi'   = 96
-  'xxhdpi'  = 144
-  'xxxhdpi' = 192
-}
-$fgFactor = 108.0 / 48.0
-$resRoot = Join-Path $root 'apps/kasir-mobile/android/app/src/main/res'
-foreach ($d in $density.Keys) {
-  $dir = Join-Path $resRoot "mipmap-$d"
-  Ensure-Dir $dir
-  $size = [int]$density[$d]
-  Save-Square $size (Join-Path $dir 'ic_launcher.png')
-  Save-Circle $size (Join-Path $dir 'ic_launcher_round.png')
-  Save-Adaptive ([int][Math]::Round($size * $fgFactor)) (Join-Path $dir 'ic_launcher_foreground.png')
-  Write-Output "ikan Android: mipmap-$d"
+  # Login (kartu putih): tanda berwarna pada latar transparan.
+  Save-Png (New-Composed $markOnLight 256 0.06 ([System.Drawing.Color]::Transparent)) (Join-Path $dir 'logo-kasir-nova.png')
+
+  # Topbar navy: ikon latar gelap (membawa latar navy-nya sendiri).
+  Save-Png (New-Composed $imgIcon 128 0.0 ([System.Drawing.Color]::Transparent)) (Join-Path $dir 'logo-kasir-nova-inverse.png')
+
+  # Ikon aplikasi.
+  Save-Png (New-Composed $imgIcon 32 0.0 ([System.Drawing.Color]::Transparent)) (Join-Path $dir 'favicon-32.png')
+  Save-Png (New-Composed $imgIcon 180 0.0 ([System.Drawing.Color]::Transparent)) (Join-Path $dir 'apple-touch-icon.png')
+  Save-Png (New-Composed $imgIcon 192 0.0 ([System.Drawing.Color]::Transparent)) (Join-Path $dir 'icon-192.png')
+  Save-Png (New-Composed $imgIcon 512 0.0 ([System.Drawing.Color]::Transparent)) (Join-Path $dir 'icon-512.png')
+  Write-Output "aset web: apps/$app/assets"
 }
 
-$SRC.Dispose()
-Write-Output ('Latar ikon (navy): #{0:X2}{1:X2}{2:X2}' -f $bg.R, $bg.G, $bg.B)
+# Maskable: ikon diperkecil 80% di atas latar senada agar aman dari pemotongan.
+Save-Png (New-Composed $imgIcon 512 0.10 $iconBg) (Join-Path $root 'apps/kasir/assets/icon-maskable-512.png')
+Write-Output 'aset maskable: apps/kasir/assets/icon-maskable-512.png'
+
+$imgMarks.Dispose()
+$imgIcon.Dispose()
+$markOnLight.Dispose()
+
+Write-Output 'Catatan: ikon launcher Android tidak diubah (menunggu build APK berikutnya).'
 Write-Output 'Selesai.'

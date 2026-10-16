@@ -221,6 +221,7 @@ memenuhi syarat "PNG transparan" untuk logo di UI/splash. Perlu aset final
 | 5 | Bug 2 Simpan Produk | — | **selesai** |
 | 7a | Tes regresi + guard otomatis | — | **selesai** (10/10, verify-ui OK) |
 | 1 | Desain final V2 (tema terang + topbar navy; token & komponen) | aset/deskripsi desain final | **selesai** (docs/27 — menunggu tinjauan visual pemilik) |
+| 1b | Aset brand transparan (logo Login/topbar + ikon PWA) | aset pemilik | **selesai** (docs/29 — ikon launcher Android menunggu build APK) |
 | 2 | Smart Product Image (otomatis dari nama/kategori; pustaka SVG internal) | — | **selesai** (docs/28) |
 | 3 | Smart Receipt Preview + alur cetak | — (dapat dikerjakan) | siap dikerjakan |
 | 6 | Verifikasi fitur 13 Okt (laporan, Excel, laba) | — | siap diverifikasi |
