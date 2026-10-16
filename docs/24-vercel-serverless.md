@@ -123,6 +123,18 @@ firebase deploy --only hosting
 > `https://kasir-nova.web.app/api/**` → **404**. Ini sempat terjadi (produksi
 > keliru same-origin) dan **diperbaiki 13 Okt 2026** dengan men-deploy ulang
 > memakai `node scripts/build-hosting.mjs https://kasir-nova.vercel.app`.
+>
+> **Terulang & ditutup permanen 17 Okt 2026.** Penyebab: build dijalankan
+> `node scripts/build-hosting.mjs` **tanpa argumen** (default lama = base kosong),
+> lalu di-deploy → panel Admin/Owner web 404. Pencegahan sekarang **tiga lapis**:
+> 1. Default `scripts/build-hosting.mjs` = `https://kasir-nova.vercel.app`;
+>    same-origin harus eksplisit `--same-origin` (memunculkan peringatan).
+> 2. `scripts/verify-ui.mjs` **GAGAL** bila `NOVA_API_BASE` bundel Hosting
+>    kosong/relatif (dicek untuk ketiga app).
+> 3. `scripts/e2e-online.mjs` langkah **26b** memeriksa di produksi bahwa base
+>    absolut dan beranda `/` menyajikan pemilih panel.
+>
+> Jalur aman: `node scripts/build-hosting.mjs` → `firebase deploy --only hosting`.
 
 ---
 

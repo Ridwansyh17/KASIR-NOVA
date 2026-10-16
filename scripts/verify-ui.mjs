@@ -427,6 +427,9 @@ if (!hasHosting) {
     ['/admin/', 'html'],
     ['/admin/assets/favicon-32.png', 'png'],
     ['/admin/src/app.js', 'js'],
+    ['/', 'html'],
+    ['/404.html', 'html'],
+    ['/assets/logo-kasir-nova.png', 'png'],
   ];
   for (const [path, kind] of CHECKS) {
     const res = await fetch(base + path);
@@ -442,6 +445,35 @@ if (!hasHosting) {
     }
     if (!ok) failures++;
     console.log(`  ${ok ? 'OK  ' : 'GAGAL'} ${res.status} ${path} (${buf.length} byte)`);
+  }
+
+  // --- Kunci regresi 17 Okt 2026: base API bundel Hosting WAJIB absolut.
+  // Firebase Hosting tidak melayani /api/** (tanpa paket Blaze), jadi base
+  // kosong membuat semua panel web menembak /api/** -> 404 "Page Not Found".
+  for (const app of ['admin', 'owner', 'kasir']) {
+    const res = await fetch(`${base}/${app}/config.js`);
+    const txt = await res.text();
+    const found = /window\.NOVA_API_BASE\s*=\s*'([^']*)'/.exec(txt);
+    const value = found ? found[1] : '';
+    const ok = res.status === 200 && /^https?:\/\/[^\s]+$/i.test(value);
+    if (!ok) failures++;
+    console.log(
+      `  ${ok ? 'OK  ' : 'GAGAL'} ${res.status} /${app}/config.js NOVA_API_BASE='${value || '(kosong/tiada)'}' (wajib URL absolut untuk Hosting)`
+    );
+  }
+
+  // --- Beranda root + halaman 404 harus menautkan ketiga panel.
+  for (const path of ['/', '/404.html']) {
+    const res = await fetch(base + path);
+    const html = await res.text();
+    const missing = ['/kasir/', '/owner/', '/admin/'].filter((href) => !html.includes(href));
+    const ok = res.status === 200 && missing.length === 0;
+    if (!ok) failures++;
+    console.log(
+      `  ${ok ? 'OK  ' : 'GAGAL'} ${res.status} ${path} menautkan ketiga panel${
+        ok ? '' : ` (kurang: ${missing.join(', ') || 'status bukan 200'})`
+      }`
+    );
   }
   server.close();
 }

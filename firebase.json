@@ -3,9 +3,6 @@
     "site": "kasir-nova",
     "public": "dist/hosting",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "redirects": [
-      { "source": "/", "destination": "/kasir", "type": 301 }
-    ],
     "rewrites": [
       { "source": "/admin/**", "destination": "/admin/index.html" },
       { "source": "/owner/**", "destination": "/owner/index.html" },
@@ -28,6 +25,18 @@
       },
       {
         "source": "**/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "/404.html",
         "headers": [
           { "key": "Cache-Control", "value": "no-cache" }
         ]

@@ -619,6 +619,38 @@
 - **Tertunda:** verifikasi cetak ke printer fisik, dan keputusan gateway
   pembayaran & perpanjangan otomatis.
 
+## 17 Okt 2026 — Perbaikan 404 panel web (regresi base API Hosting)
+
+**Gejala dilaporkan pemilik:** panel **Admin** dan **Owner** di
+`kasir-nova.web.app` terbuka, tetapi login/pengambilan data gagal — tampak
+sebagai **HTTP 404**.
+
+**Akar masalah (regresi build, bukan bug kode server):** `dist/hosting` di-build
+dengan `node scripts/build-hosting.mjs` **tanpa argumen**, sedangkan default lama
+script tersebut adalah base **kosong** (same-origin). Karena `firebase.json`
+tidak memuat rewrite `/api/**` (paket Spark), frontend web menembak
+`https://kasir-nova.web.app/api/**` → **404 "Page Not Found"** milik Firebase.
+Kesalahan identik pernah terjadi 13 Okt 2026 (lihat `docs/24`) lalu terulang.
+
+**Perbaikan:**
+- Default `scripts/build-hosting.mjs` kini **URL backend produksi**
+  (`https://kasir-nova.vercel.app`). Same-origin harus diminta eksplisit
+  (`--same-origin`) dan memunculkan peringatan.
+- **Beranda root** `https://kasir-nova.web.app/` (pemilih panel Kasir/Owner/Admin)
+  menggantikan redirect `301 → /kasir`, ditambah halaman **404** bergaya KASIR
+  NOVA (`dist/hosting/404.html`) sehingga alamat salah tidak lagi menampilkan
+  halaman bawaan Firebase. Sumber: `scripts/hosting-landing.html`,
+  `scripts/hosting-404.html` (disalin saat build).
+- **Kunci regresi otomatis:** `scripts/verify-ui.mjs` menolak bundel Hosting yang
+  `NOVA_API_BASE`-nya kosong/relatif dan memeriksa beranda + 404; langkah baru
+  **26b** di `scripts/e2e-online.mjs` memeriksa base absolut & beranda di
+  produksi.
+- **Verifikasi:** `qa:local` **semua tahap LULUS** (server 248/248, UI `SEMUA OK`,
+  auth 10/10, image 9/9); `e2e:online` **34/34 PASS** (termasuk 26b); produksi:
+  `config.js` ketiga app = `https://kasir-nova.vercel.app`, beranda `200`,
+  `/Admin` `/dashboard` `/login` → `404` halaman KASIR NOVA, preflight & login
+  cross-origin dari origin Hosting `204`/`200`.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

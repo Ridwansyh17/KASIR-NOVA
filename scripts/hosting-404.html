@@ -1,0 +1,132 @@
+<!doctype html>
+<!--
+  Halaman 404 Firebase Hosting (dist/hosting/404.html).
+  Firebase menyajikan berkas ini dengan STATUS 404 untuk path yang tidak ada,
+  sehingga pengguna tidak melihat lagi halaman "Page Not Found" bawaan.
+  Disalin apa adanya oleh scripts/build-hosting.mjs.
+-->
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#062A66" />
+    <meta name="robots" content="noindex" />
+    <title>Halaman tidak ditemukan — KASIR NOVA</title>
+    <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+    <style>
+      :root {
+        --navy: #062a66;
+        --blue: #0072f6;
+        --blue-dark: #0050d2;
+        --bg: #f3f7fd;
+        --line: #dde7f5;
+        --text: #0f1e3d;
+        --muted: #5b6b8c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px 20px;
+        background: radial-gradient(1200px 600px at 50% -10%, #e8f1ff 0%, var(--bg) 60%);
+        color: var(--text);
+        font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+      }
+      main {
+        width: 100%;
+        max-width: 520px;
+        padding: 28px 24px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(6, 42, 102, 0.1);
+        text-align: center;
+      }
+      .logo {
+        display: block;
+        width: auto;
+        max-width: 84px;
+        max-height: 84px;
+        margin: 0 auto 12px;
+      }
+      .code {
+        margin: 0;
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        color: var(--blue);
+      }
+      h1 {
+        margin: 4px 0 8px;
+        font-size: 19px;
+        color: var(--navy);
+      }
+      p {
+        margin: 0 0 18px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+      code {
+        padding: 1px 6px;
+        border-radius: 6px;
+        background: #eef4ff;
+        color: var(--blue-dark);
+        font-size: 13px;
+        word-break: break-all;
+      }
+      .links {
+        display: grid;
+        gap: 10px;
+        text-align: left;
+      }
+      .links a {
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        text-decoration: none;
+        color: var(--navy);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .links a:hover,
+      .links a:focus-visible {
+        border-color: var(--blue);
+        background: #f6faff;
+        outline: none;
+      }
+      .links a span {
+        display: block;
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 400;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img class="logo" src="/assets/logo-kasir-nova.png" alt="Logo KASIR NOVA" />
+      <p class="code">404</p>
+      <h1>Halaman tidak ditemukan</h1>
+      <p>
+        Alamat yang Anda buka tidak tersedia di server ini: <code id="path">—</code>
+      </p>
+      <nav class="links" aria-label="Tautan panel">
+        <a href="/">Beranda KASIR NOVA <span>Pilih panel yang ingin dibuka</span></a>
+        <a href="/kasir/">Aplikasi Kasir <span>Transaksi &amp; laporan harian outlet</span></a>
+        <a href="/owner/">Panel Owner <span>Bisnis, produk, keuangan, langganan</span></a>
+        <a href="/admin/">Admin Platform <span>Owner, bisnis, paket, audit log</span></a>
+      </nav>
+    </main>
+    <script>
+      // Menampilkan path yang diminta agar pengguna tahu alamat mana yang salah.
+      document.getElementById('path').textContent = location.pathname;
+    </script>
+  </body>
+</html>

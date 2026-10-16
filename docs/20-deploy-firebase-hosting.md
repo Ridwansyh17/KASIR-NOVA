@@ -9,6 +9,11 @@
 > hosting tetap valid di Spark. Cloudflare **dinonaktifkan**.
 >
 > Keputusan pemilik: distribusi **web via Firebase Hosting**, **bukan APK**.
+>
+> **Perbaikan 17 Okt 2026:** pernah ter-deploy dengan `NOVA_API_BASE` **kosong**
+> sehingga panel Admin/Owner web menembak `/api/**` di origin Hosting → **404**.
+> Default `scripts/build-hosting.mjs` kini URL backend produksi; root `/` menjadi
+> beranda pemilih panel + halaman 404 bergaya KASIR NOVA. Rincian di §7.
 
 ## 1. Arsitektur
 
@@ -17,7 +22,8 @@ https://kasir-nova.web.app  (Firebase Hosting — statis)
    /kasir/**   → apps/kasir   (POS)
    /admin/**   → apps/admin   (Panel Admin Platform)
    /owner/**   → apps/owner   (Panel Owner)
-   /           → 301 /kasir
+   /           → index.html   (beranda: pemilih panel)
+   path lain   → 404.html     (halaman 404 KASIR NOVA, status 404)
 ```
 
 - **1 site, 3 subpath** (site `kasir-nova`; hemat kuota deploy harian).
@@ -41,7 +47,9 @@ https://kasir-nova.web.app  (Firebase Hosting — statis)
 | Berkas | Isi |
 |---|---|
 | `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite subpath SPA, header keamanan + cache (tanpa `/api/**` saat ini) |
-| `scripts/build-hosting.mjs` | salin 3 app ke `dist/hosting` & suntik `NOVA_API_BASE` (kosong = same-origin) |
+| `scripts/build-hosting.mjs` | salin 3 app ke `dist/hosting`, tulis beranda + 404, dan suntik `NOVA_API_BASE` (**default URL backend produksi**; `--same-origin` untuk base kosong) |
+| `scripts/hosting-landing.html` | sumber beranda root (`/`) — pemilih panel Kasir/Owner/Admin |
+| `scripts/hosting-404.html` | sumber halaman 404 (disajikan Firebase untuk path tak dikenal, status 404) |
 | `apps/<app>/config.js` | default dev (`NOVA_API_BASE` kosong = origin sama) |
 | `.firebaserc` | lokal (di-`.gitignore`), berisi `kasir-nova` |
 
@@ -50,19 +58,38 @@ https://kasir-nova.web.app  (Firebase Hosting — statis)
 ## 3. Build + deploy
 
 ```powershell
-# A) Bangun aset statis
+# A) Bangun aset statis (default: base API = backend produksi Vercel)
 node scripts/build-hosting.mjs
 
-#    (opsional) Cross-origin ke backend HTTPS absolut:
+#    (opsional) backend HTTPS lain:
 #    node scripts/build-hosting.mjs https://<URL-BACKEND>
+
+#    (khusus dev) base kosong = same-origin; origin HARUS melayani /api/**
+#    node scripts/build-hosting.mjs --same-origin
 
 # B) Deploy (butuh login: firebase login sekali)
 firebase use kasir-nova
 firebase deploy --only hosting
 ```
 
-> `build-hosting.mjs` tanpa argumen menghasilkan `NOVA_API_BASE = ''`
-> (same-origin). Ini hanya berguna bila ada backend yang menerima `/api/**`.
+> ⚠️ **Jangan deploy Hosting dengan `NOVA_API_BASE` kosong.** `firebase.json`
+> tidak memuat rewrite `/api/**` (butuh paket Blaze), sehingga base kosong
+> membuat seluruh panel web menembak `https://kasir-nova.web.app/api/**` →
+> **404 "Page Not Found"**. Karena itu default `build-hosting.mjs` adalah URL
+> backend produksi; same-origin harus diminta eksplisit dan memicu peringatan.
+> Dijaga otomatis oleh `scripts/verify-ui.mjs` (menolak base kosong) dan langkah
+> **26b** `scripts/e2e-online.mjs` di produksi.
+
+## 3b. Beranda root & halaman 404
+
+- `/` menyajikan `dist/hosting/index.html` — **beranda pemilih panel** (Kasir,
+  Owner, Admin Platform) dengan aset brand di `/assets/**` (disalin dari
+  `apps/kasir/assets`). Tidak ada lagi redirect `301 → /kasir`.
+- Path yang tidak ada disajikan `dist/hosting/404.html` dengan **status 404**
+  (bukan halaman "Page Not Found" bawaan Firebase). Halaman ini menampilkan path
+  yang salah dan menautkan ketiga panel.
+- Kedua halaman sengaja mandiri (CSS inline, tanpa dependensi) dan memakai path
+  **absolut** `/assets/...` agar tetap benar walau disajikan pada path lain.
 
 Header keamanan otomatis dipasang: `X-Content-Type-Options`, `X-Frame-Options:
 DENY`, `Referrer-Policy: no-referrer`; cache 1 jam untuk JS/CSS, `no-cache`
@@ -140,6 +167,21 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
   same-origin `/api` + statis).
 - `firebase.json` tidak lagi memuat dependency Cloudflare; `scripts/build-hosting.mjs`
   mendukung base kosong (same-origin) & URL absolut (cross-origin).
+
+**17 Okt 2026 (perbaikan 404 panel web — regresi base API):**
+- Gejala: panel **Admin/Owner** web terbuka tetapi login/data gagal (**HTTP 404**).
+- Akar masalah: `dist/hosting` di-build **tanpa argumen** sehingga `NOVA_API_BASE`
+  ter-deploy **kosong** → `kasir-nova.web.app/api/**` → 404 "Page Not Found".
+- Perbaikan: default build = URL backend produksi; beranda root + halaman 404;
+  kunci regresi di `verify-ui.mjs` (base wajib absolut) & `e2e-online.mjs` langkah 26b.
+- Verifikasi produksi setelah deploy: `/` **200** (judul "KASIR NOVA — Pilih Panel",
+  menautkan ketiga panel); `/admin/`, `/owner/`, `/kasir/` **200**;
+  `config.js` ketiga app = `https://kasir-nova.vercel.app`;
+  `/Admin`, `/dashboard`, `/login` → **404** halaman KASIR NOVA
+  (judul "Halaman tidak ditemukan — KASIR NOVA"); `/assets/logo-kasir-nova.png` **200**;
+  preflight CORS dari origin Hosting **204**; login owner & admin cross-origin **200**.
+- Suite: `qa:local` semua tahap **LULUS** (server 248/248, UI `SEMUA OK`,
+  auth 10/10, image 9/9); `e2e:online` **34/34 PASS**.
 
 ## 8. Yang masih menyusul
 

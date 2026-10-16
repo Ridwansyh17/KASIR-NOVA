@@ -1,0 +1,209 @@
+<!doctype html>
+<!--
+  Beranda publik Firebase Hosting (kasir-nova.web.app/).
+  Disalin apa adanya oleh scripts/build-hosting.mjs -> dist/hosting/index.html.
+  Sengaja mandiri: CSS inline, tanpa dependensi, memakai path ABSOLUT (/assets/...)
+  agar tetap benar walau berkas ini disajikan pada path lain (lihat 404.html).
+-->
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#062A66" />
+    <title>KASIR NOVA — Pilih Panel</title>
+    <meta
+      name="description"
+      content="KASIR NOVA — platform kasir dan manajemen toko untuk UMKM. Pilih panel: Kasir, Owner, atau Admin Platform."
+    />
+    <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+    <style>
+      :root {
+        --navy: #062a66;
+        --navy-dark: #042650;
+        --blue: #0072f6;
+        --blue-dark: #0050d2;
+        --bg: #f3f7fd;
+        --card: #ffffff;
+        --line: #dde7f5;
+        --text: #0f1e3d;
+        --muted: #5b6b8c;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 32px 20px 40px;
+        background: radial-gradient(1200px 600px at 50% -10%, #e8f1ff 0%, var(--bg) 60%);
+        color: var(--text);
+        font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 8px;
+      }
+      .brand img {
+        display: block;
+        width: auto;
+        max-width: 96px;
+        max-height: 96px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 26px;
+        letter-spacing: 0.02em;
+        color: var(--navy);
+      }
+      .tagline {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .lead {
+        margin: 20px 0 24px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .cards {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 20px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 1px 2px rgba(6, 42, 102, 0.06);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      }
+      .card:hover,
+      .card:focus-visible {
+        transform: translateY(-2px);
+        border-color: var(--blue);
+        box-shadow: 0 10px 24px rgba(6, 42, 102, 0.12);
+        outline: none;
+      }
+      .chip {
+        align-self: flex-start;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #e6f0ff;
+        color: var(--blue-dark);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .card h2 {
+        margin: 0;
+        font-size: 17px;
+        color: var(--navy);
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13.5px;
+        line-height: 1.55;
+      }
+      .cta {
+        margin-top: auto;
+        padding-top: 8px;
+        color: var(--blue);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      footer {
+        margin-top: 28px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.6;
+      }
+      footer a {
+        color: var(--blue);
+      }
+      @media (max-width: 560px) {
+        body {
+          padding: 24px 16px 32px;
+        }
+        h1 {
+          font-size: 22px;
+        }
+        .brand img {
+          max-width: 72px;
+          max-height: 72px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="brand">
+        <img src="/assets/logo-kasir-nova.png" alt="Logo KASIR NOVA" />
+        <div>
+          <h1>KASIR NOVA</h1>
+          <p class="tagline">Platform kasir &amp; manajemen toko untuk UMKM</p>
+        </div>
+      </header>
+
+      <p class="lead">
+        Pilih panel sesuai peran Anda. Setiap panel meminta login dan hanya menampilkan data
+        yang menjadi hak perannya.
+      </p>
+
+      <nav class="cards" aria-label="Pilih panel">
+        <a class="card" href="/kasir/">
+          <span class="chip">Kasir</span>
+          <h2>Buka Aplikasi Kasir</h2>
+          <p>
+            Untuk kasir di outlet: transaksi penjualan, cetak struk, kelola produk outlet, dan
+            lihat laporan harian.
+          </p>
+          <span class="cta">Masuk Kasir &rarr;</span>
+        </a>
+
+        <a class="card" href="/owner/">
+          <span class="chip">Owner</span>
+          <h2>Panel Owner</h2>
+          <p>
+            Untuk pemilik bisnis: data bisnis &amp; outlet, produk &amp; harga, pengeluaran,
+            laporan keuangan, dan pengaturan langganan.
+          </p>
+          <span class="cta">Masuk Owner &rarr;</span>
+        </a>
+
+        <a class="card" href="/admin/">
+          <span class="chip">Admin Platform</span>
+          <h2>Admin Platform</h2>
+          <p>
+            Untuk pengelola platform: daftar owner &amp; bisnis, paket dan status langganan, serta
+            audit log.
+          </p>
+          <span class="cta">Masuk Admin &rarr;</span>
+        </a>
+      </nav>
+
+      <footer>
+        Aplikasi Android kasir tersedia dalam berkas APK yang dibagikan pemilik bisnis
+        (Firebase App Distribution). Butuh bantuan? Hubungi pengelola platform Anda.
+      </footer>
+    </main>
+  </body>
+</html>

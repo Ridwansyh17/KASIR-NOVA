@@ -263,6 +263,13 @@ GET /api/cashier/reports/daily-series (tanpa token)   → 401  (rute ada, bukan 
 | Web (Firebase Hosting) | `node scripts/build-hosting.mjs` + `firebase.cmd deploy --only hosting` | `https://kasir-nova.web.app/kasir/` memuat `#bottom-nav`, `#home-chart`, `#brand-context` |
 | APK beta | `npm run sync` → `setup-android.mjs` (beta.6/code 6) → `apk:release` → `npm run distribute` | `dist/apk/KASIR-NOVA-1.0.0-beta.6.apk` (~5,01 MB), sertifikat sama seperti beta.5, **terkirim ke grup `kasir-beta`** |
 
+> ⚠️ Pada deploy 17 Okt 2026, langkah Hosting di atas dijalankan **tanpa argumen**
+> saat default script masih "base kosong", sehingga `NOVA_API_BASE` ter-deploy
+> `''` → panel web menembak `kasir-nova.web.app/api/**` → **404**. Sudah
+> diperbaiki (build ulang + deploy) dan ditutup tiga lapis: default build = URL
+> backend produksi, kunci di `verify-ui.mjs`, serta langkah **26b** `e2e-online.mjs`.
+> Rincian: `docs/20` §3/§3b/§7 dan `docs/24`.
+
 > Persetujuan pemilik untuk deploy backend + hosting + distribusi beta.6
 > diminta dan diberikan sebelum tindakan dilakukan (lihat laporan fase).
 

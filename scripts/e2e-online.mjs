@@ -30,6 +30,9 @@ import { randomUUID } from 'node:crypto';
 import ExcelJS from 'exceljs';
 
 const BASE = (process.env.BASE_URL || 'https://kasir-nova.vercel.app').replace(/\/+$/, '');
+// Origin frontend web (Firebase Hosting, statis). Dicek terpisah karena
+// Hosting TIDAK melayani /api/** — lihat langkah 26b.
+const HOSTING = (process.env.E2E_HOSTING_URL || 'https://kasir-nova.web.app').replace(/\/+$/, '');
 
 const DEMO = {
   business: process.env.E2E_BUSINESS_NAME || 'Demo Kasir NOVA',
@@ -643,6 +646,31 @@ try {
   step('26. Halaman statis /kasir /admin /owner (200)', ok, results2.map((r) => r.status).join(','));
 } catch (e) {
   step('26. Halaman statis /kasir /admin /owner (200)', false, String(e));
+}
+
+// ------------------------------- 22b. Bundel Firebase Hosting (regresi 17 Okt 2026)
+// Hosting tidak melayani /api/** (tanpa paket Blaze). Bila config.js ter-deploy
+// memuat base kosong, seluruh panel web menembak `kasir-nova.web.app/api/**`
+// dan menerima 404 "Page Not Found" (gejala: panel terbuka, login/data gagal).
+try {
+  const apps2 = ['admin', 'owner', 'kasir'];
+  const cfg = await Promise.all(apps2.map((a) => fetch(`${HOSTING}/${a}/config.js`)));
+  const texts = await Promise.all(cfg.map((r) => r.text()));
+  const bases = texts.map((t) => /window\.NOVA_API_BASE\s*=\s*'([^']*)'/.exec(t)?.[1] ?? '');
+  const baseOk = cfg.every((r) => r.status === 200) && bases.every((b) => /^https?:\/\/[^\s]+$/i.test(b));
+
+  const home = await fetch(`${HOSTING}/`);
+  const homeHtml = await home.text();
+  const homeOk =
+    home.status === 200 && ['/kasir/', '/owner/', '/admin/'].every((h) => homeHtml.includes(h));
+
+  step(
+    '26b. Hosting: base API absolut + beranda pemilih panel (200)',
+    baseOk && homeOk,
+    `base=${bases.join('|') || '(kosong)'} beranda=${home.status}`
+  );
+} catch (e) {
+  step('26b. Hosting: base API absolut + beranda pemilih panel (200)', false, String(e));
 }
 
 // ------------------------------------------------- Admin Platform flow (opsional)
