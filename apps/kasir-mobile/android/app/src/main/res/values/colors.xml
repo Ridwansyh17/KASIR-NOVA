@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palet brand KASIR NOVA V2 (docs/27-desain-v2-token.md).
+         Sebelumnya ketiga warna ini diwarisi dari pustaka
+         androidx.core:core-splashscreen; kini ditetapkan eksplisit agar
+         splash, bilah sistem, dan tema aplikasi memakai warna brand. -->
+    <color name="colorPrimary">#043573</color>
+    <color name="colorPrimaryDark">#062A66</color>
+    <color name="colorAccent">#0072F6</color>
+
+    <!-- Splash + bilah sistem (status bar & navigation bar). -->
+    <color name="nova_splash_background">#043573</color>
+    <color name="nova_status_bar">#043573</color>
+    <color name="nova_navigation_bar">#043573</color>
+</resources>

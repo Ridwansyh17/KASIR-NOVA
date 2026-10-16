@@ -284,6 +284,13 @@ Status (13 Okt 2026, sudah dilakukan):
   Berkas: `dist/apk/KASIR-NOVA-1.0.0-beta.4.apk` (~3,76 MB). **Telah
   didistribusikan** ke grup `kasir-beta` via Firebase App Distribution
   (16 Okt 2026).
+- **V2 (16 Okt 2026):** APK **`1.0.0-beta.5`** (versionCode `5`) —
+  **splash screen ber-brand** (latar navy + lockup KASIR NOVA) dan **bilah
+  status/navigasi navy**; rincian pengerjaan di §7.6. Ditandatangani
+  **keystore rilis yang sama** seperti beta.4, jadi dapat dipasang
+  **langsung di atas** beta.4. Berkas:
+  `dist/apk/KASIR-NOVA-1.0.0-beta.5.apk` (~5,01 MB). **Telah didistribusikan**
+  ke grup `kasir-beta` via Firebase App Distribution (16 Okt 2026).
 
 > **Catatan penting:** desain & fitur baru pada APK hanya terlihat setelah
 > backend produksi memuat versi terbaru. Lihat `docs/24-vercel-serverless.md`.
@@ -344,8 +351,8 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
 1. **Lewat Firebase App Distribution** — penguji menerima email undangan dari
    `firebaseappdistribution-noreply@google.com`; buka tautannya, setujui
    undangan, lalu pasang aplikasi. (Disarankan memasang **App Tester**.)
-2. **Lewat berkas APK langsung** (paling cepat) — salin
-   `dist/apk/KASIR-NOVA-1.0.0-beta.4.apk` ke HP (USB/Google Drive), lalu buka
+2. **Lewat berkas APK langsung** (paling cepat) - salin
+   `dist/apk/KASIR-NOVA-1.0.0-beta.5.apk` ke HP (USB/Google Drive), lalu buka
    berkas di HP dan izinkan **"Install unknown apps"** untuk aplikasi
    pengelola berkas yang dipakai.
 3. Saat pertama dibuka, izinkan **Nearby devices/Bluetooth** (Android 12+) atau
@@ -355,7 +362,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
 
 ```powershell
 cd apps\kasir-mobile
-node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.4.apk
+node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.5.apk
 # atau pakai APK hasil Gradle:
 node scripts\distribute.mjs android\app\build\outputs\apk\debug\app-debug.apk
 # paling singkat (APK rilis bila ada, jika tidak APK debug):
@@ -425,6 +432,58 @@ cmd /c "npm run apk:release"
   `$env:NOVA_APP_VERSION_CODE='3'` sebelum `npm run android:prepare`.
 
 ---
+
+### 7.6 Splash screen & bilah sistem ber-brand (beta.5)
+
+**Masalah.** `AppTheme.NoActionBarLaunch` mewarisi `Theme.SplashScreen` dari
+`androidx.core:core-splashscreen`. Pustaka itu menyetel
+`windowSplashScreenAnimatedIcon` = `@android:drawable/sym_def_app_icon` (ikon
+bawaan Android), `windowSplashScreenBackground` = `?android:colorBackground`,
+serta `android:statusBarColor` / `navigationBarColor` = `transparent`.
+Akibatnya splash APK tampil generik dan bilah status tidak berwarna brand.
+
+**Perbaikan.**
+
+| Berkas | Perubahan |
+| --- | --- |
+| `res/values/colors.xml` (baru) | `colorPrimary #043573`, `colorPrimaryDark #062A66`, `colorAccent #0072F6`, `nova_splash_background` / `nova_status_bar` / `nova_navigation_bar` = `#043573` (sebelumnya ketiganya diwarisi dari pustaka) |
+| `res/values/styles.xml` | `windowSplashScreenBackground` = navy, `windowSplashScreenAnimatedIcon` = `@mipmap/ic_launcher`, `postSplashScreenTheme` = `@style/AppTheme.NoActionBar`, `android:windowBackground` = `@drawable/splash`, bilah status & navigasi navy + ikon terang pada **kedua** tema |
+| `res/drawable*/splash.png` (11 berkas) | diregenerasi: latar navy brand + lockup lengkap (tanda + kata + tagline) |
+
+**Mengapa `android:windowBackground` juga diset.** Pada Android 15+ (API 35,
+`targetSdk 35`) bilah sistem digambar tepi-ke-tepi dan Capacitor memberi margin
+pada WebView (`CapacitorWebView.edgeToEdgeHandler`), sehingga area bilah sistem
+menampilkan latar jendela — bukan `android:statusBarColor`. Karena itu latar
+jendela diset navy pada kedua tema.
+
+**Regenerasi aset splash:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-splash.ps1
+# bila aset sudah diekstrak:
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-splash.ps1 -SourceDir C:\path\hasil-ekstrak
+```
+
+Ukuran kanvas mengikuti templat `@capacitor/android` (11 berkas: `drawable`,
+`drawable-land-*`, `drawable-port-*`). Sumber gambar:
+`01-logo-dark-reference.png` (lockup terang untuk latar gelap) dari
+`KASIR-NOVA-V2-TRANSPARENT.zip`.
+
+**Verifikasi tema di dalam APK (tanpa perangkat):**
+
+```powershell
+$aapt = 'C:\Android\build-tools\35.0.0\aapt2.exe'
+& $aapt dump resources apps\kasir-mobile\android\app\build\outputs\apk\release\app-release.apk |
+  Select-String 'AppTheme.NoActionBarLaunch' -Context 0,12
+# harus memuat: windowSplashScreenAnimatedIcon=@mipmap/ic_launcher,
+# windowSplashScreenBackground=@color/nova_splash_background,
+# statusBarColor/navigationBarColor=@color/nova_status_bar,
+# dan 0x01010054=@drawable/splash (android:windowBackground).
+```
+
+**Belum diuji:** tampilan sebenarnya di perangkat (agen tidak memiliki perangkat
+maupun emulator). Yang perlu dikonfirmasi pemilik: splash menampilkan latar navy
++ logo KASIR NOVA, dan bilah status navy dengan ikon terang.
 
 ## 8. Pengujian
 
