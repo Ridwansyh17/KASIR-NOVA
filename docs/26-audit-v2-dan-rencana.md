@@ -227,7 +227,7 @@ memenuhi syarat "PNG transparan" untuk logo di UI/splash. Perlu aset final
 | 6 | Verifikasi fitur 13 Okt (laporan, Excel, laba) | — | **selesai** (docs/31; 66/66 tes terkait + guard verify-ui) |
 | 7b | QA menyeluruh (auth/produk/transaksi/UI) | FASE 1–3 | **selesai** (docs/32) |
 | 8 | Laporan akhir + screenshot before/after | FASE 1–3 | **selesai** (docs/33) |
-| 9 | E2E lokal satu perintah (`scripts/e2e-local.ps1`) | — | **selesai** (31/31 lulus; docs/32 §3a) |
+| 9 | E2E lokal & QA satu perintah (`scripts/e2e-local.ps1`, `scripts/qa-local.ps1`) | — | **selesai** (E2E 31/31 + QA 6/6 tahap lulus; docs/32 §3a) |
 
 Urutan teknis yang saya usulkan: **3 → 2 → 1 → 6 → 7 → 8**, karena Smart
 Receipt hanya menyentuh Kasir dan tidak bergantung object storage, sedangkan

@@ -20,6 +20,10 @@ Cakupan: auth, produk/stok, transaksi, langganan, laporan, cetak, dan UI statis.
 Total: **265 pemeriksaan otomatis lulus, 0 gagal**, ditambah **31 langkah E2E**
 end-to-end terhadap server lokal + DB dev (lihat §3a).
 
+> Satu perintah untuk seluruh matriks ini: `scripts/qa-local.ps1` (npm
+> `qa:local`). Tambahkan `-WithE2E` untuk sekalian menjalankan E2E 31 langkah;
+> skrip menampilkan ringkasan LULUS/GAGAL per tahap.
+
 ## 2. Cakupan uji backend (246)
 
 | Area | Berkas uji |

@@ -116,6 +116,16 @@ HTML (3), dan ESC/POS (2). Semua suite lulus; tidak ada tes yang dilewati.
 
 ## 8. Cara memverifikasi ulang
 
+Satu perintah (menjalankan seluruh matriks di bawah + ringkasan LULUS/GAGAL):
+
+```powershell
+# butuh PostgreSQL dev di port 5433
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/qa-local.ps1 -WithE2E
+#   (tanpa -WithE2E: lewati E2E 31 langkah)
+```
+
+Atau manual satu per satu:
+
 ```powershell
 # 1) Backend (butuh PostgreSQL dev di port 5433)
 cd server
@@ -131,4 +141,7 @@ node scripts/verify-ui.mjs              # harapan: SEMUA OK
 node --test scripts/test-auth-restore.mjs    # 10/10
 node --test scripts/test-product-image.mjs   # 9/9
 node scripts/sync-shared.mjs --check         # SEMUA SAMA
+
+# 4) E2E end-to-end (31 langkah, server + DB dev)
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-local.ps1
 ```

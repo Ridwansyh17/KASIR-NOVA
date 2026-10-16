@@ -85,6 +85,14 @@ npm run e2e:online
 > Bila PowerShell menolak `npm` (execution policy), jalankan skrip lokalnya
 > langsung: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-local.ps1`.
 
+Seluruh matriks verifikasi lokal (backend 246, UI statis, sesi, produk, + E2E)
+dalam satu perintah — butuh PostgreSQL dev port 5433:
+
+```powershell
+npm run qa:local                    # ringkasan LULUS/GAGAL per tahap
+npm run qa:local -- -WithE2E        # ikut E2E 31 langkah
+```
+
 Kredensial uji tersedia di `akun kasir-nova-test.txt` (tidak di-commit).
 Runbook deploy/rollback: `docs/24-vercel-serverless.md`; backup/restore:
 `docs/22-backup-restore.md`; APK Android & cetak Bluetooth:

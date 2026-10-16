@@ -21,6 +21,7 @@
     "db:restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-db.ps1",
     "e2e:online": "node scripts/e2e-online.mjs",
     "e2e:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-local.ps1",
+    "qa:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/qa-local.ps1",
     "theme:apply-v2": "node scripts/apply-theme-v2.mjs"
   },
   "engines": {
