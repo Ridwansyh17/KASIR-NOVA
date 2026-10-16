@@ -832,6 +832,7 @@
             <input id="product-photo-clear" type="checkbox" />
             <span>Hapus foto yang ada</span>
           </label>
+          <div id="product-photo-auto" class="photo-auto" aria-live="polite"></div>
 
           <p id="product-form-error" class="error hidden"></p>
 
@@ -998,6 +999,7 @@
 
     <!-- Konfigurasi runtime (API base URL) — dimuat sebelum app.js. -->
     <script src="./config.js"></script>
+    <script src="./src/product-image.js"></script>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

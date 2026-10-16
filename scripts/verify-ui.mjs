@@ -180,6 +180,39 @@ for (const app of APPS) {
 }
 console.log(`  token dicek: ${V2_TOKENS.length} token + ${LEGACY_LITERALS.length} warna lama per aplikasi`);
 
+// ------------------------------------------- Smart Product Image (FASE 2) ----
+// Memastikan salinan modul bersama tidak menyimpang, modul dimuat sebelum
+// app.js, dan kelas CSS pendukungnya ada.
+console.log('\n[Smart Product Image (FASE 2)]');
+const canonicalShared = readFileSync(join(root, 'shared', 'product-image.js'), 'utf8');
+for (const app of ['owner', 'kasir']) {
+  const rel = `apps/${app}/src/product-image.js`;
+  const abs = join(root, rel);
+  if (!existsSync(abs)) {
+    fail(`${rel} tidak ada (jalankan: node scripts/sync-shared.mjs)`);
+  } else if (readFileSync(abs, 'utf8') !== canonicalShared) {
+    fail(`${rel} menyimpang dari shared/product-image.js (jalankan: node scripts/sync-shared.mjs)`);
+  } else {
+    console.log(`  salinan bersama OK: ${rel}`);
+  }
+
+  const html = readFileSync(join(root, 'apps', app, 'index.html'), 'utf8');
+  const atShared = html.indexOf('src="./src/product-image.js"');
+  const atApp = html.indexOf('src="./src/app.js"');
+  if (atShared < 0) fail(`apps/${app}/index.html tidak memuat ./src/product-image.js`);
+  else if (atApp >= 0 && atShared > atApp) {
+    fail(`apps/${app}/index.html: product-image.js harus dimuat sebelum app.js`);
+  }
+
+  const css = readFileSync(join(root, 'apps', app, 'styles', 'styles.css'), 'utf8');
+  for (const cls of ['.product-main', '.product-thumb', '.photo-auto']) {
+    if (!css.includes(cls)) fail(`apps/${app}/styles/styles.css: kelas ${cls} tidak ada`);
+  }
+}
+if (!readFileSync(join(root, 'apps', 'kasir', 'styles', 'styles.css'), 'utf8').includes('.pos-photo')) {
+  fail('apps/kasir/styles/styles.css: kelas .pos-photo tidak ada');
+}
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;
@@ -224,9 +257,11 @@ if (!hasHosting) {
     ['/kasir/assets/icon-maskable-512.png', 'png'],
     ['/kasir/site.webmanifest', 'json'],
     ['/kasir/src/app.js', 'js'],
+    ['/kasir/src/product-image.js', 'js'],
     ['/owner/', 'html'],
     ['/owner/assets/favicon-32.png', 'png'],
     ['/owner/src/app.js', 'js'],
+    ['/owner/src/product-image.js', 'js'],
     ['/admin/', 'html'],
     ['/admin/assets/favicon-32.png', 'png'],
     ['/admin/src/app.js', 'js'],

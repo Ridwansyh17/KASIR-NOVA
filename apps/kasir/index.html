@@ -490,6 +490,7 @@
             <input id="mprod-photo-clear" type="checkbox" />
             <span>Hapus foto yang ada</span>
           </label>
+          <div id="mprod-photo-auto" class="photo-auto" aria-live="polite"></div>
 
           <p id="mprod-error" class="error hidden"></p>
           <div class="modal-actions">
@@ -594,6 +595,7 @@
 
     <!-- Konfigurasi runtime (API base URL) — dimuat sebelum app.js. -->
     <script src="./config.js"></script>
+    <script src="./src/product-image.js"></script>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

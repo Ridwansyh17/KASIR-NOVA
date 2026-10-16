@@ -44,6 +44,7 @@ const state = {
   mgmt: { items: [], total: 0 }, // katalog di tab "Produk"
   activeTab: 'kasir',
   formPhoto: undefined, // perubahan foto pada modal produk (undefined = tak diubah)
+  formPhotoCurrent: '', // foto tersimpan saat modal dibuka (untuk blok gambar otomatis)
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -126,6 +127,54 @@ const fetchCurrentUser = () =>
     return user;
   });
 
+// --------------------------------------------- Smart Product Image (FASE 2) --
+// Modul dimuat oleh <script src="./src/product-image.js"> (sebelum app.js).
+// Urutan prioritas gambar: foto unggahan -> pustaka internal (nama produk) ->
+// gambar kategori -> placeholder. Lihat shared/product-image.js.
+const PI = typeof window !== 'undefined' ? window.NovaProductImage : null;
+if (!PI) console.warn('product-image.js tidak termuat: gambar produk otomatis nonaktif');
+
+/** HTML <img> gambar produk (otomatis bila tidak ada foto unggahan). */
+const productThumbHtml = (product, className) => {
+  if (!PI) return '';
+  try {
+    return PI.renderThumb(product, { className, alt: product?.name ?? '' });
+  } catch (err) {
+    console.warn('gagal membuat gambar produk', err);
+    return '';
+  }
+};
+
+/** Perbarui blok "Gambar otomatis" pada form produk. */
+const renderAutoPhoto = () => {
+  const box = $('mprod-photo-auto');
+  if (!box) return;
+  if (!PI) {
+    box.innerHTML = '';
+    return;
+  }
+
+  // state.formPhoto: undefined = biarkan foto lama, '' = hapus, dataURL = baru.
+  const manual = state.formPhoto !== undefined ? state.formPhoto : state.formPhotoCurrent;
+  if (manual) {
+    box.innerHTML = '<span class="muted small">Foto produk yang ada dipakai (unggahan menang atas gambar otomatis).</span>';
+    return;
+  }
+
+  const catName = state.categories.find((c) => c.id === $('mprod-category').value)?.name ?? '';
+  const saran = PI.suggestImage($('mprod-name').value, catName);
+  const label =
+    saran.source === 'library'
+      ? 'Gambar otomatis sesuai nama produk'
+      : saran.source === 'category'
+        ? 'Gambar otomatis sesuai kategori'
+        : 'Gambar bawaan (nama/kategori belum dikenali)';
+
+  box.innerHTML =
+    `<img src="${PI.escapeAttr(saran.src)}" alt="Gambar otomatis produk" />` +
+    `<span class="muted small">${label}</span>`;
+};
+
 // ------------------------------------------------------------ Produk ---------
 const renderProducts = () => {
   const grid = $('pos-products');
@@ -145,6 +194,7 @@ const renderProducts = () => {
     card.dataset.id = p.id;
     card.disabled = out;
     card.innerHTML = `
+      ${productThumbHtml(p, 'pos-photo')}
       <strong>${escapeHtml(p.name)}</strong>
       <span class="pos-product-price">${escapeHtml(fmtIDR(p.price))}</span>
       <span class="muted small">
@@ -1026,7 +1076,8 @@ const renderMgmtProducts = () => {
       : '<span class="badge ok">Tersedia</span>';
     card.innerHTML = `
       <div class="product-head">
-        <div>
+        ${productThumbHtml(p, 'product-thumb')}
+        <div class="product-main">
           <strong>${escapeHtml(p.name)}</strong>
           <p class="muted small">
             ${p.category_name ? escapeHtml(p.category_name) : 'Tanpa kategori'}
@@ -1075,6 +1126,7 @@ const loadMgmtProducts = async () => {
 
 const openMgmtCreate = () => {
   state.formPhoto = undefined;
+  state.formPhotoCurrent = '';
   $('mprod-form').reset();
   $('mprod-id').value = '';
   $('mprod-modal-title').textContent = 'Produk Baru';
@@ -1089,11 +1141,13 @@ const openMgmtCreate = () => {
   fillMgmtCategories('');
   hide($('mprod-error'));
   show($('mprod-modal'));
+  renderAutoPhoto();
   $('mprod-name').focus();
 };
 
 const openMgmtEdit = (p) => {
   state.formPhoto = undefined;
+  state.formPhotoCurrent = p.photo_url ?? '';
   $('mprod-id').value = p.id;
   $('mprod-modal-title').textContent = 'Ubah Produk';
   $('mprod-name').value = p.name ?? '';
@@ -1116,6 +1170,7 @@ const openMgmtEdit = (p) => {
   fillMgmtCategories(p.category_id ?? '');
   hide($('mprod-error'));
   show($('mprod-modal'));
+  renderAutoPhoto();
 };
 
 $('mprod-new-btn').addEventListener('click', openMgmtCreate);
@@ -1132,6 +1187,7 @@ $('mprod-photo').addEventListener('change', async (event) => {
     state.formPhoto = dataUrl;
     $('mprod-photo-clear').checked = false;
     $('mprod-photo-preview').innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="Pratinjau" />`;
+    renderAutoPhoto();
   } catch (err) {
     event.target.value = '';
     alertBox(describeError(err), 'error');
@@ -1143,7 +1199,12 @@ $('mprod-photo-clear').addEventListener('change', (event) => {
     state.formPhoto = '';
     $('mprod-photo-preview').innerHTML = '';
   }
+  renderAutoPhoto();
 });
+
+// Gambar otomatis: perbarui saran saat nama atau kategori diubah.
+$('mprod-name').addEventListener('input', renderAutoPhoto);
+$('mprod-category').addEventListener('change', renderAutoPhoto);
 
 const closeMgmtModal = () => hide($('mprod-modal'));
 $('mprod-cancel').addEventListener('click', closeMgmtModal);
