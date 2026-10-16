@@ -58,17 +58,32 @@ Backend tersedia di `http://localhost:4000`.
 - Backend + API same-origin (Vercel Hobby, gratis, tanpa kartu): **https://kasir-nova.vercel.app**
 - Database: **Neon PostgreSQL** (project *KASIR NOVA*).
 
-Smoke test E2E online (idempoten — aman dijalankan ulang):
+Smoke test E2E (idempoten — aman dijalankan ulang). **31/31 langkah**: login
+owner & admin, langganan, katalog, login PIN kasir, penjualan tunai + stok,
+idempotensi `clientRef`, void, laporan komparasi, ekspor Excel, isolasi tenant,
+audit, dan soft-delete.
+
+Lokal (satu perintah — menyalakan server, menunggu `/api/health`, menjalankan
+E2E, lalu mematikan server; kredensial seed dibaca dari `server/.env`):
+
+```powershell
+npm run e2e:local                   # 31/31 langkah, port 4000
+```
+
+Daring (produksi — perlu kredensial yang di-set manual):
 
 ```powershell
 $env:OWNER_EMAIL  = <email owner>
 $env:OWNER_PASSWORD = <password owner>
 $env:ADMIN_EMAIL  = <email admin platform>
 $env:ADMIN_PASSWORD = <password admin>
-npm run e2e:online                  # 26/26 langkah
+npm run e2e:online                  # 31/31 langkah
 $env:E2E_PLATFORM_FLOW = '1'        # (opsional) sertakan alur Admin Platform
 npm run e2e:online
 ```
+
+> Bila PowerShell menolak `npm` (execution policy), jalankan skrip lokalnya
+> langsung: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-local.ps1`.
 
 Kredensial uji tersedia di `akun kasir-nova-test.txt` (tidak di-commit).
 Runbook deploy/rollback: `docs/24-vercel-serverless.md`; backup/restore:

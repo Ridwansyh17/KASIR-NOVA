@@ -102,7 +102,7 @@ HTML (3), dan ESC/POS (2). Semua suite lulus; tidak ada tes yang dilewati.
 | 5 | **Rotasi kredensial** (`keystore-credentials.txt`, token) | Tindakan keamanan milik pemilik |
 | 6 | **Gateway pembayaran & perpanjangan otomatis** | Keputusan bisnis |
 | 7 | **Bisnis + outlet + langganan default** untuk `ridwan@nova.test` | Keputusan data awal |
-| 8 | **`STRUK-PEMBAYARAN.jpg`** (90 KB, belum di-track) | Perlu keputusan: commit atau buang |
+| 8 | **`STRUK-PEMBAYARAN.jpg`** (90 KB) | **Selesai**: dihasilkan skrip `generate-struk-jpg.ps1` → ditambahkan ke `.gitignore` (dapat dibuat ulang) |
 | 9 | **Deployment / push** | AGENTS.md: tanpa persetujuan |
 
 ## 7. Batasan jujur

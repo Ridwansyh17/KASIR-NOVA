@@ -53,6 +53,14 @@ firebase.json.backup-*
 .neon
 .vercel
 
+# Artefak yang dihasilkan skrip (dapat dibuat ulang, jangan di-commit)
+STRUK-PEMBAYARAN.jpg
+
+# Referensi desain lokal pemilik (mockup/brand) — arsip kerja, bukan kode.
+# Sumber ikon kanonik tetap `KASIR-NOVA-V2-TRANSPARENT.zip` yang di-track.
+KASIR-NOVA-V2-BRAND-ASSETS/
+KASIR-NOVA-V3-REFERENSI-LENGKAP/
+
 # Android / Capacitor (Fase 17: APK)
 apps/kasir-mobile/www/
 apps/kasir-mobile/android/.gradle/
