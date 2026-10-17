@@ -217,6 +217,26 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
   (`/api/cashier/zzz-tidak-ada`) — jadi keberadaan rute terbukti walau tanpa token.
 - Rincian fitur & pengujian: `docs/37-laporan-transaksi-kasir.md`.
 
+### Rilis 17 Okt 2026 (lanjutan 3) — Pembayaran langganan + kode QR QRIS
+
+Izin pemilik: hosting di-deploy agar panel Owner memuat tombol **Bayar /
+Perpanjang** dan **gambar QR QRIS**. `firebase.cmd deploy --only hosting
+--project kasir-nova` → **51 berkas**, unggahan baru **6 berkas** (termasuk
+`owner/src/qr-code.js` 5.402 byte dan `owner/src/vendor/qrcode-generator.js`
+56.694 byte).
+
+| Uji | Hasil |
+|---|---|
+| `/owner/` | **200** (46.772 byte) memuat `id="pay-modal"`, `id="pay-qr-img"`, `id="sub-pay-btn"`, `id="sub-invoice-body"`, `src="./src/qr-code.js"`, `src="./src/vendor/qrcode-generator.js"` |
+| `/owner/src/qr-code.js` | **200**, **byte-identik** dengan `shared/qr-code.js` |
+| `/owner/src/vendor/qrcode-generator.js` | **200**, **byte-identik** dengan sumber kanonik; header **MIT** (`Kazuhiko Arase`) utuh |
+| `/owner/_qr-check.html` | bukan berkas ter-deploy — jalur tak dikenal dilayani `rewrites /owner/** → /owner/index.html` (harness sementara tidak pernah diunggah) |
+| Rute backend baru | `/api/payments/duitku/callback` → **503** (`gateway_belum_dikonfigurasi`, aman) dan `/api/owner/.../subscription/plans` → **401** |
+| E2E online produksi | **29/29 PASS** |
+
+> Rincian fitur & hasil uji: `docs/38-pembayaran-langganan-gateway.md`
+> (termasuk bukti QR dapat dipindai: decoder independen jsQR 5/5).
+
 ## 8. Yang masih menyusul
 
 - **Keputusan 12 Okt 2026: tetap paket Spark — tanpa backend publik.**

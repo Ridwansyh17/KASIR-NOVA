@@ -973,10 +973,19 @@ langganan** agar uji coba dapat dilakukan sebelum produksi.
 `#pay-modal` (modul panel tidak blank) dan berhasil memuat gambar QR
 (390×390 px).
 
+**Rilis 17 Okt 2026 (izin pemilik):** backend **+ hosting** sudah di-deploy —
+`https://kasir-nova.vercel.app` (deployment `kasir-nova-o4ph9cosx`) dan
+`https://kasir-nova.web.app` (**51 berkas**, 6 berkas baru). Verifikasi:
+`/api/health` 200; `POST /api/payments/duitku/callback` → **503**
+(`gateway_belum_dikonfigurasi`, jadi **belum mungkin** ada tagihan uang nyata);
+`/api/owner/.../subscription/plans` → **401**; aset QR di hosting byte-identik
+dengan sumber kanonik; **E2E online 29/29 PASS**. Rincian: `docs/24`
+(lanjutan 3) & `docs/20` §7.
+
 **Belum dikerjakan:** panggilan **sungguhan** ke Duitku (butuh kredensial sandbox
-di `server/.env`), uji **callback sungguhan** (butuh backend dapat dijangkau
-internet → menunggu izin deploy), mode produksi, dan penagihan otomatis
-(`auto_renew`).
+di `server/.env` — akan diisi pemilik; saya jalankan uji buat tagihan VA +
+tombol Cek Status), uji **callback sungguhan** (butuh `PAYMENT_*` di Vercel),
+mode produksi, dan penagihan otomatis (`auto_renew`).
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk

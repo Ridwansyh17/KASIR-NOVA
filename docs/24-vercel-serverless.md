@@ -421,5 +421,57 @@ Hosting: 49 berkas, unggahan baru **4 berkas** (`apps/kasir/index.html`,
 > (3 sheet), dan — bila ingin di perangkat — setujui rebuild APK beta.9 agar
 > panel kasir memuat JS baru.
 
+## Deploy 17 Okt 2026 (lanjutan 3) — Pembayaran Langganan (gateway sandbox) + Kode QR QRIS (izin pemilik)
+
+Pemilik menyetujui deploy setelah fitur pembayaran langganan lulus tes lokal
+(suite backend **321/321**, `duitku-client` 12 + `subscription-invoice` 18,
+`test-qr-code.mjs` **9/9**, `verify:ui` SEMUA OK, `qa-local.ps1`
+**SEMUA TAHAP LULUS 8/8**). Pemilik juga menyetujui **deploy hosting** agar
+panel Owner (tombol bayar + gambar QR) dapat dicoba.
+
+**Catatan izin:** mode produksi gateway **tetap belum aktif** — `PAYMENT_*`
+belum diisi di Vercel, sehingga endpoint pembayaran menjawab **503**
+(tidak mungkin ada tagihan uang nyata). Kredensial sandbox akan diisi
+**pemilik** sendiri (di `server/.env` untuk uji lokal; di Vercel bila ingin
+menguji callback sungguhan).
+
+### Perintah yang dijalankan (backend WAJIB dari ROOT repo)
+
+```powershell
+# backend (ada rute baru /api/payments/**) — dari ROOT repo
+npx.cmd vercel deploy --prod --yes              # -> https://kasir-nova.vercel.app
+# hosting (panel Owner baru)
+node scripts/build-hosting.mjs https://kasir-nova.vercel.app
+firebase.cmd deploy --only hosting --project kasir-nova
+```
+
+CLI melaporkan `Deployment kasir-nova-o4ph9cosx-kasir-nova.vercel.app ready.
+Production URL: https://kasir-nova.vercel.app`. Hosting: **51 berkas**,
+unggahan baru **6 berkas** (2 di antaranya aset QR: `owner/src/qr-code.js`,
+`owner/src/vendor/qrcode-generator.js`).
+
+### Verifikasi sesudah deploy
+
+| Uji | Hasil |
+|---|---|
+| `GET /api/health` produksi | OK **200** `database: up` |
+| `POST /api/payments/duitku/callback` (tanpa kredensial) | **503** `{"reason":"gateway_belum_dikonfigurasi"}` → rute **ada** & **aman** |
+| `GET /api/payments/duitku/return` | **200** (halaman informasi) |
+| `GET /api/owner/businesses/<uuid>/subscription/plans` (tanpa token) | **401** → rute **ada** |
+| `GET /api/tidak-ada-endpoint-ini` (kontrol negatif) | **404** |
+| Hosting `/owner/` | OK **200** (46.772 byte) memuat `id="pay-modal"`, `id="pay-qr-img"`, `id="sub-pay-btn"`, `id="sub-invoice-body"`, `src="./src/qr-code.js"`, `src="./src/vendor/qrcode-generator.js"` |
+| Hosting `/owner/src/qr-code.js` | OK 200 (5.402 byte) — **byte-identik** dengan `shared/qr-code.js` |
+| Hosting `/owner/src/vendor/qrcode-generator.js` | OK 200 (56.694 byte) — **byte-identik** dengan `shared/vendor/qrcode-generator.js`; header **MIT** + `Kazuhiko Arase` utuh |
+| `/owner/_qr-check.html` (harness sementara) | **tidak** ter-deploy — yang 200 adalah fallback SPA `rewrites /owner/** → /owner/index.html` |
+| E2E online produksi (`npm run e2e:online`) | **29/29 PASS** (health, login owner/admin, penjualan, void, laporan, Excel, audit, hosting) |
+| Suite lokal sebelum deploy | OK backend **321/321**, `verify:ui` SEMUA OK, `qa-local` **8/8** LULUS |
+
+> **Yang masih pekerjaan pemilik:** isi `PAYMENT_*`/`DUITKU_*` di `server/.env`
+> lalu beri tahu saya agar uji buat tagihan VA + tombol **Cek Status**
+> dijalankan (tanpa URL publik). Callback sungguhan perlu `PAYMENT_*` di
+> Vercel agar `https://kasir-nova.vercel.app/api/payments/duitku/callback`
+> dapat menerima notifikasi Duitku.
+
+
 
 

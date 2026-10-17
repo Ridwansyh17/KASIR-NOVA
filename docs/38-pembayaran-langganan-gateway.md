@@ -1,9 +1,10 @@
 # KASIR NOVA — Pembayaran Langganan via Payment Gateway (Duitku SANDBOX)
 
-> Status: **implementasi selesai & teruji (17 Okt 2026)**, berjalan dengan
-> **transport uji (inject)**. Uji end-to-end ke Duitku **belum** dijalankan —
-> menunggu pemilik proyek mengisi kredensial sandbox di `server/.env`
-> (lihat bagian *Uji sandbox lokal*).
+> Status: **implementasi selesai & teruji (17 Okt 2026)**, **sudah dideploy**
+> (backend + hosting) namun **belum** terhubung ke Duitku: uji end-to-end ke
+> Duitku menunggu pemilik proyek mengisi kredensial sandbox di `server/.env`
+> (lihat bagian *Uji sandbox lokal*). Tanpa kredensial, endpoint pembayaran
+> menjawab **503** dan aplikasi berjalan normal.
 >
 > Ruang lingkup: **hanya pembayaran LANGGANAN**. Pembayaran transaksi penjualan
 > kasir tetap **manual** (tunai/kartu/QR/wallet dicatat kasir) dan **tidak**
@@ -267,17 +268,33 @@ Hasil terakhir: **321/321** tes backend lulus, `scripts/verify-ui.mjs` →
 ## 10. Uji sandbox lokal (langkah pemilik proyek)
 
 1. Isi `PAYMENT_*`/`DUITKU_*` di `server/.env` (lihat §2). **Jangan** commit.
-2. Jalankan backend (`npm.cmd run dev` di `server/`) lalu login panel Owner →
-   **Langganan** → **Bayar / Perpanjang** → pilih paket & kanal `BC`.
-3. Bayar VA sandbox lewat halaman demo Duitku
-   (`https://sandbox.duitku.com/payment/demo/demosuccesstransaction.aspx`).
-4. Callback Duitku memerlukan URL publik. Di lokal, uji callback dengan
-   **POST bertanda tangan** ke `http://127.0.0.1:<port>/api/payments/duitku/callback`
-   (form-urlencoded, `merchantCode`/`amount`/`merchantOrderId`/`resultCode=00`/
-   `signature` = HMAC di atas) — atau klik **Cek Status** (memakai
-   `/transactionStatus`, tidak butuh URL publik).
-5. Untuk callback sungguhan: backend perlu dapat dijangkau internet (deploy
-   backend ke Vercel atau tunnel) — **menunggu izin pemilik proyek**.
+2. Jalankan harness uji (memakai API KASIR NOVA sendiri; **tidak mencetak**
+   kredensial, nomor VA ditampilkan bertopeng):
+
+   ```powershell
+   # terminal 1: server lokal
+   cd server ; npm.cmd run dev
+   # terminal 2: dari root repo
+   npm.cmd run sandbox:duitku          # tambahkan --show-va bila ingin nomor VA penuh
+   ```
+
+   Sebelum kredensial diisi, harness berhenti rapi dengan pesan
+   *"gateway BELUM dikonfigurasi"* (status keluar 0) dan **tidak** membuat
+   tagihan apa pun.
+3. Atau lewat panel: login Owner → **Langganan** → **Bayar / Perpanjang** →
+   pilih paket & kanal `BC`.
+4. Bayar VA sandbox lewat halaman demo Duitku
+   (`https://sandbox.duitku.com/payment/demo/demosuccesstransaction.aspx`),
+   lalu tekan **Cek Status** di panel (atau jalankan `npm run sandbox:duitku`
+   lagi) — tagihan pending dipakai ulang, jadi tidak ada tagihan ganda.
+5. Untuk callback sungguhan: backend **sudah dideploy** (17 Okt 2026,
+   `https://kasir-nova.vercel.app`), jadi URL callback tersedia:
+   `https://kasir-nova.vercel.app/api/payments/duitku/callback`. Agar aktif,
+   pemilik perlu menambahkan `PAYMENT_PROVIDER`, `PAYMENT_MODE`,
+   `DUITKU_MERCHANT_CODE`, `DUITKU_API_KEY` (dan `PAYMENT_API_BASE_URL`) di
+   **Vercel → Settings → Environment Variables**, lalu backend di-deploy ulang.
+   Selama belum diisi, endpoint menjawab **503** (aman) — sudah diverifikasi di
+   produksi.
 
 ---
 
