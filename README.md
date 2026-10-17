@@ -51,6 +51,22 @@ npm run db:migrate
 npm run db:seed
 ```
 
+Akun **Admin Platform tambahan** (mis. akun "paten" pemilik) dibuat lewat CLI —
+sengaja tidak ada di aplikasi. Sandi dibaca dari variabel lingkungan/berkas,
+**tidak** lewat argumen:
+
+```cmd
+set NOVA_ADMIN_EMAIL=admin.ridwan@nova.test
+set NOVA_ADMIN_NAME=Admin Ridwan
+set NOVA_ADMIN_PASSWORD_FILE=C:\path\ke\sandi.txt
+npm run admin:create
+npm run admin:list
+```
+
+Perintah lain: `admin:password` (ganti sandi), `admin:status`
+(`NOVA_ADMIN_STATUS=active|suspended`). Untuk basis data non-lokal (produksi)
+wajib tambahkan `-- --allow-production`. Rincian: `docs/04` § 2.
+
 ### 4. Jalankan backend
 
 ```cmd

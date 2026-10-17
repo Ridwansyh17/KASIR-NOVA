@@ -104,7 +104,20 @@ $env:SEED_ADMIN_EMAIL = "admin@email-anda.com"
 $env:SEED_ADMIN_PASSWORD = "<password-kuat>"
 $env:SEED_ADMIN_NAME = "Platform Admin"
 npm run db:seed
+
+# Akun admin TAMBAHAN (mis. akun "paten" pemilik) — tanpa mengubah env seed.
+# Sandi dibaca dari BERKAS (bukan argumen CLI, agar tidak terlihat di daftar proses):
+$env:NOVA_ADMIN_EMAIL = "admin.ridwan@nova.test"
+$env:NOVA_ADMIN_NAME = "Admin Ridwan"
+$env:NOVA_ADMIN_PASSWORD_FILE = "C:\path\ke\sandi.txt"
+npm run admin:create -- --allow-production   # non-lokal wajib --allow-production
+npm run admin:list -- --allow-production     # verifikasi daftar akun admin
 ```
+
+> `admin:create` **idempoten**: bila emailnya sudah ada, akun tidak diubah
+> (tambahkan `--force` untuk mengganti sandi + nama). Ganti sandi:
+> `admin:password`; suspend/aktifkan: `admin:status`
+> (`NOVA_ADMIN_STATUS=active|suspended`). Lihat `docs/04` § 2.
 
 > Owner & kasir dibuat lewat Panel Admin setelah login. Untuk data uji cepat,
 > lihat `npm run db:seed` (owner demo opsional via `SEED_OWNER_*`).

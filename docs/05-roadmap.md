@@ -1000,6 +1000,47 @@ di `server/.env` — akan diisi pemilik; saya jalankan uji buat tagihan VA +
 tombol Cek Status), uji **callback sungguhan** (butuh `PAYMENT_*` di Vercel),
 mode produksi, dan penagihan otomatis (`auto_renew`).
 
+## 17 Okt 2026 - Akun Admin Platform "paten" + Perkakas CLI
+
+**Permintaan pemilik:** tetapkan `admin.ridwan@nova.test` sebagai akun Admin
+"paten" yang berwenang memberi langganan **gratis maupun berbayar**.
+
+**Temuan (diverifikasi, bukan asumsi):**
+- Wewenang yang diminta **sudah ada** untuk peran `platform_admin`: panel Admin →
+  tab **Bisnis** → tombol **Langganan** → modal *Pasang Paket Ini* (semua paket,
+  gratis s/d berbayar) + *Terapkan Status* (`active`/`past_due`/`expired`).
+- Akun tersebut **belum ada**; akun admin hanya lahir dari `db:seed`, dan memang
+  **tidak ada** cara membuat/mengubah akun admin dari aplikasi (sengaja).
+- `clean-test-fixtures.mjs` (jalan otomatis sebagai `pretest`) **menghapus semua
+  akun `@nova.test`** kecuali daftar yang dipertahankan → akun baru akan hilang
+  setiap kali `npm test` bila tidak diperbaiki lebih dulu.
+- `docs/04` mengklaim "Mengubah password sendiri ✅" untuk ketiga peran, padahal
+  **tidak ada** endpoint maupun UI-nya (ditemukan saat pekerjaan ini). Dokumen
+  dikoreksi; fiturnya **belum** dibuat (menunggu keputusan pemilik).
+
+**Hasil:**
+- Skrip baru `server/scripts/admin-account.mjs` + npm script
+  `admin:list|create|password|status` (root & server). Idempoten; sandi hanya
+  dari `NOVA_ADMIN_PASSWORD` / `NOVA_ADMIN_PASSWORD_FILE` (tidak pernah lewat
+  argumen CLI); menolak basis data non-lokal tanpa `--allow-production`; ganti
+  sandi atau suspend **otomatis mencabut semua sesi**; perubahan tercatat di
+  `audit_logs` **tanpa** sandi.
+- `clean-test-fixtures.mjs`: daftar `PATEN_ADMIN_EMAILS` + env
+  `NOVA_KEEP_ADMIN_EMAIL` agar akun pemilik tidak ikut dibersihkan.
+- Akun dibuat di DB dev: `admin.ridwan@nova.test` | **Admin Ridwan** | `active`
+  (17 Okt 2026). Sandi diminta pemilik dan **tidak** disimpan di repo.
+
+**Pengujian:** `server/tests/admin-account.test.js` **11/11 lulus**. Bukti
+wewenang end-to-end (skrip di luar repo, fixture dibersihkan setelahnya)
+**10/10**: login admin → baca daftar paket → buat akun Owner → Owner membuat
+bisnis (otomatis paket default **Gratis**) → admin memasang paket **berbayar
+Rp 1.000.000 tanpa pembayaran** → memasang paket **Gratis** → ubah status
+`expired` lalu `active` → baca lintas bisnis + audit log.
+
+**Dokumen diperbarui:** `docs/02` (tree `server/scripts/`), `docs/04` (§ 1 akun &
+sandi, § 2 catatan akun paten), `docs/09` (akun admin tidak lewat API), `docs/23`
+(perintah `admin:create` untuk produksi), `README.md`.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
   **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal

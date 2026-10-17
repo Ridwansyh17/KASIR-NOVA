@@ -46,7 +46,10 @@ nova-kasir/
 │   │   │   ├── subscription/
 │   │   │   └── audit/
 │   │   └── utils/            # hash password, token, logger, dll.
-│   ├── tests/                # Unit + integrasi (Vitest + Supertest)
+│   ├── tests/                # Unit + integrasi (node:test) — mis. admin-account.test.js
+│   ├── scripts/              # Skrip operasional backend
+│   │   ├── clean-test-fixtures.mjs  # Bersihkan fixture uji (pretest)
+│   │   └── admin-account.mjs        # Kelola akun Admin Platform (17 Okt 2026)
 │   ├── .env.example          # Template env (TANPA nilai rahasia)
 │   └── package.json
 │

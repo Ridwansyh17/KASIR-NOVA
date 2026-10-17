@@ -11,7 +11,11 @@
     "pretest": "node scripts/clean-test-fixtures.mjs",
     "test": "node --test \"tests/**/*.test.js\"",
     "db:migrate": "node src/db/migrate.js",
-    "db:seed": "node src/db/seed.js"
+    "db:seed": "node src/db/seed.js",
+    "admin:list": "node scripts/admin-account.mjs list",
+    "admin:create": "node scripts/admin-account.mjs create",
+    "admin:password": "node scripts/admin-account.mjs password",
+    "admin:status": "node scripts/admin-account.mjs status"
   },
   "dependencies": {
     "cors": "^2.8.5",

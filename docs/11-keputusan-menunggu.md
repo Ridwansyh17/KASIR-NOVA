@@ -102,6 +102,33 @@ lihat **`docs/38-pembayaran-langganan-gateway.md`**.
 
 ---
 
+## KEPUTUSAN MENUNGGU #5 — "Ubah sandi sendiri" tidak ada (klaim dokumen vs kenyataan)
+
+**Ditemukan 17 Okt 2026** saat menetapkan akun Admin "paten". Status:
+**belum diputuskan** (tidak memblokir pekerjaan lain).
+
+**Konteks.** `docs/04-matriks-hak-akses.md` § 1 mengklaim "Mengubah password
+sendiri ✅" untuk **ketiga** peran. Setelah diperiksa ke kode: **tidak ada**
+endpoint `.../password` untuk diri sendiri, dan **tidak ada** UI "ganti sandi"
+di panel Admin/Owner/Kasir. Yang ada hanya:
+- Admin mereset sandi Owner (`POST /api/platform/owners/:id/password`),
+- Owner mereset sandi Kasir (`.../cashiers/:cashierId/password`),
+- Admin lewat CLI `npm run admin:password`.
+
+Dokumen sudah dikoreksi agar jujur. Akibat praktis: pemilik **tidak bisa**
+mengganti sandi akun Admin-nya sendiri dari aplikasi (harus lewat CLI).
+
+**Pilihan:**
+- **A. Buat fitur "ganti sandi sendiri"** untuk ketiga peran (endpoint
+  `POST /api/auth/change-password` + form di tiap panel; verifikasi sandi lama,
+  cabut sesi lain setelah ganti). Butuh tes + dokumen.
+- **B. Biarkan** — admin lewat CLI; owner/kasir direset atasannya. Cukup untuk
+  operasi sekarang, tetapi celah keamanan (sandi tidak bisa diputar sendiri).
+
+**Rekomendasi:** **A**, dikerjakan setelah rilis APK & uji pembayaran selesai.
+
+---
+
 ## Cara melanjutkan
 
 Bila pemilik proyek menjawab Keputusan #1 (mis. "pilih A"), Fase 4 dapat

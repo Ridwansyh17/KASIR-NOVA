@@ -14,6 +14,11 @@
  *   - PAYMENT_API_BASE_URL=localhost-> dasar penyusunan callbackUrl/returnUrl.
  *   - Daftar IP callback dikosongkan-> semua callback lolos filter IP (yang diuji
  *                                      adalah verifikasi tanda tangan HMAC).
+ *   - PAYMENT_CHANNELS / PAYMENT_MIN_AMOUNT_IDR / PAYMENT_EXPIRY_MINUTES
+ *     dipaksa ke NILAI DEFAULT. Tanpa ini, `server/.env` milik pengembang
+ *     (mis. menambah `NQ` untuk uji QRIS, atau menaikkan minimum) bocor ke tes
+ *     dan membuat asersi "nilai default" gagal padahal kode tidak salah.
+ *     (Ditemukan 17 Okt 2026: tes kanal gagal karena `.env` memuat `NQ`.)
  */
 process.env.PAYMENT_PROVIDER = 'disabled';
 process.env.PAYMENT_MODE = 'sandbox';
@@ -23,5 +28,8 @@ process.env.PAYMENT_CALLBACK_IP_ALLOWLIST = '';
 process.env.PAYMENT_CALLBACK_URL = '';
 process.env.PAYMENT_RETURN_URL = '';
 process.env.PAYMENT_OWNER_PANEL_URL = '';
+process.env.PAYMENT_CHANNELS = 'BC,I1,M2,BR';
+process.env.PAYMENT_MIN_AMOUNT_IDR = '10000';
+process.env.PAYMENT_EXPIRY_MINUTES = '1440';
 
 export default { forced: true };

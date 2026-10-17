@@ -9,6 +9,8 @@
  *   - Hanya menyentuh akun berdomain `@nova.test` (domain khusus UJI).
  *   - Akun seed aplikasi dev SELALU dipertahankan: SEED_ADMIN_EMAIL /
  *     SEED_OWNER_EMAIL (default admin@nova.test / owner@nova.test).
+ *   - Akun Admin "paten" milik pemilik proyek juga dipertahankan (lihat
+ *     PATEN_ADMIN_EMAILS) — tanpa ini, `npm test` akan MENGHAPUSNYA.
  *   - Data ber-email asli (bukan @nova.test) TIDAK disentuh.
  *
  * Cascade: `owners` → businesses → outlets/cashiers/products/stocks/
@@ -19,17 +21,33 @@
  */
 import { query, pool } from '../src/config/db.js';
 
+// Akun Admin "paten" milik pemilik proyek: WAJIB dipertahankan walau berdomain
+// @nova.test. Tanpa daftar ini, `npm test` (lewat `pretest`) akan menghapusnya.
+// Email tambahan bisa ditambahkan lewat env NOVA_KEEP_ADMIN_EMAIL (pisah koma).
+const PATEN_ADMIN_EMAILS = ['admin.ridwan@nova.test'];
+
+const KEEP_EXTRA = String(process.env.NOVA_KEEP_ADMIN_EMAIL ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const PRESERVE = new Set(
   [
     process.env.SEED_ADMIN_EMAIL ?? 'admin@nova.test',
     process.env.SEED_OWNER_EMAIL ?? 'owner@nova.test',
     'admin@nova.test',
     'owner@nova.test',
-  ].filter(Boolean)
+    ...PATEN_ADMIN_EMAILS,
+    ...KEEP_EXTRA,
+  ]
+    .filter(Boolean)
+    .map((email) => email.toLowerCase())
 );
 
 const isFixture = (email) =>
-  typeof email === 'string' && email.toLowerCase().endsWith('@nova.test') && !PRESERVE.has(email);
+  typeof email === 'string' &&
+  email.toLowerCase().endsWith('@nova.test') &&
+  !PRESERVE.has(email.toLowerCase());
 
 const delOwners = async (ids) => {
   if (!ids.length) return 0;

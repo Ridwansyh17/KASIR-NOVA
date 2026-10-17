@@ -3,6 +3,11 @@
 > Basis URL dev: `http://localhost:4000/api/platform`
 > **Semua endpoint WAJIB token `platform_admin`.** Token peran lain → `403`.
 > Error: `{ "error": { "message": "...", "details"?: ... } }`.
+>
+> **Akun Admin sendiri tidak dikelola lewat API ini** (sengaja): modul ini
+> mengelola **Owner** dan langganan bisnis. Membuat/mengubah akun Admin hanya
+> lewat CLI `npm run admin:create` / `admin:password` / `admin:status`
+> (lihat `docs/04` § 2).
 
 ## Ringkasan endpoint
 

@@ -13,10 +13,10 @@
 | Login Kasir via **PIN** (4 digit) | ❌ | ❌ | ✅ (hanya kasir ber-PIN, outlet perangkatnya) |
 | Membuat akun Owner | ✅ | ❌ | ❌ |
 | Membuat akun Kasir | ❌ | ✅ (outlet miliknya) | ❌ |
-| Membuat akun Admin Platform | ❌ (hanya seeding internal) | ❌ | ❌ |
+| Membuat akun Admin Platform | ❌ **sengaja** tidak ada di aplikasi — hanya CLI `npm run admin:create` / seeding | ❌ | ❌ |
 | Mencabut sesi sendiri (logout) | ✅ | ✅ | ✅ |
 | Mencabut sesi bawahan | ✅ (semua) | ✅ (kasirnya) | ❌ |
-| Mengubah password sendiri | ✅ | ✅ | ✅ |
+| Mengubah password sendiri | ❌ belum ada di API (pakai CLI `npm run admin:password`) | ❌ belum ada di API (direset Admin) | ❌ belum ada di API (direset Owner) |
 
 ## 2. Platform Admin
 
@@ -27,6 +27,28 @@
 | Kelola subscription_plans | ✅ | ❌ | ❌ |
 | Set status langganan suatu bisnis | ✅ | ❌ | ❌ |
 | Akses panel `/admin` | ✅ | ❌ | ❌ |
+
+> **Akun Admin Platform (akun "paten").** Akun Admin **tidak dibuat dari
+> aplikasi** (sengaja, agar tidak ada jalur privilege escalation lewat UI).
+> Dua cara sah:
+> 1. `npm run db:seed` — akun admin pertama saat instalasi (`SEED_ADMIN_*`).
+> 2. `npm run admin:create` — akun admin tambahan (`NOVA_ADMIN_EMAIL`,
+>    `NOVA_ADMIN_NAME`; sandi dari `NOVA_ADMIN_PASSWORD` /
+>    `NOVA_ADMIN_PASSWORD_FILE`, **tidak pernah** lewat argumen CLI).
+>
+> Akun Admin "paten" yang dipakai pemilik proyek: **`admin.ridwan@nova.test`**
+> (peran `platform_admin`, status `active`, dibuat 17 Okt 2026, nama
+> "Admin Ridwan"). Wewenangnya = **seluruh** wewenang Platform Admin di tabel
+> § 2 dan § 10, termasuk memasang paket **gratis maupun berbayar** ke bisnis
+> mana pun **tanpa pembayaran** (tombol `Langganan` di tab **Bisnis** panel
+> Admin) dan mengubah status langganan (`active` / `past_due` / `expired`).
+>
+> Perkakas: `npm run admin:list` (daftar akun), `admin:create`,
+> `admin:password` (ganti sandi), `admin:status` (aktif/suspend). Ganti sandi
+> atau suspend **otomatis mencabut semua sesi** akun itu. Perubahan penting
+> tercatat di `audit_logs` (tidak pernah memuat sandi). Sandi **tidak**
+> disimpan di repo. Skrip menolak basis data non-lokal kecuali diberi
+> `--allow-production`.
 
 ## 3. Owner — Multi-Bisnis
 
