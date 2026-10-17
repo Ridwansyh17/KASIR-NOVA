@@ -602,6 +602,124 @@ if (excelExportMissing === 0) {
   console.log('  tombol, API, endpoint, dan pembuat berkas Excel (.xlsx) lengkap.');
 }
 
+// ------------------------- Laporan Transaksi Kasir (17 Okt 2026) -------------
+// Keputusan pemilik: B1 satu baris per TRANSAKSI, B2 ekspor Excel, B3 tab
+// "Laporan Transaksi" dengan rentang bawaan HARI INI. Keputusan A5a: cakupan =
+// SEMUA transaksi outlet kasir. Pengunci ini juga memastikan skema laporan
+// kasir TIDAK punya `outletId`/`cashierId` (outlet wajib dari akun kasir).
+console.log('\n[laporan transaksi kasir (17 Okt 2026)]');
+
+const kHtmlLap = readFileSync(join(root, 'apps', 'kasir', 'index.html'), 'utf8');
+const kJsLap = readFileSync(join(root, 'apps', 'kasir', 'src', 'app.js'), 'utf8');
+const kApiLap = readFileSync(join(root, 'apps', 'kasir', 'src', 'api.js'), 'utf8');
+const kShareLap = readFileSync(join(root, 'apps', 'kasir', 'src', 'struk-share.js'), 'utf8');
+const kRoutesLap = readFileSync(
+  join(root, 'server', 'src', 'modules', 'cashier-area', 'routes.js'),
+  'utf8'
+);
+const kCtrlLap = readFileSync(
+  join(root, 'server', 'src', 'modules', 'cashier-area', 'controller.js'),
+  'utf8'
+);
+const kSvcLap = readFileSync(join(root, 'server', 'src', 'modules', 'report', 'service.js'), 'utf8');
+const kSchemaLap = readFileSync(join(root, 'server', 'src', 'modules', 'report', 'schema.js'), 'utf8');
+
+const kasirReportChecks = [
+  [
+    kHtmlLap,
+    'apps/kasir/index.html',
+    [
+      'data-pane="laporan"',
+      'data-tab="laporan"',
+      'id="lap-summary"',
+      'id="lap-body"',
+      'id="lap-range"',
+      'id="lap-status"',
+      'id="lap-search"',
+      'id="lap-export-btn"',
+      'id="lap-note"',
+    ],
+  ],
+  [
+    kJsLap,
+    'apps/kasir/src/app.js',
+    [
+      'api.transactionsReport(',
+      'api.transactionsReportFile(',
+      'strukShare.saveXlsx(',
+      "laporan: ['Laporan Transaksi'",
+      'TX_STATUS_LABELS',
+      'loadReportTransactions',
+    ],
+  ],
+  [
+    kApiLap,
+    'apps/kasir/src/api.js',
+    ['/api/cashier/reports/transactions', '/api/cashier/reports/transactions/export'],
+  ],
+  [kShareLap, 'apps/kasir/src/struk-share.js', ['saveFile', 'saveXlsx', 'XLSX_MIME']],
+  [
+    kRoutesLap,
+    'server/src/modules/cashier-area/routes.js',
+    [
+      "'/reports/transactions'",
+      "'/reports/transactions/export'",
+      'cashierTransactionReportQuerySchema',
+      'cashierTransactionReportExportQuerySchema',
+      'controller.reportTransactions',
+      'controller.reportTransactionsExport',
+    ],
+  ],
+  [
+    kCtrlLap,
+    'server/src/modules/cashier-area/controller.js',
+    ['reportTransactionsExport', 'outletId: scope.outlet_id', 'resolveFinanceRange(scope.timezone'],
+  ],
+  [
+    kSvcLap,
+    'server/src/modules/report/service.js',
+    ['export const cashierTransactionReport', 'export const exportCashierTransactionReportXlsx'],
+  ],
+  [
+    kSchemaLap,
+    'server/src/modules/report/schema.js',
+    ['cashierTransactionReportQuerySchema', 'cashierTransactionReportExportQuerySchema'],
+  ],
+];
+let kasirReportMissing = 0;
+for (const [src, label, needles] of kasirReportChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (laporan transaksi kasir hilang?)`);
+      kasirReportMissing++;
+    }
+  }
+}
+
+// Negatif: blok skema kasir tidak boleh menerima outletId/cashierId dari klien.
+const lapSchemaStart = kSchemaLap.indexOf('const cashierReportFilters');
+const lapSchemaEnd = kSchemaLap.indexOf('Fase 4/6', lapSchemaStart);
+const lapSchemaBlock =
+  lapSchemaStart >= 0 ? kSchemaLap.slice(lapSchemaStart, lapSchemaEnd > lapSchemaStart ? lapSchemaEnd : undefined) : '';
+if (!lapSchemaBlock) {
+  fail('server/src/modules/report/schema.js tanpa blok cashierReportFilters');
+} else if (/outletId|cashierId/.test(lapSchemaBlock)) {
+  fail('skema laporan kasir memuat outletId/cashierId (outlet wajib dari akun kasir)');
+}
+
+if (kasirReportMissing === 0) {
+  console.log('  pane, API, endpoint, ekspor .xlsx, dan pembatasan outlet dari akun: lengkap.');
+}
+
+// Regresi 17 Okt 2026 (ditemukan tes struk-share): `new root().Blob(...)` TIDAK
+// sah — JS memparsingnya sebagai `new root()` sehingga jalur UNDUH berkas di web
+// gagal ("root is not a constructor"). Konstruktor wajib diambil ke variabel.
+if (/new\s+root\(\)\s*\.\s*(Blob|File|Uint8Array)\s*\(/.test(kShareLap)) {
+  fail('apps/kasir/src/struk-share.js memakai `new root().X(...)` (jalur unduh berkas rusak)');
+} else {
+  console.log('  konstruktor Blob/File diambil lewat variabel (jalur unduh web aman).');
+}
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;

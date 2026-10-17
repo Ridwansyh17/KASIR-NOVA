@@ -104,13 +104,24 @@ struk (isi identik dengan PDF), sedangkan **berkas PDF-nya** yang dipakai untuk
 kirim/simpan/cetak. Ini juga alasan `window.print()` tidak dipakai di APK —
 WebView tidak mendukungnya.
 
+> **Perbaikan 17 Okt 2026 (ditemukan tes laporan kasir).** Jalur **unduh berkas
+> di web/PWA** tidak pernah berfungsi: `struk-share.js` memakai
+> `new root().Blob(...)` yang oleh JS diparsing sebagai `new (root())` sehingga
+> selalu melempar *"root is not a constructor"*. Karena APK memakai plugin native,
+> kerusakan ini tidak terlihat di perangkat. Kini konstruktor diambil ke variabel
+> lokal (`const BlobCtor = root().Blob`), `downloadPdf` menjadi pembungkus tipis
+> `downloadFile()` (berkas apa pun, dipakai juga oleh ekspor `.xlsx` laporan
+> kasir — `docs/37`), dan `scripts/verify-ui.mjs` **menolak** pola
+> `new root().X(...)` bila muncul lagi. Tes: `struk-pdf.test.js` **15/15**
+> (tambah 3 kasus berkas Excel: plugin native, unduhan web, `shareFile`).
+
 ---
 
 ## 5. Pengujian
 
 | Perintah | Hasil |
 |---|---|
-| `node --test tests/struk-pdf.test.js` (di `server/`) | **12/12 lulus** |
+| `node --test tests/struk-pdf.test.js` (di `server/`) | **15/15 lulus** (12 + 3 kasus berkas Excel, 17 Okt 2026) |
 | `node scripts/verify-ui.mjs` | **SEMUA OK** (bagian baru `[struk pdf kasir (17 Okt 2026)]`) |
 
 Yang diuji:
@@ -136,6 +147,10 @@ Yang diuji:
     (UI otomatis mengunduh berkas); `print` ditandai `not_native`.
 12. Jalur **peramban dengan Web Share**: berkas `Struk-*.pdf` dikirim dengan tipe
     `application/pdf`.
+13. **(17 Okt 2026)** `saveXlsx` mengirim `mime` spreadsheet (bukan PDF) + base64
+    ke plugin `NovaReceipt.save`; tanpa plugin native berkas **diunduh** (menemukan
+    & mengunci bug `new root().Blob` — §4); `shareFile` memakai Web Share dengan
+    MIME Excel.
 
 ---
 

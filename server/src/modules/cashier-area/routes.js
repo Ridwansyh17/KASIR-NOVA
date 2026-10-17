@@ -28,7 +28,7 @@ import {
   productListQuerySchema,
 } from '../product/schema.js';
 import { cashierExpenseRoutes } from '../expense/routes.js';
-import { financeQuerySchema } from '../report/schema.js';
+import { financeQuerySchema, cashierTransactionReportQuerySchema, cashierTransactionReportExportQuerySchema } from '../report/schema.js';
 import { createInventoryRouter } from '../inventory/routes.js';
 
 const router = Router();
@@ -134,6 +134,22 @@ router.get(
   ...cashierOnly,
   ...validate({ query: financeQuerySchema }),
   controller.dailySeries
+);
+
+// Laporan transaksi outlet kasir (satu baris per transaksi; keputusan B1/B3).
+router.get(
+  '/reports/transactions',
+  ...cashierOnly,
+  ...validate({ query: cashierTransactionReportQuerySchema }),
+  controller.reportTransactions
+);
+
+// Ekspor Excel laporan transaksi kasir (angka identik dengan layar).
+router.get(
+  '/reports/transactions/export',
+  ...cashierOnly,
+  ...validate({ query: cashierTransactionReportExportQuerySchema }),
+  controller.reportTransactionsExport
 );
 
 // ------------------------------------------- Histori pergerakan stok (Fase 2)

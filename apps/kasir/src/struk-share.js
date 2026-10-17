@@ -47,6 +47,17 @@ export const pdfFile = (bytes, filename) => {
   return new FileCtor([bytes], filename, { type: 'application/pdf' });
 };
 
+/** MIME berkas Excel (.xlsx) — dipakai ekspor laporan transaksi kasir. */
+export const XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Berkas apa pun (Web Share). Null bila `File` tidak tersedia. */
+export const fileOf = (bytes, filename, mime) => {
+  const FileCtor = root().File;
+  if (typeof FileCtor !== 'function') return null;
+  return new FileCtor([bytes], filename, { type: mime });
+};
+
 /** True bila peramban mampu mengirim BERKAS PDF lewat `navigator.share`. */
 export const canSharePdf = (bytes, filename) => {
   const nav = root().navigator;
@@ -60,12 +71,21 @@ export const canSharePdf = (bytes, filename) => {
   }
 };
 
-/** Simpan lewat unduhan peramban (jalur web). */
-export const downloadPdf = ({ bytes, filename }) => {
+/**
+ * Simpan berkas APA PUN lewat unduhan peramban (jalur web).
+ * @param {{bytes: Uint8Array, filename: string, mime: string}} args
+ */
+export const downloadFile = ({ bytes, filename, mime }) => {
   const doc = root().document;
   const urlApi = root().URL;
-  if (!doc || !urlApi?.createObjectURL) return { ok: false, reason: 'no_download' };
-  const blob = new root().Blob([bytes], { type: 'application/pdf' });
+  const BlobCtor = root().Blob;
+  if (!doc || !urlApi?.createObjectURL || typeof BlobCtor !== 'function') {
+    return { ok: false, reason: 'no_download' };
+  }
+  // PENTING: memanggil konstruktor langsung dari `root()` TIDAK sah (JS
+  // memparsingnya sebagai konstruksi `root()` itu sendiri), jadi konstruktor
+  // diambil ke variabel lokal — sama seperti `pdfFile()`.
+  const blob = new BlobCtor([bytes], { type: mime });
   const url = urlApi.createObjectURL(blob);
   const a = doc.createElement('a');
   a.href = url;
@@ -79,6 +99,62 @@ export const downloadPdf = ({ bytes, filename }) => {
   if (typeof root().setTimeout === 'function') root().setTimeout(revoke, 10000);
   return { ok: true, via: 'download' };
 };
+
+/** Simpan lewat unduhan peramban (jalur web) — PDF struk. */
+export const downloadPdf = ({ bytes, filename }) =>
+  downloadFile({ bytes, filename, mime: 'application/pdf' });
+
+/**
+ * SIMPAN berkas apa pun (.xlsx dsb.): plugin native `save` di APK, unduhan di
+ * peramban. Menerima `base64` (dari bytes) karena plugin native memerlukannya.
+ * @returns {Promise<{ok: boolean, via?: string, reason?: string}>}
+ */
+export const saveFile = async ({ bytes, base64, filename, mime }) => {
+  const plugin = nativeReceipt();
+  if (plugin) {
+    if (typeof plugin.save === 'function') {
+      await plugin.save({ filename, base64, mime });
+      return { ok: true, via: 'native-save' };
+    }
+    if (typeof plugin.share === 'function') {
+      // Plugin lama tanpa `save`: pakai lembar berbagi (ada "Simpan ke File").
+      await plugin.share({ filename, base64, mime });
+      return { ok: true, via: 'native-share' };
+    }
+    return { ok: false, reason: 'native_unavailable' };
+  }
+  return downloadFile({ bytes, filename, mime });
+};
+
+/** KIRIM berkas apa pun ke aplikasi lain (APK lewat plugin, web lewat Web Share). */
+export const shareFile = async ({ bytes, base64, filename, mime, title = '', text = '' }) => {
+  const plugin = nativeReceipt();
+  if (plugin) {
+    if (typeof plugin.share !== 'function') return { ok: false, reason: 'native_unavailable' };
+    await plugin.share({ filename, base64, mime, title, text });
+    return { ok: true, via: 'native-share' };
+  }
+
+  const nav = root().navigator;
+  if (nav && typeof nav.share === 'function' && typeof nav.canShare === 'function') {
+    const file = fileOf(bytes, filename, mime);
+    if (file) {
+      try {
+        if (!nav.canShare({ files: [file] })) return { ok: false, reason: 'share_unsupported' };
+        await nav.share({ files: [file], title, text });
+        return { ok: true, via: 'share' };
+      } catch (err) {
+        if (err?.name === 'AbortError') return { ok: true, via: 'share-cancelled' };
+        return { ok: false, reason: 'share_failed' };
+      }
+    }
+  }
+  return { ok: false, reason: 'share_unsupported' };
+};
+
+/** Simpan berkas Excel (.xlsx) hasil ekspor laporan. */
+export const saveXlsx = ({ bytes, base64, filename }) =>
+  saveFile({ bytes, base64, filename, mime: XLSX_MIME });
 
 /**
  * SIMPAN struk PDF.
@@ -146,13 +222,19 @@ export const printPdf = async ({ base64, filename, jobName = '' }) => {
 
 export default {
   NATIVE_PLUGIN,
+  XLSX_MIME,
   isNative,
   nativeReceipt,
   canUseNative,
   pdfFile,
+  fileOf,
   canSharePdf,
   downloadPdf,
+  downloadFile,
   savePdf,
+  saveFile,
+  saveXlsx,
   sharePdf,
+  shareFile,
   printPdf,
 };

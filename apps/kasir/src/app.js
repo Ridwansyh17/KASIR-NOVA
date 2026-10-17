@@ -1302,7 +1302,7 @@ boot();
 // menyesuaikan tampilan berdasarkan izin yang dikirim server.
 // ============================================================================
 
-const TABS = ['beranda', 'kasir', 'produk', 'pendapatan', 'pengeluaran', 'stok', 'lainnya'];
+const TABS = ['beranda', 'kasir', 'produk', 'pendapatan', 'laporan', 'pengeluaran', 'stok', 'lainnya'];
 
 const CATEGORY_LABELS = {
   operational: 'Operasional',
@@ -1352,6 +1352,7 @@ const PAGE_INFO = {
   kasir: ['Transaksi', 'Pilih produk, lalu konfirmasi pembayaran ke server'],
   produk: ['Katalog Produk', 'Cari produk, atur stok, dan tambah produk outlet'],
   pendapatan: ['Laporan', 'Ringkasan pendapatan, metode bayar, dan laba outlet'],
+  laporan: ['Laporan Transaksi', 'Riwayat transaksi outlet Anda (satu baris per transaksi)'],
   pengeluaran: ['Pengeluaran', 'Catat & telusuri pengeluaran outlet'],
   stok: ['Riwayat Stok', 'Catatan pergerakan stok (append-only)'],
   lainnya: ['Lainnya', 'Pengeluaran, riwayat stok, printer, dan akun kasir'],
@@ -1383,6 +1384,7 @@ const switchTab = (tab) => {
   if (tab === 'beranda') loadHome();
   else if (tab === 'produk') loadMgmtProducts();
   else if (tab === 'pendapatan') loadDaily();
+  else if (tab === 'laporan') loadReportTransactions();
   else if (tab === 'pengeluaran') loadExpenses();
   else if (tab === 'stok') loadMovements();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1814,6 +1816,167 @@ $('fin-range').addEventListener('change', () => {
 });
 $('fin-date').addEventListener('change', loadDaily);
 $('fin-date').classList.add('hidden');
+
+// ------------------------------- Laporan transaksi outlet (17 Okt 2026) ----
+/**
+ * Tab **Laporan Transaksi** (permintaan pemilik 17 Okt 2026 — keputusan B1
+ * satu baris per transaksi, B2 ekspor Excel, B3 bawaan hari ini).
+ *
+ * Semua angka, rentang, dan **cakupan outlet** ditentukan SERVER
+ * (`/api/cashier/reports/transactions` memakai outlet dari akun kasir), jadi
+ * tidak ada perhitungan ulang di klien dan kasir tidak bisa membuka outlet lain.
+ */
+const TX_STATUS_LABELS = {
+  completed: 'Selesai',
+  voided: 'Dibatalkan',
+  refunded: 'Refund',
+};
+
+/** Filter dari kontrol layar; preset rentang dihitung server (zona bisnis). */
+const laporanQuery = () => {
+  const range = $('lap-range').value;
+  const q = range === 'custom' ? { date: $('lap-date').value || todayIso() } : { period: range };
+  const status = $('lap-status').value;
+  if (status) q.status = status;
+  const search = $('lap-search').value.trim();
+  if (search) q.search = search;
+  return q;
+};
+
+/** Catatan kecil di bawah ringkasan (mis. data terpotong). */
+const setLapNote = (text) => {
+  const el = $('lap-note');
+  if (!text) {
+    hide(el);
+    return;
+  }
+  el.textContent = text;
+  show(el);
+};
+
+const renderReportTransactions = (data) => {
+  const s = data.summary ?? {};
+  const cards = [
+    {
+      label: 'Total omzet',
+      value: fmtIDR(s.total ?? 0),
+      sub: `${s.transactions ?? 0} transaksi`,
+    },
+    { label: 'Rata-rata/transaksi', value: fmtIDR(s.avg_total ?? 0) },
+    { label: 'Dibatalkan (void)', value: `${s.voided_transactions ?? 0} transaksi` },
+    { label: 'Nilai void', value: fmtIDR(s.voided_total ?? 0) },
+  ];
+  $('lap-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(c.value)}</strong>
+        ${c.sub ? `<span class="muted small">${escapeHtml(c.sub)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+
+  const p = data.period ?? {};
+  $('lap-range-label').textContent =
+    p.from && p.to
+      ? `Periode: ${p.from}${p.to !== p.from ? ` s.d. ${p.to}` : ''} • Outlet ${
+          data.outlet?.name ?? '—'
+        }`
+      : '';
+
+  const methods = data.payment_methods ?? [];
+  $('lap-methods').textContent = methods.length
+    ? `Metode: ${methods
+        .map((m) => `${METHOD_LABELS[m.method] ?? m.method} ${fmtIDR(m.total ?? 0)}`)
+        .join(' • ')}`
+    : '';
+
+  const rows = data.rows ?? [];
+  const body = $('lap-body');
+  body.innerHTML = '';
+  $('lap-empty').classList.toggle('hidden', rows.length > 0);
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td class="strong">${escapeHtml(r.invoice_no ?? '—')}</td>
+      <td>${escapeHtml(r.date ?? '')}<br /><span class="muted small">${escapeHtml(
+        r.time ?? ''
+      )}</span></td>
+      <td class="right">${Number(r.items ?? 0)}</td>
+      <td class="right strong">${escapeHtml(fmtIDR(r.total ?? 0))}</td>
+      <td>${escapeHtml((r.methods ?? []).map((m) => METHOD_LABELS[m] ?? m).join(', ') || '—')}</td>
+      <td>${escapeHtml(r.cashier_name ?? '—')}</td>
+      <td>${escapeHtml(TX_STATUS_LABELS[r.status] ?? r.status ?? '')}</td>`;
+    body.appendChild(tr);
+  });
+
+  setLapNote(
+    data.truncated
+      ? `Ditampilkan ${rows.length} transaksi pertama (data terpotong) — persempit rentang tanggal lalu muat ulang agar lengkap.`
+      : ''
+  );
+};
+
+const loadReportTransactions = async () => {
+  try {
+    const data = await guard(() => api.transactionsReport(laporanQuery()));
+    if (!data) return;
+    renderReportTransactions(data);
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  }
+};
+
+/**
+ * Ekspor Excel laporan transaksi: berkas dibuat di server (angka identik
+ * dengan layar) lalu disimpan lewat plugin native di APK atau diunduh di web.
+ */
+const exportReportTransactionsXlsx = async () => {
+  const btn = $('lap-export-btn');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Menyiapkan…';
+  try {
+    const { bytes, filename } = await guard(() => api.transactionsReportFile(laporanQuery()));
+    const saved = await strukShare.saveXlsx({
+      bytes,
+      base64: bytesToBase64(bytes),
+      filename,
+    });
+    if (!saved.ok) {
+      alertBox('Perangkat ini tidak mendukung menyimpan berkas Excel.', 'error');
+      return;
+    }
+    alertBox(
+      saved.via === 'download'
+        ? `Berkas ${filename} diunduh.`
+        : `Berkas ${filename} siap disimpan atau dikirim.`,
+      'info'
+    );
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+};
+
+$('lap-refresh-btn').addEventListener('click', loadReportTransactions);
+$('lap-range').addEventListener('change', () => {
+  const custom = $('lap-range').value === 'custom';
+  $('lap-date').classList.toggle('hidden', !custom);
+  if (custom && !$('lap-date').value) $('lap-date').value = todayIso();
+  loadReportTransactions();
+});
+$('lap-date').addEventListener('change', loadReportTransactions);
+$('lap-status').addEventListener('change', loadReportTransactions);
+$('lap-search').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') loadReportTransactions();
+});
+$('lap-export-btn').addEventListener('click', exportReportTransactionsXlsx);
+$('lap-date').classList.add('hidden');
 
 // ------------------------------------------------- Beranda (ringkasan) ------
 /**

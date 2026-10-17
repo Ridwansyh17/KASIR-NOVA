@@ -146,7 +146,7 @@ roadmap fase.
 
 - Fase **0–18 selesai** (termasuk penyempurnaan struk thermal **16b**, APK
   Android **17**, dan **V0.3** HPP/stok/pengeluaran/laporan **18**); suite tes
-  integrasi **264/264**; E2E alur produksi **26/26** (dijalankan terhadap server
+  integrasi **291/291**; E2E alur produksi **26/26** (dijalankan terhadap server
   lokal sebelum deploy; langkah 20–23 menguji perbandingan outlet &
   lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend
@@ -198,6 +198,16 @@ roadmap fase.
   **multi-halaman bernomor** ("Halaman i dari N" di setiap halaman; paginasi +
   kapasitas baris diukur dengan Chrome headless — `scripts/print-report-check.mjs`).
   Kode & tes: `docs/35-laporan-transaksi-cetak.md`.
+- **Laporan Transaksi untuk Kasir (17 Okt 2026)**: tab baru **Laporan
+  Transaksi** di panel Kasir — **satu baris per transaksi** (keputusan pemilik
+  B1) pada outlet akun kasir (semua kasir outlet itu, A5a), rentang bawaan
+  **hari ini** (B3), filter status & pencarian nomor transaksi, kartu ringkasan
+  + rekap metode, dan **Ekspor Excel** (B2; 3 sheet: Ringkasan, Daftar
+  Transaksi + TOTAL, Rekap Metode — tanpa Produk Terlaris). Endpoint
+  `GET /api/cashier/reports/transactions[/export]`; `outletId` **selalu** dari
+  akun (`outletId` pada query dibuang), angka identik dengan laporan Owner.
+  Ekspor memakai plugin `NovaReceipt` di APK / unduhan di web. Rincian:
+  `docs/37-laporan-transaksi-kasir.md`.
 - **Sitemap & deploy**: backend di Vercel (`https://kasir-nova.vercel.app`),
   panel di Firebase Hosting (`https://kasir-nova.web.app`) — deploy ulang
   17 Okt 2026 membawa laporan transaksi + tombol struk PDF di web; catatan lengkap

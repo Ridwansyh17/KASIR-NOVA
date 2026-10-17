@@ -373,3 +373,102 @@ test('struk-share: Web Share dengan berkas PDF di peramban', async () => {
     }
   );
 });
+
+// ------------------------------- Ekspor Excel (laporan transaksi kasir) -----
+test('struk-share: saveXlsx mengirim MIME Excel ke plugin native (APK)', async () => {
+  const calls = [];
+  const plugin = {
+    save: async (o) => calls.push(['save', o]),
+    share: async (o) => calls.push(['share', o]),
+  };
+  await withGlobals(
+    { Capacitor: { isNativePlatform: () => true, registerPlugin: () => plugin } },
+    async () => {
+      const res = await share.saveXlsx({
+        bytes: new Uint8Array([1, 2, 3]),
+        base64: 'AQID',
+        filename: 'Laporan.xlsx',
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.via, 'native-save');
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0][1].filename, 'Laporan.xlsx');
+      assert.equal(calls[0][1].base64, 'AQID', 'byte dikirim sebagai base64');
+      assert.equal(calls[0][1].mime, share.XLSX_MIME, 'MIME spreadsheet, bukan PDF');
+      assert.match(calls[0][1].mime, /spreadsheetml\.sheet/);
+    }
+  );
+});
+
+test('struk-share: tanpa plugin native → berkas Excel diunduh (web)', async () => {
+  const created = [];
+  const clicked = [];
+  const fakeDoc = {
+    createElement: () => ({
+      set href(v) {
+        created.push(v);
+      },
+      click() {
+        clicked.push(true);
+      },
+      remove() {},
+    }),
+    body: { appendChild() {} },
+  };
+  await withGlobals(
+    {
+      Capacitor: undefined,
+      document: fakeDoc,
+      URL: { createObjectURL: () => 'blob:uji', revokeObjectURL() {} },
+      Blob: class {
+        constructor(parts, opts) {
+          this.parts = parts;
+          this.type = opts?.type;
+        }
+      },
+      setTimeout: () => 0,
+    },
+    async () => {
+      const res = await share.saveXlsx({
+        bytes: new Uint8Array([1]),
+        base64: 'AQ==',
+        filename: 'Laporan.xlsx',
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.via, 'download');
+      assert.deepEqual(created, ['blob:uji']);
+      assert.equal(clicked.length, 1, 'tautan unduhan diklik sekali');
+    }
+  );
+});
+
+test('struk-share: shareFile memakai Web Share dengan MIME Excel', async () => {
+  const shared = [];
+  class FakeFile {
+    constructor(parts, name, opts) {
+      this.name = name;
+      this.type = opts?.type;
+    }
+  }
+  await withGlobals(
+    {
+      Capacitor: undefined,
+      File: FakeFile,
+      navigator: {
+        canShare: ({ files }) => Array.isArray(files) && files.length === 1,
+        share: async (data) => shared.push(data),
+      },
+    },
+    async () => {
+      const res = await share.shareFile({
+        bytes: new Uint8Array([1]),
+        filename: 'Laporan.xlsx',
+        mime: share.XLSX_MIME,
+      });
+      assert.equal(res.ok, true);
+      assert.equal(res.via, 'share');
+      assert.equal(shared[0].files[0].name, 'Laporan.xlsx');
+      assert.equal(shared[0].files[0].type, share.XLSX_MIME);
+    }
+  );
+});

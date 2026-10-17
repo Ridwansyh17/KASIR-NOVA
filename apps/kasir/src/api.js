@@ -175,6 +175,56 @@ export const request = async (path, options = {}) => {
 };
 
 /**
+ * Ambil BERKAS (mis. .xlsx) dari server: byte + nama berkas dari header.
+ *
+ * Alur autentikasi/refresh SENGAJA sama dengan `request()`, tetapi isi respons
+ * TIDAK diparse sebagai JSON karena biner. Dipakai tombol "Ekspor Excel" di
+ * panel Kasir (jalur web mengunduh berkas, jalur APK menyerahkan byte ke
+ * plugin native lewat `struk-share.saveXlsx`).
+ *
+ * @returns {Promise<{bytes: Uint8Array, filename: string}>}
+ */
+const requestFile = async (path) => {
+  const once = async () => {
+    const headers = {};
+    const access = tokenStore.access;
+    if (access) headers.Authorization = `Bearer ${access}`;
+
+    let res;
+    try {
+      res = await fetch(apiUrl(path), { method: 'GET', headers });
+    } catch {
+      throw new ApiError('Tidak dapat menghubungi server. Periksa koneksi Anda.', 0);
+    }
+
+    if (res.status === 401 && tokenStore.refresh && (await refreshSession())) {
+      return once();
+    }
+    if (!res.ok) {
+      // Server tetap mengirim JSON error walau permintaan biner.
+      let message = `HTTP ${res.status}`;
+      let details;
+      try {
+        const body = JSON.parse(await res.text());
+        message = body?.error?.message ?? message;
+        details = body?.error?.details;
+      } catch {
+        // Bukan JSON (mis. halaman error) -> pakai pesan HTTP di atas.
+      }
+      throw new ApiError(message, res.status, details);
+    }
+
+    const disposition = res.headers.get('content-disposition') ?? '';
+    const match = /filename="?([^";]+)"?/.exec(disposition);
+    return {
+      bytes: new Uint8Array(await res.arrayBuffer()),
+      filename: match ? match[1] : 'laporan-transaksi.xlsx',
+    };
+  };
+  return once();
+};
+
+/**
  * Pulihkan sesi saat aplikasi dibuka kembali (persistent login).
  *
  * Memverifikasi token tersimpan ke server. Bila access token sudah hilang
@@ -307,4 +357,16 @@ export const api = {
   /** Histori pergerakan stok outlet (append-only, Fase 2). */
   inventoryMovements: (params = {}) =>
     request(`/api/cashier/inventory-movements${qs(params)}`),
+
+  /**
+   * Laporan transaksi outlet kasir (17 Okt 2026) — SATU BARIS PER TRANSAKSI
+   * (keputusan B1) untuk outlet akun kasir. `params`:
+   * { period | date | from, to, status, search, limit }.
+   */
+  transactionsReport: (params = {}) =>
+    request(`/api/cashier/reports/transactions${qs(params)}`),
+
+  /** Berkas .xlsx laporan transaksi outlet (byte + nama berkas dari server). */
+  transactionsReportFile: (params = {}) =>
+    requestFile(`/api/cashier/reports/transactions/export${qs(params)}`),
 };

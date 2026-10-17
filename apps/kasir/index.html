@@ -118,6 +118,7 @@
           <button type="button" class="tab" data-tab="kasir" role="tab">Kasir</button>
           <button type="button" class="tab" data-tab="produk" role="tab">Produk</button>
           <button type="button" class="tab" data-tab="pendapatan" role="tab">Pendapatan</button>
+          <button type="button" class="tab" data-tab="laporan" role="tab">Laporan Transaksi</button>
           <button type="button" class="tab" data-tab="pengeluaran" role="tab">Pengeluaran</button>
           <button type="button" class="tab" data-tab="stok" role="tab">Riwayat Stok</button>
           <button type="button" class="tab" data-tab="lainnya" role="tab">Lainnya</button>
@@ -338,6 +339,66 @@
           </div>
         </section>
 
+        <!-- ============ LAPORAN TRANSAKSI OUTLET (17 Okt 2026) ============ -->
+        <!-- Satu baris PER TRANSAKSI (keputusan pemilik B1); outlet tetap
+             ditentukan server dari akun kasir, bukan dari filter di sini. -->
+        <section class="detail card pane hidden" data-pane="laporan">
+          <div class="detail-head">
+            <div>
+              <h3>Laporan Transaksi</h3>
+              <p class="muted">Riwayat transaksi outlet Anda (satu baris per transaksi)</p>
+            </div>
+            <div class="detail-actions">
+              <select id="lap-range" title="Rentang">
+                <option value="today" selected>Hari ini</option>
+                <option value="yesterday">Kemarin</option>
+                <option value="week">7 hari terakhir</option>
+                <option value="month">Bulan ini</option>
+                <option value="custom">Kustom</option>
+              </select>
+              <input id="lap-date" type="date" title="Tanggal (mode kustom)" />
+              <select id="lap-status" title="Status transaksi">
+                <option value="completed" selected>Selesai</option>
+                <option value="voided">Dibatalkan (void)</option>
+                <option value="refunded">Refund</option>
+              </select>
+              <input
+                id="lap-search"
+                type="search"
+                placeholder="Cari No. transaksi…"
+                title="Cari nomor transaksi"
+              />
+              <button id="lap-refresh-btn" class="btn">Muat ulang</button>
+              <button id="lap-export-btn" class="btn primary">Ekspor Excel</button>
+            </div>
+          </div>
+
+          <div class="cards" id="lap-summary"></div>
+          <p id="lap-range-label" class="muted small"></p>
+          <p id="lap-methods" class="muted small"></p>
+          <p id="lap-note" class="muted small hidden"></p>
+
+          <h4>Transaksi</h4>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Nomor Transaksi</th>
+                  <th>Waktu</th>
+                  <th class="right">Item</th>
+                  <th class="right">Total</th>
+                  <th>Metode</th>
+                  <th>Kasir</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="lap-body"></tbody>
+            </table>
+            <p id="lap-empty" class="empty hidden">Belum ada transaksi pada periode ini.</p>
+          </div>
+        </section>
+
         <!-- ================= PENGELUARAN OUTLET (Fase 5) ================= -->
         <section class="detail card pane hidden" data-pane="pengeluaran">
           <div class="detail-head">
@@ -430,6 +491,10 @@
             <button type="button" class="menu-item" data-tab="stok">
               <span class="menu-label">Riwayat Stok</span>
               <span class="muted small">Catatan pergerakan stok (tidak dapat diubah)</span>
+            </button>
+            <button type="button" class="menu-item" data-tab="laporan">
+              <span class="menu-label">Laporan Transaksi</span>
+              <span class="muted small">Riwayat transaksi outlet + ekspor Excel</span>
             </button>
           </div>
         </section>

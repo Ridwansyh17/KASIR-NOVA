@@ -221,6 +221,70 @@ export const dailySeries = async (req, res, next) => {
   }
 };
 
+// ---------------------------------- Laporan transaksi outlet kasir (17 Okt) --
+/**
+ * Kirim buffer .xlsx dengan header unduhan (nama berkas dibuat server).
+ * Sama seperti `report/controller.js` — sengaja lokal agar kedua modul tidak
+ * saling bergantung hanya untuk 3 baris header.
+ */
+const sendXlsx = (res, { buffer, filename }) => {
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Length', String(buffer.length));
+  res.send(buffer);
+};
+
+/**
+ * Siapkan filter dari query: rentang dihitung di SERVER memakai zona waktu
+ * bisnis (bawaan "hari ini"), lalu `outletId` dipaksa dari akun kasir.
+ * Kasir tidak dapat meminta outlet lain — tidak ada permukaan IDOR.
+ */
+const cashierReportFilters = async (scope, query = {}) => {
+  const range = await reportService.resolveFinanceRange(scope.timezone, query);
+  return { ...query, from: range.from, to: range.to };
+};
+
+/**
+ * Laporan Transaksi untuk kasir: SATU BARIS PER TRANSAKSI pada outletnya
+ * (keputusan pemilik B1) — cakupan semua kasir outlet (keputusan A5a).
+ */
+export const reportTransactions = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const filters = await cashierReportFilters(scope, req.query);
+    res.json(
+      await reportService.cashierTransactionReport({
+        businessId: scope.business_id,
+        outletId: scope.outlet_id,
+        filters,
+      })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Unduh laporan transaksi kasir sebagai .xlsx (angka sama dengan layar). */
+export const reportTransactionsExport = async (req, res, next) => {
+  try {
+    const scope = req.cashierScope;
+    const filters = await cashierReportFilters(scope, req.query);
+    sendXlsx(
+      res,
+      await reportService.exportCashierTransactionReportXlsx({
+        businessId: scope.business_id,
+        outletId: scope.outlet_id,
+        filters,
+      })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ---------------------------------------------------------------- Info -----
 /** Info outlet/bisnis + izin kasir (dipakai UI untuk menyesuaikan tampilan). */
 export const me = async (req, res, next) => {

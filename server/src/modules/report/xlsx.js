@@ -911,10 +911,195 @@ export const buildTransactionReportWorkbook = async ({
   return Buffer.from(await wb.xlsx.writeBuffer());
 };
 
+/**
+ * Laporan Transaksi **KASIR** (17 Okt 2026) sebagai berkas Excel — **satu baris
+ * per TRANSAKSI** (keputusan pemilik B1) untuk outlet milik akun kasir.
+ *
+ * Sheet:
+ *   1. `Ringkasan`               — informasi laporan, ringkasan, peringatan bila
+ *                                  baris terpotong (`limit` server).
+ *   2. `Daftar Transaksi`        — satu baris per transaksi + baris TOTAL.
+ *   3. `Rekap Metode Pembayaran` — omzet & persentase per metode.
+ *
+ * Penyimpangan yang disengaja dari berkas Owner: **tanpa** sheet
+ * `Produk Terlaris` (layar kasir memilih daftar transaksi; dicatat di `docs/37`).
+ * Omzet tetap memakai `transactions.total`, bukan `payments.amount` (uang
+ * diterima memuat kembalian tunai).
+ *
+ * @param {object} args
+ * @param {object} args.business    - { name, business_type, currency, timezone }
+ * @param {object} args.report      - hasil `service.cashierTransactionReport()`
+ * @param {object} args.filters     - filter terpakai (termasuk `outletLabel`)
+ * @param {string} args.generatedAt - waktu lokal zona bisnis (untuk kop berkas)
+ * @returns {Promise<Buffer>}
+ */
+export const buildCashierTransactionReportWorkbook = async ({
+  business,
+  report,
+  filters,
+  generatedAt,
+}) => {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'KASIR NOVA';
+  wb.created = new Date();
+
+  const { period, summary, rows } = report;
+  const methods = report.payment_methods ?? [];
+  const sumTotal = rows.reduce((n, r) => n + Number(r.total ?? 0), 0);
+  const sumItems = rows.reduce((n, r) => n + Number(r.items ?? 0), 0);
+  const sumMethodOmzet = methods.reduce((n, m) => n + Number(m.total ?? 0), 0);
+
+  // ------------------------------------------------ Sheet: Ringkasan ------
+  const ws = wb.addWorksheet('Ringkasan');
+  ws.columns = [
+    { key: 'label', width: 44 },
+    { key: 'value', width: 34 },
+  ];
+
+  ws.mergeCells('A1:B1');
+  const heading = ws.getCell('A1');
+  heading.value = 'KASIR NOVA — Laporan Transaksi (Kasir)';
+  heading.font = { bold: true, size: 15, color: { argb: NAVY } };
+  ws.getCell('A2').value = `Dibuat: ${generatedAt}`;
+  ws.getCell('A2').font = { italic: true, color: { argb: 'FF5A6B85' } };
+
+  const { section, info, money, count } = summaryParts(ws);
+
+  ws.addRow([]);
+  section('INFORMASI LAPORAN');
+  info('Nama Bisnis', business.name);
+  info('Jenis Usaha', business.business_type || 'Tidak diisi');
+  info('Outlet', report.outlet?.name || filters.outletLabel || '—');
+  info('Mata Uang', business.currency || 'IDR');
+  info('Zona Waktu', business.timezone || 'Asia/Jakarta');
+  info('Periode', `${formatDateID(period.from)} s.d. ${formatDateID(period.to)}`);
+  info(
+    'Filter Status Transaksi',
+    filterLabel(TRANSACTION_STATUS_LABELS, filters.status, 'Selesai (bawaan)')
+  );
+  info('Kata Kunci Pencarian', filters.search || '—');
+  info('Cakupan', 'Semua kasir pada outlet ini (keputusan A5a)');
+
+  ws.addRow([]);
+  section('RINGKASAN');
+  count('Jumlah transaksi', summary.transactions);
+  money('Total omzet', summary.total, true);
+  money('Rata-rata per transaksi', summary.avg_total);
+  count('Jumlah item (qty) pada berkas ini', sumItems);
+  count('Jumlah baris transaksi pada berkas ini', rows.length);
+  count('Transaksi dibatalkan (void)', summary.voided_transactions);
+  money('Nilai transaksi void', summary.voided_total);
+  count('Transaksi refund', summary.refunded_transactions);
+  money('Nilai transaksi refund', summary.refunded_total);
+
+  if (report.truncated) {
+    ws.addRow([]);
+    const warn = ws.addRow([
+      'PERINGATAN',
+      `Data TERPOTONG pada ${rows.length} transaksi pertama. Persempit rentang tanggal lalu unduh ulang agar lengkap.`,
+    ]);
+    warn.font = { bold: true, color: { argb: 'FFB00020' } };
+    warn.getCell(2).alignment = { wrapText: true, vertical: 'middle' };
+  }
+
+  ws.addRow([]);
+  section('REKAP METODE PEMBAYARAN (PEMBAYARAN LUNAS)');
+  if (!methods.length) {
+    ws.addRow(['—', 'Tidak ada pembayaran lunas pada periode ini']);
+  } else {
+    for (const m of methods) {
+      const r = ws.addRow([
+        `${m.label ?? labelOf(PAYMENT_METHOD_LABELS, m.method)} (${m.transactions} transaksi)`,
+        senToRupiah(m.total),
+      ]);
+      r.getCell(2).numFmt = CURRENCY_FMT;
+      r.getCell(2).alignment = { horizontal: 'right' };
+    }
+  }
+
+  // -------------------------------------------- Sheet: Daftar Transaksi ---
+  const det = wb.addWorksheet('Daftar Transaksi', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  det.columns = [
+    { header: 'No', key: 'no', width: 6 },
+    { header: 'Nomor Transaksi', key: 'invoice', width: 24 },
+    { header: 'Tanggal', key: 'date', width: 12 },
+    { header: 'Waktu', key: 'time', width: 9 },
+    { header: 'Jumlah Item', key: 'items', width: 13 },
+    { header: 'Total', key: 'total', width: 16 },
+    { header: 'Metode Pembayaran', key: 'method', width: 20 },
+    { header: 'Kasir', key: 'cashier', width: 22 },
+    { header: 'Status', key: 'status', width: 14 },
+  ];
+  styleHeader(det.getRow(1));
+
+  rows.forEach((r, i) => {
+    det.addRow({
+      no: i + 1,
+      invoice: sanitizeText(r.invoice_no),
+      date: formatDateID(r.date),
+      time: r.time ?? '',
+      items: Number(r.items ?? 0),
+      total: senToRupiah(r.total),
+      method: (r.methods ?? []).map((m) => labelOf(PAYMENT_METHOD_LABELS, m)).join(', ') || '—',
+      cashier: sanitizeText(r.cashier_name || '—'),
+      status: labelOf(TRANSACTION_STATUS_LABELS, r.status),
+    });
+  });
+
+  const totalRow = det.addRow({
+    invoice: 'TOTAL',
+    items: sumItems,
+    total: senToRupiah(sumTotal),
+  });
+  totalRow.font = { bold: true };
+  applyCurrency(det, 'total', 2);
+  det.autoFilter = { from: 'A1', to: 'I1' };
+
+  // ------------------------------------ Sheet: Rekap Metode Pembayaran ----
+  const met = wb.addWorksheet('Rekap Metode Pembayaran', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  met.columns = [
+    { header: 'Metode Pembayaran', key: 'method', width: 24 },
+    { header: 'Jumlah Transaksi', key: 'count', width: 18 },
+    { header: 'Omzet', key: 'total', width: 18 },
+    { header: 'Persentase', key: 'percent', width: 14 },
+  ];
+  styleHeader(met.getRow(1));
+
+  if (!methods.length) {
+    met.addRow({ method: '—', count: 0, total: 0, percent: 0 });
+  } else {
+    for (const m of methods) {
+      met.addRow({
+        method: sanitizeText(m.label ?? labelOf(PAYMENT_METHOD_LABELS, m.method)),
+        count: m.transactions,
+        total: senToRupiah(m.total),
+        percent: Number(m.percent ?? 0) / 100,
+      });
+    }
+    const metTotal = met.addRow({
+      method: 'TOTAL',
+      count: methods.reduce((n, m) => n + Number(m.transactions ?? 0), 0),
+      total: senToRupiah(sumMethodOmzet),
+      percent: sumMethodOmzet > 0 ? 1 : 0,
+    });
+    metTotal.font = { bold: true };
+  }
+  applyCurrency(met, 'total', 2);
+  const percentCol = met.getColumn('percent').number;
+  for (let r = 2; r <= met.rowCount; r += 1) met.getCell(r, percentCol).numFmt = '0.0%';
+
+  return Buffer.from(await wb.xlsx.writeBuffer());
+};
+
 export default {
   buildTransactionsWorkbook,
   buildComparisonWorkbook,
   buildFinanceWorkbook,
   buildTransactionReportWorkbook,
+  buildCashierTransactionReportWorkbook,
   sanitizeText,
 };

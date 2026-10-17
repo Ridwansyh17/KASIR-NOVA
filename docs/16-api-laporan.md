@@ -357,6 +357,84 @@ item), sehingga Owner dapat mengolahnya di Excel tanpa mengetik ulang:
   `platform_admin` **200** (baca saja), filter outlet/kasir milik bisnis lain →
   berkas kosong (tidak bocor).
 
+## Laporan Transaksi untuk KASIR (17 Okt 2026)
+
+`GET /api/cashier/reports/transactions`
+
+`GET /api/cashier/reports/transactions/export` (berkas `.xlsx`)
+
+Permintaan pemilik pada daftar pekerjaan lanjutan (**keputusan B1/B2/B3**) plus
+keputusan cakupan **A5a**; rincian desain & pertimbangan ada di
+`docs/37-laporan-transaksi-kasir.md`.
+
+- **B1** — SATU BARIS PER **TRANSAKSI** (bukan per item) + kartu ringkasan.
+- **B2** — kasir **boleh** mengekspor laporan ini ke Excel (`.xlsx`).
+- **B3** — tab baru **"Laporan Transaksi"** di panel Kasir, rentang bawaan
+  **hari ini**, preset rentang sama seperti tab "Pendapatan".
+- **A5a** — cakupan = **semua** transaksi outlet kasir (bukan hanya transaksi
+  yang dibuat kasir itu sendiri).
+
+**Otorisasi:** `requireAuth` + `requireRole('cashier')` + `loadCashierScope`.
+`businessId` **dan** `outletId` **selalu** diturunkan dari akun kasir
+(`req.cashierScope`); **tidak ada** `outletId`/`cashierId` pada skema query —
+parameter `outletId` yang dikirim klien **dibuang** oleh Zod (bukan 422) sehingga
+tidak ada permukaan IDOR lintas outlet.
+
+**Query** (semua opsional):
+
+| Parameter | Tipe | Keterangan |
+|---|---|---|
+| `from`, `to` | `YYYY-MM-DD` | Rentang eksplisit (zona waktu bisnis) |
+| `period` / `date` | enum / tanggal | Preset rentang (`today`, `yesterday`, `week`, `month`, `year`) atau satu tanggal |
+| `status` | `completed`\|`voided`\|`refunded` | Status baris & ringkasan; bawaan `completed` |
+| `search` | teks | Cari nomor transaksi |
+| `limit` | integer 1…1000 | Bawaan **200** (JSON) |
+
+Rentang dihitung di server (`reportService.resolveFinanceRange`) dengan **zona
+waktu bisnis**; tanpa parameter apa pun → **hari ini**.
+
+**Balasan `200`:** seperti laporan transaksi Owner tetapi `rows[]` = **satu baris
+per transaksi** (`items` = jumlah qty, `methods` = daftar metode pembayaran
+transaksi itu) dan **tanpa** `top_products`:
+
+```json
+{
+  "business": { "id": "…", "name": "Demo Kasir NOVA", "timezone": "Asia/Jakarta" },
+  "outlet":  { "id": "…", "name": "Outlet Utama" },
+  "cashier": null,
+  "period": { "from": "2026-10-17", "to": "2026-10-17" },
+  "summary": { "status": "completed", "transactions": 3, "total": 75000,
+               "avg_total": 25000, "voided_transactions": 1, "voided_total": 5000,
+               "refunded_transactions": 0, "refunded_total": 0 },
+  "payment_methods": [
+    { "method": "cash", "label": "Tunai", "total": 40000, "transactions": 1, "percent": 53.3 },
+    { "method": "card", "label": "Kartu", "total": 20000, "transactions": 1, "percent": 26.7 },
+    { "method": "qr",   "label": "QRIS",  "total": 15000, "transactions": 1, "percent": 20 }
+  ],
+  "rows": [
+    { "invoice_no": "INV-20261017-0003", "date": "2026-10-17", "time": "10:12",
+      "items": 1, "total": 20000, "methods": ["card"],
+      "cashier_name": null, "status": "completed" }
+  ],
+  "truncated": false
+}
+```
+
+**Aturan angka:** identik dengan laporan Owner untuk outlet & rentang yang sama
+(satu fungsi `statusStats()` + `paymentMethodRecap()` yang dipakai kedua
+endpoint); `payment_methods[].total` dari **`transactions.total`**, bukan
+`payments.amount`. Urutan baris **terbaru dulu** (`created_at DESC,
+invoice_no DESC`) karena ini daftar operasional, bukan berkas cetak.
+
+**Ekspor Excel** (`/export`): 3 sheet — **Ringkasan**, **Daftar Transaksi**
+(+ baris **TOTAL**), **Rekap Metode Pembayaran**; **tanpa** sheet Produk
+Terlaris (konsekuensi B1). Bawaan `limit` **2000** (maksimum **20000**); bila
+terpotong, sheet Ringkasan memuat baris peringatan **TERPOTONG**.
+Nama berkas: `KASIR_NOVA_Laporan_Transaksi_Kasir_<from>_sampai_<to>.xlsx`.
+
+**Keamanan:** tanpa token **401**; owner/platform_admin **403** (rute kasir);
+kasir lain hanya melihat outletnya sendiri (**tidak ada** parameter outlet).
+
 ## Aturan & keamanan
 
 - Seluruh agregat dilarang dihitung klien; server membaca langsung dari
@@ -406,8 +484,35 @@ item), sehingga Owner dapat mengolahnya di Excel tanpa mengetik ulang:
   8. **ekspor Excel**: filter (status void, outlet bisnis lain), peringatan
      **TERPOTONG** saat `limit` kecil, batas `limit` (0 / 20001 → 422), isolasi
      peran (owner lain 404, kasir 403, admin 200).
+- `node --test tests/cashier-report-transactions.test.js` — **10 kasus**
+  (17 Okt 2026, Laporan Transaksi untuk Kasir — keputusan pemilik B1/B2/B3 + A5a):
+  1. satu baris per **TRANSAKSI** (penjualan 2 item → **1** baris, `items` = 3),
+     ringkasan, rekap metode + persentase, urutan **terbaru dulu** (dibandingkan
+     langsung dengan `ORDER BY` SQL), dan **tanpa** `top_products`.
+  2. angka **identik** dengan laporan Owner untuk outlet & rentang yang sama
+     (ringkasan + rekap metode; Owner per item = 4 baris vs kasir 3 baris).
+  3. **isolasi outlet**: `?outletId=<outlet lain>` **diabaikan** (bukan 422);
+     transaksi outlet kedua (bisnis yang sama) & bisnis lain tidak bocor;
+     ringkasan tetap angka outlet kasir.
+  4. rentang bawaan = **hari ini** (transaksi kemarin tidak ikut; `period=week`
+     memasukkannya).
+  5. filter `status=voided` (void tanpa pembayaran → `methods: []`) & `search`.
+  6. `limit` + `truncated` (ringkasan tetap angka penuh).
+  7. validasi: `limit` 0/1001/bukan angka, `period` tak dikenal, rentang
+     terbalik → **422**; batas ekspor 0/20001 → **422**.
+  8. peran: tanpa token **401**, owner & platform_admin **403**; kasir bisnis
+     lain hanya melihat outletnya sendiri.
+  9. **ekspor Excel**: 3 sheet (tanpa Produk Terlaris), baris per transaksi +
+     **TOTAL** (qty & omzet), tanggal `dd/mm/yyyy`, nominal rupiah, persentase
+     sebagai format persen (`0.0%`), nama berkas mengikuti rentang.
+  10. **ekspor Excel**: peringatan **TERPOTONG** saat `limit` kecil; void tidak
+      ikut ekspor bawaan (berkas di-*parse balik* dengan ExcelJS).
 - Total suite server (17 Okt 2026, setelah tes laporan transaksi): **253/253**
   → setelah tes **struk PDF**, **omzet/kembalian**, dan **ekspor Excel laporan
   transaksi** menjadi **278/278** (ditambah **10 kasus paginasi & nomor halaman
    cetak**, `server/tests/report-print-pages.test.js` — lihat `docs/35` §5c).
   (`report-transactions.test.js` menambah 5 dari 248, kini berisi **8 kasus**).
+- Ditambah 17 Okt 2026: **laporan transaksi kasir** (`cashier-report-transactions.test.js`,
+  **10 kasus** — rincian di atas) dan **3 kasus** berkas Excel di `struk-pdf.test.js`
+  (`saveXlsx` plugin native, unduhan web, `shareFile`) → suite server **291/291**.
+  Rincian fitur: `docs/37-laporan-transaksi-kasir.md`.

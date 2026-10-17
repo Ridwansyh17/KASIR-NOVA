@@ -115,6 +115,8 @@
 | **Laporan keuangan & laba** (HPP, biaya, pengeluaran, laba kotor/bersih) | ➖ (tidak disediakan) | ✅ (bisnisnya) | ✅ **hanya** bila `can_view_profit` |
 | Ekspor laporan keuangan (.xlsx) | ➖ | ✅ | ❌ |
 | Export laporan (CSV/JSON/Excel rekapan transaksi) | ✅ (baca saja, semua bisnis) | ✅ (bisnisnya) | ❌ |
+| **Laporan transaksi outlet** (satu baris per transaksi; 17 Okt 2026) | ➖ (memakai endpoint platform baca-saja) | ✅ (bisnisnya; filter/outlet) | ✅ (outletnya; **semua** kasir outlet itu) |
+| Ekspor Excel **laporan transaksi outlet** (.xlsx; 17 Okt 2026) | ➖ | ✅ | ✅ (khusus laporan ini; ekspor laporan keuangan tetap ❌) |
 
 > Fase 9 (implementasi `docs/16-api-laporan.md`): seluruh agregat dan ekspor
 > dihitung **di server** memakai zona waktu bisnis; fokus kriteria selesai
@@ -133,6 +135,17 @@
 > harian kasir (`/api/cashier/reports/daily`) juga menyertakan perbandingan
 > HPP/laba **hanya** bila kasir berizin; server menghapus field tersebut
 > sebaliknya.
+>
+> **17 Okt 2026 — Laporan Transaksi untuk Kasir (`docs/37`).** Dua baris
+> terakhir di atas berubah atas **permintaan pemilik**: kasir kini punya
+> **laporan transaksi outletnya** (keputusan **B1** satu baris per transaksi,
+> **B3** tab "Laporan Transaksi" dengan rentang bawaan hari ini) **beserta
+> ekspor Excel** (keputusan **B2**), cakupan **semua** transaksi outlet kasir
+> (keputusan **A5a**). Batas yang **tidak** berubah: kasir tetap **tidak**
+> dapat mengekspor laporan **keuangan/laba** (`❌` pada baris "Ekspor laporan
+> keuangan"), tetap **tidak** melihat HPP/laba tanpa izin, dan outletnya
+> **selalu** diturunkan dari akun (tidak ada `outletId` pada skema query —
+> parameter klien dibuang, bukan dipakai).
 
 ## 8b. Pengeluaran & Pergerakan Stok (V0.3)
 

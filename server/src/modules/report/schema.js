@@ -94,6 +94,61 @@ export const transactionReportExportQuerySchema = z
   })
   .superRefine(rangeRefine);
 
+// ---------------------------------------- Laporan transaksi KASIR (17 Okt) --
+/**
+ * Filter laporan transaksi untuk **kasir** (permintaan pemilik 17 Okt 2026 —
+ * keputusan B1 satu baris per TRANSAKSI, B3 tab "Laporan" bawaan hari ini).
+ *
+ * PENTING (keamanan): `outletId` dan `cashierId` **sengaja tidak ada** di sini.
+ * Outlet selalu diturunkan dari akun kasir (`req.cashierScope`) di controller,
+ * jadi kasir tidak punya cara meminta outlet lain — tidak ada permukaan IDOR.
+ *
+ * Rentang mengikuti pola laporan keuangan kasir (`period`/`date`/`from`/`to`)
+ * dan dihitung di **server** dengan zona waktu bisnis, sehingga "hari ini"
+ * tidak bergantung zona waktu perangkat.
+ */
+const cashierReportFilters = {
+  period: z
+    .enum(['today', 'yesterday', 'week', 'month', 'custom'], {
+      errorMap: () => ({ message: 'period tidak dikenal' }),
+    })
+    .optional(),
+  date: dateOnly.optional(),
+  from: dateOnly.optional(),
+  to: dateOnly.optional(),
+  status: z.enum(['completed', 'voided', 'refunded']).optional(),
+  search: z.string().trim().max(100, 'Pencarian maksimal 100 karakter').optional(),
+};
+
+export const cashierTransactionReportQuerySchema = z
+  .object({
+    limit: z.coerce
+      .number()
+      .int('Jumlah baris harus bilangan bulat')
+      .min(1, 'Jumlah baris minimal 1')
+      .max(1000, 'Jumlah baris maksimal 1000')
+      .default(200),
+    ...cashierReportFilters,
+  })
+  .superRefine(rangeRefine);
+
+/**
+ * Ekspor Excel laporan transaksi kasir. Batas baris lebih tinggi (bawaan
+ * **2000**, maksimum **20000**) karena berkas dipakai untuk pengolahan lanjutan;
+ * bila masih terpotong, sheet `Ringkasan` memberi peringatan `truncated`.
+ */
+export const cashierTransactionReportExportQuerySchema = z
+  .object({
+    limit: z.coerce
+      .number()
+      .int('Jumlah baris harus bilangan bulat')
+      .min(1, 'Jumlah baris minimal 1')
+      .max(20000, 'Jumlah baris maksimal 20000')
+      .default(2000),
+    ...cashierReportFilters,
+  })
+  .superRefine(rangeRefine);
+
 export const exportQuerySchema = z
   .object({
     format: z

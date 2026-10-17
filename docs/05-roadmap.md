@@ -852,6 +852,60 @@ jumlah halaman rencana; tidak ada halaman meluber/kosong).
 **Belum dikerjakan:** pencetakan sungguhan oleh pemilik (dialog cetak Chrome/Edge →
 PDF) untuk menilai tampilan; tombol ini juga tidak muncul di APK.
 
+## 17 Okt 2026 - Laporan Transaksi untuk Kasir (A5a)
+
+Permintaan pemilik (dipilih dari daftar pekerjaan lanjutan): **laporan transaksi
+untuk panel Kasir**. Keputusan pemilik yang diikuti: **B1** satu baris per
+**transaksi** + kartu ringkasan, **B2** kasir **boleh** ekspor Excel, **B3** tab
+baru **"Laporan Transaksi"** dengan rentang bawaan **hari ini**; ditambah **A5a**
+cakupan = **semua** transaksi outlet kasir.
+
+**Dikerjakan:**
+- `server/src/modules/report/service.js` — dua helper bersama
+  (`statusStats()`, `paymentMethodRecap()`) dipakai **bersama** laporan Owner &
+  kasir (agar angka kedua panel tidak pernah berbeda) + `cashierTransactionReport()`
+  (satu baris per transaksi, **terbaru dulu**, `items`/`methods` per baris) +
+  `exportCashierTransactionReportXlsx`.
+- `server/src/modules/report/schema.js` — `cashierTransactionReportQuerySchema`
+  (limit **200**, maks 1000) & `cashierTransactionReportExportQuerySchema`
+  (bawaan 2000, maks 20000). **Tanpa** `outletId`/`cashierId` (outlet dari akun).
+- `server/src/modules/report/xlsx.js` — `buildCashierTransactionReportWorkbook`
+  (**3 sheet**: Ringkasan, Daftar Transaksi + baris TOTAL, Rekap Metode; tanpa
+  Produk Terlaris; peringatan **TERPOTONG**).
+- `server/src/modules/cashier-area/{routes,controller}.js` —
+  `GET /reports/transactions` + `GET /reports/transactions/export` di bawah
+  `cashierOnly`; `outletId`/`businessId` **dipaksa** dari `req.cashierScope`;
+  rentang dihitung server (bawaan hari ini).
+- Panel Kasir: tab **Laporan Transaksi** (`#main-tabs` + menu Lainnya), pane
+  `data-pane="laporan"` (rentang, tanggal kustom, status, pencarian, kartu
+  ringkasan, tabel satu baris per transaksi, tombol **Ekspor Excel**),
+  `api.transactionsReport()` & `api.transactionsReportFile()` (permintaan biner
+  dengan refresh 401), ekspor lewat `strukShare.saveXlsx()` — plugin
+  `NovaReceipt` di APK, unduhan blob di web (**tanpa kode Android baru**).
+- **Bug lama diperbaiki:** `new root().Blob(...)` di `struk-share.js` selalu
+  gagal ("root is not a constructor") sehingga jalur **unduh berkas di web**
+  (fallback struk PDF) tidak pernah berfungsi; kini konstruktor diambil ke
+  variabel dan `verify-ui.mjs` menolak pola itu.
+- Tes **baru** `server/tests/cashier-report-transactions.test.js` (**10 kasus**)
+  + **3 kasus** berkas Excel di `struk-pdf.test.js`.
+- Dokumen **baru** `docs/37-laporan-transaksi-kasir.md`; `docs/16` (endpoint +
+  pengujian), `docs/04` §8 (matriks: kasir kini ✅ untuk laporan transaksi outlet
+  + ekspor .xlsx-nya), `scripts/verify-ui.mjs` (bagian **"laporan transaksi kasir
+  (17 Okt 2026)"** + 2 pengunci negatif), `scripts/qa-local.ps1` (label **291**),
+  `README.md`.
+
+**Pengujian lokal:** `cashier-report-transactions.test.js` **10/10**,
+`struk-pdf.test.js` **15/15**, suite server **291/291**
+(≈239 detik), `node scripts/verify-ui.mjs` **SEMUA OK**, `node --check` seluruh
+berkas panel yang diubah OK.
+
+**Rilis:** **belum** — menunggu persetujuan pemilik (backend perlu redeploy
+karena ada rute baru; hosting perlu berisi `apps/kasir/src/*` baru). Uji ekspor
+di **APK** juga memerlukan pembangunan ulang APK (beta.9), juga menunggu izin.
+
+**Belum dikerjakan (sisi pemilik):** membuka berkas `.xlsx` hasil ekspor kasir di
+Excel/Google Sheets; uji langsung tab baru di perangkat.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

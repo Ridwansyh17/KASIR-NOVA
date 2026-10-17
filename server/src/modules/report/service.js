@@ -13,7 +13,7 @@
  */
 import { query } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
-import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook, buildTransactionReportWorkbook, PAYMENT_METHOD_LABELS } from './xlsx.js';
+import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook, buildTransactionReportWorkbook, buildCashierTransactionReportWorkbook, PAYMENT_METHOD_LABELS } from './xlsx.js';
 import { expensesInRange, expensesByCategory, exportExpenseRows } from '../expense/service.js';
 
 const GROUPED_NUMERIC = [
@@ -210,6 +210,82 @@ export const summary = async ({ businessId, filters }) => {
 const todayInZone = (tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
 
 /**
+ * Ringkasan jumlah & nilai transaksi PER STATUS pada rentang filter — satu
+ * query yang dipakai bersama laporan Owner (`transactionReport`) dan laporan
+ * kasir (`cashierTransactionReport`) supaya angkanya tidak pernah berbeda.
+ *
+ * @param {string} businessId
+ * @param {string} tz zona waktu bisnis
+ * @param {object} filters filter laporan (termasuk `outletId`/`cashierId`)
+ * @returns {Promise<Record<string, {transactions: number, total: number}>>}
+ */
+const statusStats = async (businessId, tz, filters) => {
+  const story = buildStory(businessId, tz, filters);
+  const { rows } = await query(
+    `${BOUNDS_CTE}
+     SELECT t.status,
+            COUNT(*)::int             AS transactions,
+            COALESCE(SUM(t.total), 0) AS total
+       FROM transactions t, bounds b
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${story.extra}
+      GROUP BY t.status`,
+    story.values
+  );
+  const stats = {};
+  for (const r of rows) {
+    stats[r.status] = { transactions: r.transactions, total: Number(r.total) };
+  }
+  return stats;
+};
+
+/**
+ * Rekap omzet per METODE PEMBAYARAN (hanya pembayaran `paid`) + persentase.
+ *
+ * PENTING: omzet per metode dihitung dari `t.total`, BUKAN `payments.amount`.
+ * `payments.amount` menyimpan UANG DITERIMA; untuk tunai nilainya termasuk
+ * kembalian (mis. total 40.000 dibayar 100.000 -> amount 100.000), sehingga
+ * memakai `amount` akan MELEBIHKAN omzet tunai. Karena satu transaksi = satu
+ * pembayaran (split belum ada), total per metode berjumlah tepat sama dengan
+ * omzet periode sehingga persentasenya selalu 100%.
+ * CATATAN: `incomeByMethod` pada laporan keuangan sudah disamakan (memakai
+ * `t.total`) pada 17 Okt 2026 atas izin pemilik — lihat docs/35.
+ *
+ * @returns {Promise<Array<{method: string, label: string, total: number,
+ *   transactions: number, percent: number}>>}
+ */
+const paymentMethodRecap = async (businessId, tz, filters) => {
+  const { values, extra } = buildStory(businessId, tz, filters);
+  const { rows } = await query(
+    `${BOUNDS_CTE}
+     SELECT p.method,
+            COALESCE(SUM(t.total), 0)  AS total,
+            COUNT(DISTINCT t.id)::int  AS transactions
+       FROM bounds b
+       CROSS JOIN transactions t
+       JOIN payments p ON p.transaction_id = t.id AND p.status = 'paid'
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${extra}
+      GROUP BY p.method
+      ORDER BY total DESC, p.method ASC`,
+    values
+  );
+  const paidBase = rows.reduce((n, r) => n + Number(r.total), 0);
+  return rows.map((r) => {
+    const total = Number(r.total);
+    return {
+      method: r.method,
+      label: PAYMENT_METHOD_LABELS[r.method] ?? r.method,
+      total,
+      transactions: Number(r.transactions),
+      percent: paidBase > 0 ? Math.round((total / paidBase) * 1000) / 10 : 0,
+    };
+  });
+};
+
+/**
  * Laporan Transaksi detail siap-cetak: SATU BARIS PER ITEM
  * (permintaan Owner 17 Okt 2026 — keputusan A3a).
  *
@@ -290,60 +366,11 @@ export const transactionReport = async ({ businessId, filters = {} }) => {
   }));
 
   // --- Ringkasan per status (satu query, tanpa filter status) ---------------
-  const allStory = buildStory(businessId, tz, { ...filters, status: undefined });
-  const { rows: statusRows } = await query(
-    `${BOUNDS_CTE}
-     SELECT t.status,
-            COUNT(*)::int             AS transactions,
-            COALESCE(SUM(t.total), 0) AS total
-       FROM transactions t, bounds b
-      WHERE t.business_id = $1
-        AND ${RANGE_PRED}
-        ${allStory.extra}
-      GROUP BY t.status`,
-    allStory.values
-  );
-  const stats = {};
-  for (const r of statusRows) {
-    stats[r.status] = { transactions: r.transactions, total: Number(r.total) };
-  }
+  const stats = await statusStats(businessId, tz, { ...filters, status: undefined });
   const picked = stats[status] ?? { transactions: 0, total: 0 };
 
   // --- Rekap metode pembayaran (hanya pembayaran LUNAS) ---------------------
-  // PENTING: omzet per metode dihitung dari `t.total`, BUKAN `payments.amount`.
-  // `payments.amount` menyimpan UANG DITERIMA; untuk tunai nilainya termasuk
-  // kembalian (mis. total 40.000 dibayar 100.000 -> amount 100.000), sehingga
-  // memakai `amount` akan MELEBIHKAN omzet tunai. Karena satu transaksi = satu
-  // pembayaran (split belum ada), total per metode berjumlah tepat sama dengan
-  // omzet periode sehingga persentasenya selalu 100%.
-  // CATATAN: `incomeByMethod` pada laporan keuangan sudah disamakan (memakai
-  // `t.total`) pada 17 Okt 2026 atas izin pemilik — lihat docs/35.
-  const { rows: methodRows } = await query(
-    `${BOUNDS_CTE}
-     SELECT p.method,
-            COALESCE(SUM(t.total), 0)  AS total,
-            COUNT(DISTINCT t.id)::int  AS transactions
-       FROM bounds b
-       CROSS JOIN transactions t
-       JOIN payments p ON p.transaction_id = t.id AND p.status = 'paid'
-      WHERE t.business_id = $1
-        AND ${RANGE_PRED}
-        ${extra}
-      GROUP BY p.method
-      ORDER BY total DESC, p.method ASC`,
-    values
-  );
-  const paidBase = methodRows.reduce((n, r) => n + Number(r.total), 0);
-  const paymentMethods = methodRows.map((r) => {
-    const total = Number(r.total);
-    return {
-      method: r.method,
-      label: PAYMENT_METHOD_LABELS[r.method] ?? r.method,
-      total,
-      transactions: Number(r.transactions),
-      percent: paidBase > 0 ? Math.round((total / paidBase) * 1000) / 10 : 0,
-    };
-  });
+  const paymentMethods = await paymentMethodRecap(businessId, tz, rowFilters);
 
   // --- Produk terlaris (urut QTY, sesuai contoh Owner; + kolom omzet) -------
   const { rows: prodRows } = await query(
@@ -1050,6 +1077,147 @@ export const exportTransactionReportXlsx = async ({ businessId, filters = {} }) 
   return { buffer, filename };
 };
 
+/**
+ * Laporan transaksi untuk **KASIR** (permintaan pemilik 17 Okt 2026 — keputusan
+ * B1 satu baris per TRANSAKSI, B3 tab "Laporan" bawaan hari ini).
+ *
+ * Aturan:
+ *   - `outletId` **wajib** datang dari controller (isi `req.cashierScope`),
+ *     bukan dari klien. `cashierId` sengaja diabaikan: keputusan A5a =
+ *     cakupan **semua transaksi outlet**, bukan hanya transaksi kasir itu.
+ *   - Cakupan tenant dijamin `business_id` + `outlet_id`, jadi angka tidak
+ *     mungkin bocor ke outlet/bisnis lain walau filter diutak-atik.
+ *   - Default hanya transaksi `completed`; void/refund tetap dilaporkan
+ *     terpisah di `summary` (tidak ada angka tersembunyi).
+ *   - Urutan **terbaru dulu** (layar HP); laporan Owner tetap kronologis.
+ *   - Tanpa `top_products` — layar kasir menampilkan daftar transaksi
+ *     (penyimpangan yang disengaja, dicatat di `docs/37`).
+ *
+ * @returns {{business, outlet, cashier: null, period, printed_at, summary,
+ *   payment_methods, rows, truncated}}
+ */
+export const cashierTransactionReport = async ({ businessId, outletId, filters = {} }) => {
+  const biz = await getBusiness(businessId);
+  const tz = biz.timezone;
+  const limit = Number.isFinite(filters.limit) ? filters.limit : 200;
+  const status = filters.status ?? 'completed';
+  const scoped = { ...filters, outletId, cashierId: undefined };
+
+  const period = {
+    from: filters.from ?? `${todayInZone(tz).slice(0, 7)}-01`,
+    to: filters.to ?? todayInZone(tz),
+  };
+
+  // --- Baris per TRANSAKSI (baru -> lama), dibatasi `limit` ------------------
+  const rowFilters = { ...scoped, status };
+  const { values, extra } = buildStory(businessId, tz, rowFilters);
+  const limitIdx = values.length + 1;
+  const { rows: txRows } = await query(
+    `${BOUNDS_CTE}
+     SELECT t.id, t.invoice_no, t.status, t.total,
+            to_char(t.created_at AT TIME ZONE $3::text, 'YYYY-MM-DD') AS local_date,
+            to_char(t.created_at AT TIME ZONE $3::text, 'HH24:MI')    AS local_time,
+            COALESCE(it.qty, 0)::int   AS items,
+            COALESCE(it.lines, 0)::int AS lines,
+            c.full_name AS cashier_name,
+            COALESCE(pay.methods, ARRAY[]::text[]) AS methods
+       FROM bounds b
+       CROSS JOIN transactions t
+       LEFT JOIN cashiers c ON c.id = t.cashier_id
+       LEFT JOIN LATERAL (
+         SELECT SUM(ti.qty) AS qty, COUNT(*) AS lines
+           FROM transaction_items ti
+          WHERE ti.transaction_id = t.id
+       ) it ON true
+       LEFT JOIN LATERAL (
+         SELECT array_agg(DISTINCT p.method) AS methods
+           FROM payments p WHERE p.transaction_id = t.id
+       ) pay ON true
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${extra}
+      ORDER BY t.created_at DESC, t.invoice_no DESC
+      LIMIT $${limitIdx}::int`,
+    [...values, limit + 1]
+  );
+  const truncated = txRows.length > limit;
+  const rows = (truncated ? txRows.slice(0, limit) : txRows).map((r) => ({
+    id: r.id,
+    invoice_no: r.invoice_no,
+    date: r.local_date,
+    time: r.local_time,
+    status: r.status,
+    items: Number(r.items),
+    lines: Number(r.lines),
+    total: Number(r.total),
+    methods: r.methods ?? [],
+    cashier_name: r.cashier_name,
+  }));
+
+  const stats = await statusStats(businessId, tz, { ...scoped, status: undefined });
+  const picked = stats[status] ?? { transactions: 0, total: 0 };
+  const paymentMethods = await paymentMethodRecap(businessId, tz, rowFilters);
+
+  // Label outlet untuk kop laporan/berkas (selalu milik bisnis ini — id-nya
+  // berasal dari akun kasir, jadi tidak mungkin outlet bisnis lain).
+  const { rows: outletRows } = await query(
+    `SELECT name FROM outlets WHERE id = $1 AND business_id = $2 AND deleted_at IS NULL`,
+    [outletId, businessId]
+  );
+
+  return {
+    business: {
+      id: biz.id,
+      name: biz.name,
+      business_type: biz.business_type,
+      currency: biz.currency,
+      timezone: tz,
+    },
+    outlet: outletRows[0] ? { id: outletId, name: outletRows[0].name } : null,
+    cashier: null,
+    period,
+    printed_at: new Date().toISOString(),
+    summary: {
+      status,
+      transactions: picked.transactions,
+      total: picked.total,
+      avg_total: picked.transactions ? Math.round(picked.total / picked.transactions) : 0,
+      voided_transactions: stats.voided?.transactions ?? 0,
+      voided_total: stats.voided?.total ?? 0,
+      refunded_transactions: stats.refunded?.transactions ?? 0,
+      refunded_total: stats.refunded?.total ?? 0,
+    },
+    payment_methods: paymentMethods,
+    rows,
+    truncated,
+  };
+};
+
+/**
+ * Ekspor **Laporan Transaksi Kasir** (baris per transaksi) ke .xlsx.
+ *
+ * Memakai `cashierTransactionReport()` yang sama dengan layar kasir sehingga
+ * angka, filter, dan cakupan outlet identik; `limit` mengikuti skema ekspor
+ * (bawaan 2000) dan bila terpotong, sheet `Ringkasan` memuat peringatan.
+ *
+ * @returns {Promise<{buffer: Buffer, filename: string}>}
+ */
+export const exportCashierTransactionReportXlsx = async ({ businessId, outletId, filters = {} }) => {
+  const business = await getBusiness(businessId);
+  const report = await cashierTransactionReport({ businessId, outletId, filters });
+  const generatedAt = new Date().toLocaleString('id-ID', { timeZone: business.timezone });
+
+  const buffer = await buildCashierTransactionReportWorkbook({
+    business,
+    report,
+    filters: { ...filters, outletLabel: report.outlet?.name ?? '' },
+    generatedAt,
+  });
+
+  const filename = `KASIR_NOVA_Laporan_Transaksi_Kasir_${report.period.from}_sampai_${report.period.to}.xlsx`;
+  return { buffer, filename };
+};
+
 export default {
   groupedReport,
   summary,
@@ -1061,6 +1229,8 @@ export default {
   exportOutletComparisonXlsx,
   exportBusinessComparisonXlsx,
   exportTransactionReportXlsx,
+  cashierTransactionReport,
+  exportCashierTransactionReportXlsx,
   resolvePeriod,
   resolveFinanceRange,
   financeSummary,
