@@ -691,7 +691,8 @@ peramban tetap pekerjaan pemilik.
 putih**. Penyebab: blok duplikat di `apps/owner/src/app.js` → `SyntaxError` →
 modul gagal dimuat (HTML valid, `#login-view` tetap `hidden`). Perbaikan
 diterapkan & hosting dideploy ulang; diverifikasi dengan **Chrome headless**
-(`#login-view` tampil di `/owner/`, `/kasir/`, `/admin/`). Pencegahan: `verify-ui`
+(`#login-view` tampil di `/owner/`, `/kasir/`, `/admin/`) dan **dikonfirmasi
+pemilik** ("sudah bisa", 17 Okt 2026). Pencegahan: `verify-ui`
 kini menjalankan `node --check` atas seluruh berkas `apps/*/src/*.js` (14 berkas).
 Detail + bukti: `docs/24` bagian "Insiden 17 Okt 2026".
 **Tindak lanjut (izin pemilik):** header cache aset di `firebase.json` diubah dari

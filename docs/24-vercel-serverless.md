@@ -277,6 +277,7 @@ ke `.mjs` agar memakai semantik modul) — 14 berkas. Dibuktikan bekerja: menamb
 | `node --check` atas `owner/src/app.js` yang tersaji di Hosting | ✅ OK |
 | `scripts/verify-ui.mjs` (termasuk cek sintaks 14 berkas) | ✅ SEMUA OK |
 | `scripts/qa-local.ps1` | ✅ SEMUA TAHAP LULUS (backend 266/266) |
+| **Konfirmasi pemilik** | ✅ **"sudah bisa"** (17 Okt 2026) — panel Owner tampil normal di perangkat pemilik |
 
 > **Catatan cache (sudah diperbaiki 17 Okt 2026, izin pemilik):** sebelumnya
 > `firebase.json` menyajikan `*.js`/`*.css` dengan
