@@ -239,6 +239,11 @@ dihitung di server memakai zona waktu bisnis (tanpa argumen → `today`).
 - Pengeluaran (`expenses`) hanya status `recorded`, berbasis `spent_on`;
   `inventory_purchase` **dikecualikan** dari `operating_total`.
 - `income` per metode: `cash`, `qr` (QRIS), `card`, `wallet`, `other`.
+  Nilainya dihitung dari **`transactions.total`** (omzet), **bukan**
+  `payments.amount` — `payments.amount` menyimpan **uang diterima** sehingga
+  untuk tunai termasuk **kembalian** (perbaikan 17 Okt 2026; lihat `docs/35` §9).
+  `transaction_fees` tetap dari `payments.fee_amount`. Satu transaksi = satu
+  pembayaran, jadi jumlah per metode = `income.total`.
 - Outlet tanpa penjualan tetap tampil (nol).
 
 ### Kasir — `GET /api/cashier/reports/daily`
@@ -315,8 +320,8 @@ laporan ini; Kasir tetap `403` (kebijakan akses tidak diubah).
 - `payment_methods[].total` dihitung dari **`transactions.total`**, **bukan**
   `payments.amount`, karena `payments.amount` menyimpan uang diterima (termasuk
   kembalian pada tunai). Karena satu transaksi = satu pembayaran, jumlah persentase
-  selalu tepat **100%**. Lihat temuan terpisah di `docs/35` §9 (`incomeByMethod`
-  masih memakai `payments.amount`).
+  selalu tepat **100%**. Hal yang sama kini juga berlaku untuk `incomeByMethod()`
+  pada **laporan keuangan** (`docs/35` §9 — diperbaiki 17 Okt 2026).
 - `rows` dipotong pada `limit`; `truncated: true` menandainya (halaman cetak
   menampilkan peringatan).
 - `outlet`/`cashier` hanya terisi bila filternya diberikan **dan** memang milik
@@ -367,5 +372,5 @@ laporan ini; Kasir tetap `403` (kebijakan akses tidak diubah).
   4. `limit` + `truncated`; validasi `limit`/`status`/rentang/`outletId` → 422.
   5. isolasi tenant & peran: owner lain → 404, kasir → 403, admin platform → 200.
 - Total suite server (17 Okt 2026, setelah tes laporan transaksi): **253/253**
-  → setelah tes **struk PDF** menjadi **265/265**.
+  → setelah tes **struk PDF** & tes **omzet/kembalian** menjadi **266/266**.
   (`report-transactions.test.js` menambah 5 dari 248).

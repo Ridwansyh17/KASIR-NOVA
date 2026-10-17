@@ -110,7 +110,7 @@ npm install
 npm run sync              # salin apps/kasir -> www, lalu cap sync android
 npm run android:prepare   # plugin printer, izin Bluetooth, versi, signing
 npm run apk:release       # APK rilis (butuh android/key.properties)
-npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.7.apk
+npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.8.apk
 ```
 
 Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`; naikkan
@@ -151,8 +151,9 @@ roadmap fase.
   lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend
   **V0.3** ter-deploy di Firebase Hosting (`kasir-nova.web.app`, API cross-origin
-  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.7`** dibagikan ke penguji
-  beta via Firebase App Distribution (grup `kasir-beta`).
+  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.8`** dibagikan ke penguji
+  beta via Firebase App Distribution (grup `kasir-beta`). Deploy ulang 17 Okt 2026
+  membawa **laporan transaksi Owner** + tombol **struk PDF** di panel web.
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
   `Logo KASIR NOVA.jpeg` (latar navy gelap + aksen cyan). Logo di login & topbar
   ketiga panel (Admin/Kasir/Owner). Detail: `docs/05-roadmap.md`.
@@ -185,10 +186,21 @@ roadmap fase.
   (bukan hanya UI); **pergerakan stok append-only**; **pengeluaran outlet**
   (koreksi lewat **void**, bukan hapus); **laporan keuangan & laba** (kotor/bersih)
   + ekspor Excel, serta laporan harian Kasir. Panel Owner & Kasir; kontrak di
-  `docs/18-api-pengeluaran-inventori.md`.
+  `docs/18-api-pengeluaran-inventori.md`. Omzet per metode dihitung dari
+  **`transactions.total`** (omzet), bukan `payments.amount` (uang diterima yang
+  memuat kembalian) — perbaikan 17 Okt 2026, `docs/35` §9.
+- **Laporan Transaksi siap-cetak (Owner, 17 Okt 2026, sudah live)**: endpoint
+  `GET /api/owner/businesses/:id/reports/transactions` (**satu baris per item**,
+  hanya Owner; kasir `403`) + halaman cetak A4 di panel Owner (`#print-report`,
+  disembunyikan di layar) dengan ringkasan, rekap metode, dan produk terlaris.
+  Kode & tes: `docs/35-laporan-transaksi-cetak.md`.
+- **Sitemap & deploy**: backend di Vercel (`https://kasir-nova.vercel.app`),
+  panel di Firebase Hosting (`https://kasir-nova.web.app`) — deploy ulang
+  17 Okt 2026 membawa laporan transaksi + tombol struk PDF di web; catatan lengkap
+  di `docs/24-vercel-serverless.md`.
 - **APK Android panel Kasir (Fase 17, diperbarui 17 Okt 2026)**: panel Kasir
   dikemas sebagai APK Capacitor (`apps/kasir-mobile`, `id.kasirnova.kasir`,
-  `1.0.0-beta.7`) dengan ikon launcher **KASIR NOVA** (adaptive), cetak struk
+  `1.0.0-beta.8`) dengan ikon launcher **KASIR NOVA** (adaptive), cetak struk
   thermal langsung via **Bluetooth Classic (SPP) & BLE** (plugin `NovaPrinter` +
   ESC/POS murni `apps/kasir/src/escpos.js`), serta **struk PDF** — kirim/simpan/
   cetak lewat plugin `NovaReceipt`. APK ditandatangani keystore rilis dan

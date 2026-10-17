@@ -316,8 +316,8 @@ export const transactionReport = async ({ businessId, filters = {} }) => {
   // memakai `amount` akan MELEBIHKAN omzet tunai. Karena satu transaksi = satu
   // pembayaran (split belum ada), total per metode berjumlah tepat sama dengan
   // omzet periode sehingga persentasenya selalu 100%.
-  // CATATAN: `incomeByMethod` pada laporan keuangan masih memakai `p.amount`
-  // (selisih ini dicatat di docs/35 sebagai temuan terpisah).
+  // CATATAN: `incomeByMethod` pada laporan keuangan sudah disamakan (memakai
+  // `t.total`) pada 17 Okt 2026 atas izin pemilik — lihat docs/35.
   const { rows: methodRows } = await query(
     `${BOUNDS_CTE}
      SELECT p.method,
@@ -771,13 +771,23 @@ export const resolveFinanceRange = async (timezone, filters = {}) => {
   }
 };
 
-/** Pendapatan per metode pembayaran (hanya transaksi selesai & pembayaran lunas). */
+/**
+ * Pendapatan per metode pembayaran (hanya transaksi selesai & pembayaran lunas).
+ *
+ * PERBAIKAN 17 Okt 2026 (izin pemilik): omzet per metode dihitung dari
+ * `t.total`, BUKAN `p.amount`. `payments.amount` menyimpan UANG DITERIMA;
+ * untuk tunai nilainya termasuk kembalian (total 40.000 dibayar 100.000 ->
+ * amount 100.000) sehingga `p.amount` MELEBIHKAN omzet tunai, laba kotor, dan
+ * laba bersih. `p.fee_amount` tetap dari `payments` (biaya transaksi).
+ * Asumsi: satu transaksi = satu pembayaran `paid` (split payment belum ada);
+ * karenanya `SUM(t.total)` per metode tidak menghitung ganda.
+ */
 const incomeByMethod = async (businessId, range, tz, outletId) => {
   const { rows } = await query(
     `SELECT p.method,
-            COALESCE(SUM(p.amount), 0)    AS total,
+            COALESCE(SUM(t.total), 0)      AS total,
             COALESCE(SUM(p.fee_amount), 0) AS fees,
-            count(DISTINCT t.id)::int     AS transactions
+            count(DISTINCT t.id)::int      AS transactions
        FROM payments p
        JOIN transactions t ON t.id = p.transaction_id
       WHERE t.business_id = $1
@@ -860,7 +870,7 @@ export const financeSummary = async ({ businessId, filters = {}, outletId = null
       ),
       query(
         `WITH pay AS (
-           SELECT t.outlet_id, COALESCE(SUM(p.amount), 0) AS income,
+           SELECT t.outlet_id, COALESCE(SUM(t.total), 0) AS income,
                   COALESCE(SUM(p.fee_amount), 0)          AS fees,
                   COUNT(DISTINCT t.id)::int               AS transactions
              FROM payments p

@@ -17,7 +17,7 @@ Cakupan: auth, produk/stok, transaksi, langganan, laporan, cetak, dan UI statis.
 | 6 | Sintaks modul kasir | `node --check app.js` (salinan `.mjs`) | **OK** |
 | 7 | Smoke E2E penuh (server lokal) | `npm run e2e:local` | **31/31 lulus** |
 
-Total: **265 pemeriksaan otomatis lulus, 0 gagal**, ditambah **31 langkah E2E**
+Total: **266 pemeriksaan otomatis lulus, 0 gagal**, ditambah **31 langkah E2E**
 end-to-end terhadap server lokal + DB dev (lihat §3a).
 
 > Satu perintah untuk seluruh matriks ini: `scripts/qa-local.ps1` (npm

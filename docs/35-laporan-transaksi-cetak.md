@@ -133,7 +133,7 @@ margin: 12mm; }`, header tabel diulang di tiap halaman
 - `apps/owner/src/app.js` — `renderPrintReport`, `printTransactionReport`, formatter tanggal Indonesia.
 - `apps/owner/styles/styles.css` — blok `@media print` (ter-scope ke `#print-report`).
 - `scripts/verify-ui.mjs` — bagian pengunci **"laporan transaksi cetak (17 Okt 2026)"**.
-- `scripts/qa-local.ps1` — label jumlah tes backend (248 → **253**, lalu **265** setelah tes struk PDF).
+- `scripts/qa-local.ps1` — label jumlah tes backend (248 → **253**, **265** setelah tes struk PDF, lalu **266** setelah tes omzet/kembalian).
 - `docs/16-api-laporan.md`, `docs/05-roadmap.md` — endpoint + catatan progres.
 
 Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
@@ -155,8 +155,8 @@ Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
 
 | Perintah | Hasil |
 |---|---|
-| `node --test tests/report-transactions.test.js` | **5/5 lulus** |
-| `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **265/265**) |
+| `node --test tests/report-transactions.test.js` | **6/6 lulus** (termasuk tes omzet/kembalian) |
+| `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **266/266**) |
 | `node scripts/verify-ui.mjs` | **SEMUA OK** (termasuk bagian baru) |
 
 Kasus uji `report-transactions.test.js`:
@@ -166,9 +166,13 @@ Kasus uji `report-transactions.test.js`:
    produk terlaris urut qty + omzet, format `INV-…`.
 2. Filter outlet & kasir; **outlet milik bisnis lain → 0 baris** (tidak bocor).
 3. `status=voided` dan pencarian nomor transaksi/pembayaran.
-4. `limit` + `truncated`; validasi `limit` (0 / 99999 / bukan angka), `status`,
+4. **Laporan keuangan:** penjualan tunai total 40.000 dibayar 100.000 (kembalian
+   60.000) → `income.cash = 40.000` (bukan 100.000), `income.total = 75.000`
+   (bukan 135.000), rekap **per outlet** sama; `SUM(payments.amount)` tetap
+   135.000 sebagai pembanding (uang diterima ≠ omzet). Lihat §9.
+5. `limit` + `truncated`; validasi `limit` (0 / 99999 / bukan angka), `status`,
    rentang terbalik, `outletId` bukan UUID → **422**.
-5. Isolasi tenant & peran: owner lain → **404**, kasir → **403**, admin platform → **200**.
+6. Isolasi tenant & peran: owner lain → **404**, kasir → **403**, admin platform → **200**.
 
 Uji pada peramban (dialog cetak, PDF, tata letak A4) **belum** dijalankan —
 memerlukan perangkat/manusia; dicatat sebagai pekerjaan pemilik.
@@ -186,7 +190,7 @@ memerlukan perangkat/manusia; dicatat sebagai pekerjaan pemilik.
 
 ---
 
-## 9. Temuan terpisah (butuh keputusan pemilik — bukan bagian fitur ini)
+## 9. Temuan omzet tunai — SUDAH DIPERBAIKI (17 Okt 2026, izin pemilik)
 
 `payments.amount` menyimpan **uang diterima**, bukan bagian dari total. Untuk
 pembayaran **tunai** nilainya termasuk **kembalian** (contoh: total 40.000 dibayar
@@ -195,9 +199,21 @@ pembayaran **tunai** nilainya termasuk **kembalian** (contoh: total 40.000 dibay
 **31.080.000**.
 
 Akibatnya `incomeByMethod()` (dipakai **laporan keuangan/laba** `docs/16` bagian
-V0.3) **melebihkan** pendapatan tunai sebesar total kembalian.
+V0.3) **melebihkan** pendapatan tunai sebesar total kembalian — dan karena
+`income.total` dijumlahkan dari situ, **laba kotor & laba bersih** juga ikut
+membesar.
 
-- **Laporan transaksi baru ini tidak memakai `payments.amount`**; omzet per metode
-  dihitung dari `t.total` sehingga benar dan persentasenya 100%.
-- Perubahan pada laporan keuangan **tidak** dilakukan pada fase ini karena angka
-  laporan yang sudah dipakai bisa berubah — menunggu persetujuan pemilik.
+**Perbaikan (17 Okt 2026, disetujui pemilik):**
+
+- `incomeByMethod()` dan rekap **per outlet** pada `financeSummary()` kini
+  memakai **`SUM(t.total)`**, sama seperti laporan transaksi; `payments` hanya
+  dipakai untuk `fee_amount` & status `paid`.
+- Dampak: `income.cash/total`, `payment_methods[].total`, `outlets[].income`,
+  `gross_profit`, dan `net_profit` pada laporan keuangan **turun** ke angka omzet
+  riil (sebelumnya melebihkan sebesar kembalian tunai). Dashboard Owner, laporan
+  harian kasir, dan ekspor XLSX ikut memakai angka yang sama (satu fungsi).
+- Pengujian: `server/tests/report-transactions.test.js` — kasus penjualan tunai
+  total 40.000 dibayar 100.000 membuktikan `income.cash = 40.000` (bukan
+  100.000), `income.total = 75.000` (bukan 135.000), dan `outlets[].income` sama.
+- Asumsi yang tetap berlaku: **satu transaksi = satu pembayaran** (split payment
+  belum ada), sehingga `SUM(t.total)` per metode tidak menghitung ganda.

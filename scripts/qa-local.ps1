@@ -53,7 +53,7 @@ node scripts/clean-test-fixtures.mjs
 node --test "tests/**/*.test.js"
 $backendCode = $LASTEXITCODE
 Pop-Location
-Record '2/6 Uji backend (265 diharapkan)' $backendCode
+Record '2/6 Uji backend (266 diharapkan)' $backendCode
 
 Write-Host "`n=== 3/6 Verifikasi UI statis + bundel hosting ==="
 node scripts/build-hosting.mjs

@@ -1,7 +1,7 @@
 # 36 — Struk PDF di Panel Kasir (kirim / simpan / cetak)
 
 > **Status:** kode selesai & **diuji lokal 17 Okt 2026** (`server/tests/struk-pdf.test.js`
-> **12/12 lulus**, seluruh backend **265/265 lulus**, `verify:ui` **SEMUA OK**).
+> **12/12 lulus**, seluruh backend **266/266 lulus**, `verify:ui` **SEMUA OK**).
 > **Uji di perangkat: SUKSES** (dilaporkan pemilik, 17 Okt 2026).
 > **APK `1.0.0-beta.8`** (memuat plugin native `NovaReceipt` + **perbaikan PDF
 > kosong**, §6.1) **sudah dibangun & didistribusikan** ke grup `kasir-beta`

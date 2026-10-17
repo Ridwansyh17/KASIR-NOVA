@@ -560,14 +560,14 @@ maupun emulator). Yang perlu dikonfirmasi pemilik: splash menampilkan latar navy
 | Encoder ESC/POS (kolom, perintah, ASCII, potong) | `server/tests/printer-escpos.test.js` | ✅ lulus |
 | **Struk PDF** (berkas PDF valid, pohon halaman, lebar baris, multi-halaman, base64) + jalur **kirim/simpan/cetak** (peramban & plugin native) | `server/tests/struk-pdf.test.js` | ✅ **12 tes lulus** (17 Okt 2026) |
 | Allowlist CORS WebView (`https://localhost`, `capacitor://localhost`) | `server/tests/cors.test.js` | ✅ lulus |
-| Suite server penuh | `npm run test:server` | ✅ **265 tes, 265 lulus, 0 gagal** |
+| Suite server penuh | `npm run test:server` | ✅ **266 tes, 266 lulus, 0 gagal** |
 | Verifikasi statis UI 3 panel + smoke bundel hosting | `node scripts/verify-ui.mjs` | ✅ rujukan aset/id/`api.*`/ikon manifest OK; 12/12 aset `dist/hosting` `200` |
 | Build APK debug | `gradlew assembleDebug` | ✅ APK (~3,97 MB); package/versi/izin/plugin terverifikasi (`aapt2 dump badging`) |
 | Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (~5,02 MB), v`1.0.0-beta.8`/code 8, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2–beta.7 sebelumnya juga terverifikasi) |
 | CORS produksi untuk APK | `GET /api/health` + `Origin: https://localhost` | ✅ `200` + `Access-Control-Allow-Origin: https://localhost` |
 | CORS produksi web (regresi) | `GET /api/health` + `Origin: https://kasir-nova.web.app` | ✅ `200` + header sesuai |
 | Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026, `1.0.0-beta.7` + **`1.0.0-beta.8`** 17 Okt 2026) |
-| Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204` |
+| Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204`. **Deploy ulang 17 Okt 2026**: laporan transaksi Owner + tombol struk PDF web live (halaman `200`, berkas `kasir/src/{struk-share,receipt-pdf}.js` `200`) |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Kirim/simpan/cetak struk PDF (APK)** | perangkat nyata (rilis `kasir-beta`) | ✅ **diuji pemilik — SUKSES** (17 Okt 2026, APK beta.8) |

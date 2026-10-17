@@ -406,6 +406,39 @@ test('Status voided & pencarian invoice', async () => {
   assert.strictEqual(byMethod.body.summary.total, 20000);
 });
 
+test('Laporan keuangan: kembalian tunai TIDAK menambah omzet (metode & outlet)', async () => {
+  const today = await todayTz();
+  const res = await ownerGet(
+    tokenA,
+    ownerPath(businessA, `/reports/finance?from=${today}&to=${today}`)
+  );
+  assert.strictEqual(res.status, 200, JSON.stringify(res.body));
+  const b = res.body;
+
+  // Data uji: penjualan tunai total 40.000 DIBAYAR 100.000 (kembalian 60.000),
+  // QRIS 15.000, sisipan kartu 20.000 -> omzet 75.000, BUKAN 135.000.
+  // (Perbaikan 17 Okt 2026: omzet memakai transactions.total, bukan payments.amount.)
+  assert.strictEqual(b.income.cash, 40000, 'kembalian tunai tidak masuk omzet');
+  assert.strictEqual(b.income.card, 20000);
+  assert.strictEqual(b.income.qris, 15000);
+  assert.strictEqual(b.income.total, 75000, 'total pendapatan bebas kembalian');
+  assert.strictEqual(b.gross_profit, b.income.total - b.hpp);
+
+  const outlet = b.outlets.find((o) => o.outlet_id === outletT1);
+  assert.ok(outlet, 'outlet uji ada di rekap per outlet');
+  assert.strictEqual(outlet.income, 75000, 'omzet outlet bebas kembalian');
+  assert.strictEqual(outlet.gross_profit, outlet.income - outlet.hpp);
+
+  const sumPayments = await query(
+    `SELECT COALESCE(SUM(p.amount), 0) AS tendered, COALESCE(SUM(t.total), 0) AS revenue
+       FROM payments p JOIN transactions t ON t.id = p.transaction_id
+      WHERE t.business_id = $1 AND t.status = 'completed' AND p.status = 'paid'`,
+    [businessA]
+  );
+  assert.strictEqual(Number(sumPayments.rows[0].tendered), 135000, 'uang diterima termasuk kembalian');
+  assert.strictEqual(Number(sumPayments.rows[0].revenue), 75000, 'omzet riil');
+});
+
 test('limit & truncated; validasi query 422', async () => {
   const today = await todayTz();
   const limited = await ownerGet(tokenA, lapTx(businessA, `?from=${today}&to=${today}&limit=2`));

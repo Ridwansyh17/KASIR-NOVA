@@ -195,6 +195,48 @@ pemilik). Produksi: https://kasir-nova.vercel.app
 
 ### Cara memperbarui (deploy ulang)
 ```powershell
-npx vercel deploy --prod --yes --token <VERCEL_TOKEN>
+npx.cmd vercel deploy --prod --yes --token <VERCEL_TOKEN>
 ```
 (Database Neon tidak berubah; connection string tersimpan sebagai env `DATABASE_URL` di Vercel.)
+
+## Deploy 17 Okt 2026 — Laporan Transaksi + perbaikan omzet tunai (izin pemilik)
+
+Dijalankan berturut-turut (izin pemilik: "Deploy backend + hosting sekarang"):
+
+```powershell
+# 1. Backend (server/) -> https://kasir-nova.vercel.app
+npx.cmd vercel deploy --prod --yes
+# 2. Frontend panel -> Firebase Hosting
+node scripts/build-hosting.mjs https://kasir-nova.vercel.app
+node <firebase-tools>/lib/bin/firebase.js deploy --only hosting --project kasir-nova
+```
+
+**Isi rilis:**
+
+- Endpoint baru `GET /api/owner/businesses/:id/reports/transactions` (Laporan
+  Transaksi siap-cetak) + halaman cetak di panel Owner (`#print-report`).
+- Tombol **struk PDF** (kirim/simpan/cetak) di panel web Kasir
+  (`apps/kasir/src/{receipt-pdf,struk-share}.js` — sebelumnya hanya ada di APK).
+- **Perbaikan omzet tunai** pada laporan keuangan: agregat per metode & per outlet
+  memakai `SUM(transactions.total)` (omzet), bukan `payments.amount` (uang
+  diterima termasuk kembalian) — lihat `docs/35` §9.
+
+**Verifikasi setelah deploy (17 Okt 2026):**
+
+| Uji | Hasil |
+|---|---|
+| `GET /api/health` produksi | ✅ `status: ok`, `services.database: up` |
+| Rute baru `…/reports/transactions` tanpa token | ✅ **401** (rute ada & menuntut autentikasi; sebelumnya 404 belum dirilis) |
+| `GET …/reports/finance` tanpa token | ✅ 401 |
+| CORS APK `Origin: https://localhost` | ✅ 200 + `Access-Control-Allow-Origin: https://localhost` |
+| Preflight web `OPTIONS` rute baru (Origin `https://kasir-nova.web.app`) | ✅ 204 + allow-origin sesuai |
+| Hosting: `/` `/kasir/` `/owner/` `/admin/` | ✅ 200 |
+| Hosting memuat berkas baru `kasir/src/{struk-share,receipt-pdf}.js` | ✅ 200 |
+| `owner/src/api.js` di hosting memuat `reports/transactions` | ✅ ada |
+| `scripts/qa-local.ps1` (lokal, sebelum deploy) | ✅ **SEMUA TAHAP LULUS** — backend **266/266**, verify-ui OK |
+
+> Catatan: uji fungsional laporan **dengan sesi Owner nyata** di produksi belum
+> dijalankan agen (tidak memegang kredensial produksi) — cukup bukti rute hidup
+> (401) + halaman tersaji (200) + suite lokal 266/266. Uji cetak di peramban =
+> pekerjaan pemilik.
+

@@ -676,13 +676,23 @@ semua transaksi outlet — dicatat, belum dibuat).
 `server/src/modules/report/{schema,service,controller,routes}.js`,
 `scripts/verify-ui.mjs` (bagian pengunci baru), `scripts/qa-local.ps1` (label 253).
 
-**Pengujian lokal:** server **253/253** (5 tes baru), `verify:ui` **SEMUA OK**.
-**Belum dideploy** — menunggu perintah pemilik; uji cetak nyata (peramban/PDF)
-dikerjakan pemilik. APK Kasir tidak disentuh.
+**Pengujian lokal:** server **266/266** (6 tes laporan), `verify:ui` **SEMUA OK**.
 
-**Temuan terpisah (menunggu keputusan):** `incomeByMethod` pada laporan keuangan
-masih memakai `payments.amount` sehingga pendapatan tunai terlihat lebih tinggi
-sebesar kembalian. Detail + bukti di `docs/35` §9.
+**DEPLOY (17 Okt 2026, izin pemilik):** backend → Vercel
+(`npx.cmd vercel deploy --prod --yes`) dan frontend → Firebase Hosting
+(`node scripts/build-hosting.mjs https://kasir-nova.vercel.app` +
+`firebase deploy --only hosting`). Verifikasi: `/api/health` **ok** (DB up),
+rute baru `…/reports/transactions` **401** tanpa token (hidup di produksi),
+halaman `/` `/kasir/` `/owner/` `/admin/` **200**, CORS APK & preflight web OK.
+Catatan lengkap: `docs/24` (bagian "Deploy 17 Okt 2026"). Uji cetak nyata di
+peramban tetap pekerjaan pemilik.
+
+**Temuan omzet tunai — SUDAH DIPERBAIKI (17 Okt 2026, dengan izin pemilik):**
+`incomeByMethod` pada laporan keuangan memakai `payments.amount` (uang **diterima**,
+termasuk kembalian) sehingga pendapatan tunai — dan ikutannya laba kotor/bersih —
+terlihat lebih tinggi. Kini laporan keuangan memakai `SUM(transactions.total)`
+(omzet) untuk agregat **per metode** dan **per outlet**; `payments` hanya dipakai
+untuk `fee_amount` + status `paid`. Detail + bukti: `docs/35` §9.
 
 ## 17 Okt 2026 — Struk PDF Kasir (kirim / simpan / cetak)
 
@@ -711,10 +721,10 @@ digantikan tombol **Cetak** (lebar kertas tetap dapat diatur di kartu Printer).
 **Berkas:** `docs/36-struk-pdf-kasir.md` (spesifikasi + penyimpangan),
 `server/tests/struk-pdf.test.js`, `apps/kasir-mobile/android-templates/NovaReceiptPlugin.java`,
 `apps/kasir-mobile/{package.json,scripts/setup-android.mjs}`, `scripts/verify-ui.mjs`
-(bagian **"struk pdf kasir (17 Okt 2026)"**), `scripts/qa-local.ps1` (label **265**),
+(bagian **"struk pdf kasir (17 Okt 2026)"**), `scripts/qa-local.ps1` (label **266**),
 `docs/25` (§3.4/§4.2 + riwayat beta.7/beta.8), `docs/30` (tabel tombol).
 
-**Pengujian lokal:** server **265/265** (12 tes baru), `verify:ui` **SEMUA OK**.
+**Pengujian lokal:** server **266/266** (12 tes struk PDF + 6 tes laporan), `verify:ui` **SEMUA OK**.
 
 **Rilis:** APK **`1.0.0-beta.7`** (versionCode `7`) dibangun
 (`gradlew assembleRelease` → BUILD SUCCESSFUL) & **didistribusikan** ke grup
