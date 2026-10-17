@@ -767,9 +767,10 @@ perbaikan unduh berkas web. Dibuktikan dengan **membongkar APK**: `src/app.js`,
 (pada beta.8 keempatnya berbeda). Berkas
 `dist/apk/KASIR-NOVA-1.0.0-beta.9.apk` (5,03 MB, SHA-256 `24a1e740…babf`),
 sertifikat rilis sama seperti beta.8; `aapt dump badging` →
-`versionCode='9'` / `versionName='1.0.0-beta.9'`. **Unggahan ke grup
-`kasir-beta` belum berhasil** — kredensial Firebase CLI kedaluwarsa
-(butuh `firebase login --reauth`). Rincian: `docs/25` §1 & §7.
+`versionCode='9'` / `versionName='1.0.0-beta.9'`. **Sudah diunggah &
+didistribusikan** ke grup `kasir-beta` (Firebase App Distribution, 17 Okt 2026,
+release `4sllfgq44brq8`) setelah `firebase login --reauth`. Rincian: `docs/25`
+§1 & §7.
 
 **Belum dikerjakan:** logo outlet di dalam PDF (dikecualikan pemilik).
 

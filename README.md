@@ -160,10 +160,9 @@ roadmap fase.
   lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend
   **V0.3** ter-deploy di Firebase Hosting (`kasir-nova.web.app`, API cross-origin
-  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.9`** dibangun 17 Okt 2026
-  (memuat **Laporan Transaksi** + **ekspor Excel** di HP) — unggahan ke grup
-  `kasir-beta` tertahan sampai `firebase login --reauth`; versi terdistribusi
-  terakhir **`1.0.0-beta.8`**. Deploy ulang 17 Okt 2026
+  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.9`** dibangun & dikirim
+  ke penguji beta via Firebase App Distribution (grup `kasir-beta`, 17 Okt 2026 —
+  memuat **Laporan Transaksi** + **ekspor Excel** di HP). Deploy ulang 17 Okt 2026
   membawa **laporan transaksi Owner**, **laporan transaksi Kasir (A5a)**, dan
   tombol **struk PDF** di panel web.
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi

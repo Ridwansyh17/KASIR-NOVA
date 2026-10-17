@@ -379,8 +379,9 @@ Status (13 Okt 2026, sudah dilakukan):
   (SHA-256 `5bf78eb1…d055`), jadi dapat dipasang **langsung di atas** beta.8.
   Berkas: `dist/apk/KASIR-NOVA-1.0.0-beta.9.apk` (5,03 MB, SHA-256
   `24a1e740…babf`). `aapt dump badging` → `versionCode='9'`
-  `versionName='1.0.0-beta.9'`; **BELUM diunggah** ke grup `kasir-beta` karena
-  kredensial Firebase CLI kedaluwarsa (butuh `firebase login --reauth`).
+  `versionName='1.0.0-beta.9'`; **telah diunggah & didistribusikan** ke grup
+  `kasir-beta` melalui Firebase App Distribution (17 Okt 2026, release
+  `4sllfgq44brq8`) setelah `firebase login --reauth`.
 
 > **Catatan penting:** desain & fitur baru pada APK hanya terlihat setelah
 > backend produksi memuat versi terbaru. Lihat `docs/24-vercel-serverless.md`.
@@ -588,7 +589,7 @@ maupun emulator). Yang perlu dikonfirmasi pemilik: splash menampilkan latar navy
 | Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (5,03 MB), v`1.0.0-beta.9`/code 9, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2–beta.8 sebelumnya juga terverifikasi) |
 | CORS produksi untuk APK | `GET /api/health` + `Origin: https://localhost` | ✅ `200` + `Access-Control-Allow-Origin: https://localhost` |
 | CORS produksi web (regresi) | `GET /api/health` + `Origin: https://kasir-nova.web.app` | ✅ `200` + header sesuai |
-| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026, `1.0.0-beta.7` + **`1.0.0-beta.8`** 17 Okt 2026) · ⏳ **`1.0.0-beta.9`** dibangun & diverifikasi, **belum diunggah** (kredensial Firebase CLI kedaluwarsa → `firebase login --reauth`) |
+| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026, `1.0.0-beta.7` + `1.0.0-beta.8` 17 Okt 2026, **`1.0.0-beta.9`** 17 Okt 2026 — release `4sllfgq44brq8`) |
 | Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204`. **Deploy ulang 17 Okt 2026**: laporan transaksi Owner + tombol struk PDF web live (halaman `200`, berkas `kasir/src/{struk-share,receipt-pdf}.js` `200`) |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
