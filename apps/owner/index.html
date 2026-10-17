@@ -367,6 +367,16 @@
           </div>
 
           <div class="report-actions">
+            <button
+              id="rep-print-btn"
+              class="btn small primary"
+              title="Buka halaman cetak laporan transaksi (simpan sebagai PDF atau cetak)"
+            >
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M19 8H5a3 3 0 0 0-3 3v6h4v4h12v-4h4v-6a3 3 0 0 0-3-3Zm-3 11H8v-5h8v5Zm3-7a1 1 0 1 1 0-2 1 1 0 0 1 0 2ZM18 3H6v4h12V3Z"/>
+              </svg>
+              Cetak Laporan Transaksi
+            </button>
             <button id="rep-export-xlsx" class="btn small xlsx" title="Ekspor rekapan ke Microsoft Excel">
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path fill="#107C41" d="M19 3H7a2 2 0 0 0-2 2v3h-1a1 1 0 0 0 0 2h1v3h-1a1 1 0 0 0 0 2h1v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-6.7 13-2-3-2 3H6.2l3.1-4-3.1-4h2.1l2 3 2-3h2.1l-3.1 4 3.1 4h-2.1Zm4.7 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>
@@ -996,6 +1006,13 @@
         </form>
       </div>
     </div>
+
+    <!--
+      Halaman cetak "Laporan Transaksi" (17 Okt 2026).
+      Kosong sampai tombol Cetak ditekan; hanya terlihat pada @media print.
+      Sumber data: GET /api/owner/businesses/:id/reports/transactions
+    -->
+    <div id="print-report" aria-hidden="true"></div>
 
     <!-- Konfigurasi runtime (API base URL) — dimuat sebelum app.js. -->
     <script src="./config.js"></script>

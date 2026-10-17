@@ -30,6 +30,17 @@ export const summary = async (req, res, next) => {
   }
 };
 
+/** Laporan Transaksi siap-cetak (baris per item) — 17 Okt 2026. */
+export const transactionReport = async (req, res, next) => {
+  try {
+    res.json(
+      await service.transactionReport({ businessId: req.params.businessId, filters: req.query })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const exportReport = async (req, res, next) => {
   try {
     const filters = req.query;

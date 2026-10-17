@@ -83,8 +83,13 @@ Diterima") agar tidak menyiratkan uang sudah diterima.
 | `#receipt-pay-btn` "Bayar Sekarang" | `confirmPayment()` → `api.createTransaction` → struk **FINAL** + snapshot |
 | `#receipt-cancel-btn` "Batal" | buang pratinjau; **keranjang tidak diubah** |
 | `#receipt-done-btn` "Selesai" | reset struk; siap transaksi berikutnya |
-| `#print-struk-btn` / `-80` | cetak dari snapshot (58/80 mm) |
+| `#struk-share-btn` "Kirim" | kirim **struk PDF** (Web Share di peramban; lembar berbagi Android di APK) — 17 Okt 2026 |
+| `#struk-save-btn` "Simpan PDF" | simpan **struk PDF** (unduh di peramban; pemilih berkas di APK) |
+| `#struk-print-btn` "Cetak" | cetak **struk PDF** (layanan cetak Android) / dialog cetak peramban |
 | `#print-struk-thermal` | cetak ESC/POS dari snapshot |
+
+> Tombol `Cetak 58mm` / `Cetak 80mm` **digantikan** tombol `Cetak` pada 17 Okt 2026
+> (alur baru: struk PDF). Rincian: `docs/36-struk-pdf-kasir.md`.
 
 Tombol cetak **disembunyikan** selama pratinjau (`isPrintable`). Bila keranjang
 atau form berubah setelah pratinjau tampil, pratinjau otomatis **dibuang**

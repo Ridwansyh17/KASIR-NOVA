@@ -13,6 +13,9 @@
  * Opsi lingkungan:
  *   NOVA_FIREBASE_APP_ID  override App ID (default: project kasir-nova)
  *   NOVA_TESTER_GROUPS    grup penguji (default: kasir-beta)
+ *   NOVA_TESTERS          daftar email penguji (pisahkan koma) — bila diisi, rilis
+ *                         hanya dikirim ke email tersebut (tidak mengirim ulang
+ *                         notifikasi ke seluruh grup)
  *   NOVA_RELEASE_NOTES    catatan rilis (default: dibuat otomatis)
  *   NOVA_FIREBASE_TOKEN   token CI (opsional; untuk non-interaktif)
  *
@@ -34,6 +37,7 @@ const version = pkg.version ?? '0.0.0';
 
 const APP_ID = process.env.NOVA_FIREBASE_APP_ID ?? '1:1057858530498:android:7091503841af1c892a9f5b';
 const GROUPS = process.env.NOVA_TESTER_GROUPS ?? 'kasir-beta';
+const TESTERS = (process.env.NOVA_TESTERS ?? '').trim();
 const NOTES =
   process.env.NOVA_RELEASE_NOTES ??
   `KASIR NOVA ${version} - cetak struk thermal Bluetooth (SPP & BLE)`;
@@ -64,14 +68,20 @@ if (!existsSync(apk)) {
   process.exit(1);
 }
 
-const args = ['appdistribution:distribute', apk, '--app', APP_ID, '--groups', GROUPS, '--release-notes', NOTES];
+const args = ['appdistribution:distribute', apk, '--app', APP_ID, '--release-notes', NOTES];
+if (TESTERS) {
+  // Kirim hanya ke penguji tertentu (mis. permintaan pemilik mengirim ke 1 email).
+  args.push('--testers', TESTERS);
+} else {
+  args.push('--groups', GROUPS);
+}
 if (process.env.NOVA_FIREBASE_TOKEN) {
   args.push('--token', process.env.NOVA_FIREBASE_TOKEN);
 }
 
 console.log(`→ Mengunggah ${apk}`);
 console.log(`  App ID : ${APP_ID}`);
-console.log(`  Grup   : ${GROUPS}`);
+console.log(`  Sasaran: ${TESTERS ? `penguji ${TESTERS}` : `grup ${GROUPS}`}`);
 console.log(`  Catatan: ${NOTES}`);
 
 const cli = findFirebaseCli();

@@ -229,16 +229,22 @@
           <div class="receipt-head">
             <strong id="receipt-headline">Transaksi berhasil</strong>
             <div class="btn-row">
-              <button id="print-struk-thermal" type="button" class="btn small primary hidden">
+              <!-- Struk PDF (17 Okt 2026): tampil setelah pembayaran dikonfirmasi,
+                   TIDAK menunggu printer thermal tersambung. -->
+              <button id="struk-share-btn" type="button" class="btn small primary hidden">
+                Kirim
+              </button>
+              <button id="struk-save-btn" type="button" class="btn small hidden">Simpan PDF</button>
+              <button id="struk-print-btn" type="button" class="btn small hidden">Cetak</button>
+              <button id="print-struk-thermal" type="button" class="btn small hidden">
                 Cetak Thermal
               </button>
-              <button id="print-struk-btn" type="button" class="btn small">Cetak 58mm</button>
-              <button id="print-struk-btn-80" type="button" class="btn small">Cetak 80mm</button>
               <button id="receipt-done-btn" type="button" class="btn small primary hidden">
                 Selesai
               </button>
             </div>
           </div>
+          <p id="struk-pdf-note" class="muted small hidden"></p>
           <p id="receipt-note" class="receipt-note hidden"></p>
           <p id="receipt-print-error" class="receipt-print-error hidden" role="status"></p>
           <div id="receipt-pay-row" class="btn-row hidden">

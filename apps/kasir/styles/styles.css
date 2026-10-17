@@ -789,6 +789,16 @@ select:focus {
   background: var(--danger-tint);
 }
 
+/* Struk PDF (17 Okt 2026): catatan kecil "Struk PDF siap — kirim/simpan/cetak".
+   Bukan pesan galat; hanya status agar kasir tahu berkas PDF sudah tersedia. */
+#struk-pdf-note {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--card-2);
+  border: 1px dashed var(--border);
+}
+
 .receipt-body .meta {
   margin-bottom: 10px;
 }

@@ -14,6 +14,7 @@ import {
   reportBusinessParamSchema,
   reportQuerySchema,
   summaryQuerySchema,
+  transactionReportQuerySchema,
   exportQuerySchema,
   outletComparisonQuerySchema,
   outletComparisonExportQuerySchema,
@@ -34,6 +35,14 @@ reportRoutes.get(
   ...validate({ params: reportBusinessParamSchema, query: summaryQuerySchema }),
   requireBusinessAccess(),
   controller.summary
+);
+
+// Laporan Transaksi siap-cetak (17 Okt 2026) — baris per ITEM.
+reportRoutes.get(
+  '/transactions',
+  ...validate({ params: reportBusinessParamSchema, query: transactionReportQuerySchema }),
+  requireBusinessAccess(),
+  controller.transactionReport
 );
 
 reportRoutes.get(

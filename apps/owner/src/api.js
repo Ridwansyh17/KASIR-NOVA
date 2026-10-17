@@ -399,6 +399,13 @@ export const api = {
       request(`/api/owner/businesses/${businessId}/reports${queryString(params)}`),
     summary: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports/summary${queryString(params)}`),
+    /**
+     * Laporan transaksi detail siap-cetak (Fase 17): SATU BARIS PER ITEM +
+     * rekap metode pembayaran & produk terlaris. Milik panel Owner saja.
+     * @param {{from?,to?,outletId?,cashierId?,status?,paymentMethod?,paymentStatus?,search?,limit?}} params
+     */
+    transactions: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/reports/transactions${queryString(params)}`),
     /** Perbandingan agregat tiap outlet dalam satu bisnis (Fase 16). */
     outlets: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports/outlets${queryString(params)}`),

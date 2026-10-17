@@ -18,6 +18,7 @@
 | GET | `/api/owner/reports/businesses/export` | owner | Ekspor perbandingan lintas-bisnis (JSON / **XLSX**) |
 | GET | `/api/owner/businesses/:businessId/reports/finance` | owner | **Ringkasan keuangan & laba (V0.3)** |
 | GET | `/api/owner/businesses/:businessId/reports/finance/export` | owner | **Ekspor XLSX keuangan (V0.3)** |
+| GET | `/api/owner/businesses/:businessId/reports/transactions` | owner | **Laporan transaksi siap-cetak (17 Okt 2026)** — baris per item |
 | GET | `/api/cashier/reports/daily` | cashier | **Pendapatan harian outlet kasir (V0.3)** |
 | GET | `/api/platform/businesses/:businessId/reports[...]` | platform_admin | Sama persis, **baca saja** lintas platform |
 
@@ -255,6 +256,74 @@ dan hanya memuat satu outlet. Bila `can_view_profit = false`, server
   **sama** dengan dashboard (memakai `financeSummary`). Nama berkas
   `KASIR_NOVA_Laporan_Keuangan_<from>_sampai_<to>.xlsx`.
 
+## Laporan Transaksi siap-cetak (17 Okt 2026)
+
+`GET /api/owner/businesses/:businessId/reports/transactions`
+
+Dibuat atas permintaan pemilik (contoh tata letak + keputusan A1a–A5a; rincian
+desain, penyimpangan, dan pertimbangannya ada di `docs/35-laporan-transaksi-cetak.md`).
+Panel Owner merender halaman cetak HTML (`#print-report`) lalu membukanya dengan
+dialog cetak peramban (**Simpan sebagai PDF**). **Hanya Owner** yang dapat membuat
+laporan ini; Kasir tetap `403` (kebijakan akses tidak diubah).
+
+**Query** (semua opsional; memakai filter bersama + `limit`):
+
+| Parameter | Tipe | Keterangan |
+|---|---|---|
+| `from`, `to`, `outletId`, `cashierId`, `status`, `paymentMethod`, `paymentStatus`, `search` | — | Sama seperti endpoint laporan lain |
+| `limit` | integer 1…5000 | Batas jumlah baris item; bawaan **1000** |
+
+**Balasan `200`:**
+
+```json
+{
+  "business": { "id": "…", "name": "Demo Kasir NOVA", "business_type": "restoran",
+                "currency": "IDR", "timezone": "Asia/Jakarta" },
+  "outlet":  { "id": "…", "name": "Outlet Utama" },
+  "cashier": null,
+  "period": { "from": "2026-10-01", "to": "2026-10-17" },
+  "printed_at": "2026-10-17T10:12:00.000Z",
+  "summary": {
+    "status": "completed", "transactions": 18, "total": 48200000,
+    "avg_total": 2677778, "voided_transactions": 1, "voided_total": 1500000,
+    "refunded_transactions": 0, "refunded_total": 0
+  },
+  "payment_methods": [
+    { "method": "cash", "label": "Tunai", "total": 28200000, "transactions": 11, "percent": 58.5 },
+    { "method": "qr",   "label": "QRIS",  "total": 20000000, "transactions": 7,  "percent": 41.5 }
+  ],
+  "top_products": [{ "product_name": "Nasi Spesial", "qty": 6, "revenue": 90000 }],
+  "rows": [
+    {
+      "invoice_no": "INV-20261013-0001", "date": "2026-10-13", "time": "08:45",
+      "product_name": "Nasi Goreng Spesial", "sku": "NG-01", "qty": 1,
+      "unit_price": 15000, "discount_amount": 0, "line_total": 15000,
+      "outlet_name": "Outlet Utama", "cashier_name": "Rina Wati", "methods": ["cash"]
+    }
+  ],
+  "truncated": false
+}
+```
+
+**Aturan angka (penting):**
+
+- `rows[]` = **satu baris per item** (`transaction_items`), terurut per transaksi.
+  Satu transaksi berisi 2 item menghasilkan 2 baris dengan `invoice_no` sama.
+- Baris & `summary.total` hanya transaksi **`completed`**; bila `status` diminta,
+  baris mengikuti status itu. `summary.voided_*` / `summary.refunded_*` selalu diisi
+  sebagai informasi.
+- `payment_methods[].total` dihitung dari **`transactions.total`**, **bukan**
+  `payments.amount`, karena `payments.amount` menyimpan uang diterima (termasuk
+  kembalian pada tunai). Karena satu transaksi = satu pembayaran, jumlah persentase
+  selalu tepat **100%**. Lihat temuan terpisah di `docs/35` §9 (`incomeByMethod`
+  masih memakai `payments.amount`).
+- `rows` dipotong pada `limit`; `truncated: true` menandainya (halaman cetak
+  menampilkan peringatan).
+- `outlet`/`cashier` hanya terisi bila filternya diberikan **dan** memang milik
+  bisnis itu; bila bukan miliknya → `null` dan hasilnya kosong (anti-enumerasi).
+- `transaction_items` tidak menyimpan `created_at`, sehingga urutan item dalam satu
+  transaksi memakai nama produk (deterministik).
+
 ## Aturan & keamanan
 
 - Seluruh agregat dilarang dihitung klien; server membaca langsung dari
@@ -289,5 +358,14 @@ dan hanya memuat satu outlet. Bila `can_view_profit = false`, server
   6. ekspor XLSX lintas-bisnis (2 sheet) + nama bisnis berbahaya disanitasi;
   7. akses & validasi: kasir 403, owner lain 404, format/rentang buruk 422,
      `format=json`.
-- Total suite server: **173/173** (Fase 9 = 133; Fase 15 menambah 7 dari 159;
-  Fase 16 menambah 7 dari 166).
+- `node --test tests/report-transactions.test.js` — **5 kasus** (17 Okt 2026):
+  1. baris **per item** (1 penjualan 2 item → 2 baris), ringkasan (jumlah, total,
+     rata-rata), void dipisah, rekap metode + persentase (jumlah = 100%), produk
+     terlaris urut qty + omzet, format nomor `INV-…`.
+  2. filter outlet & kasir; outlet milik bisnis lain → **tidak bocor** (0 baris).
+  3. `status=voided` dan pencarian nomor transaksi.
+  4. `limit` + `truncated`; validasi `limit`/`status`/rentang/`outletId` → 422.
+  5. isolasi tenant & peran: owner lain → 404, kasir → 403, admin platform → 200.
+- Total suite server (17 Okt 2026, setelah tes laporan transaksi): **253/253**
+  → setelah tes **struk PDF** menjadi **265/265**.
+  (`report-transactions.test.js` menambah 5 dari 248).

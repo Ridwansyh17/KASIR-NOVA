@@ -55,6 +55,25 @@ export const reportQuerySchema = z
 
 export const summaryQuerySchema = z.object({ ...reportFilters }).superRefine(rangeRefine);
 
+/**
+ * Laporan Transaksi siap-cetak (17 Okt 2026) — baris per ITEM.
+ *
+ * `limit` membatasi jumlah baris agar satu permintaan tidak menarik seluruh
+ * riwayat; server menandai `truncated` bila hasil terpotong sehingga halaman
+ * cetak dapat memberi peringatan dan menyarankan mempersempit rentang.
+ */
+export const transactionReportQuerySchema = z
+  .object({
+    limit: z.coerce
+      .number()
+      .int('Jumlah baris harus bilangan bulat')
+      .min(1, 'Jumlah baris minimal 1')
+      .max(5000, 'Jumlah baris maksimal 5000')
+      .default(1000),
+    ...reportFilters,
+  })
+  .superRefine(rangeRefine);
+
 export const exportQuerySchema = z
   .object({
     format: z

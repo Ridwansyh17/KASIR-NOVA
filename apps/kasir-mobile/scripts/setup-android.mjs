@@ -5,7 +5,8 @@
  * `npx cap add android` untuk memasang ulang plugin printer & izin Bluetooth.
  *
  * Yang dilakukan:
- *   1. Menyalin MainActivity.java + NovaPrinterPlugin.java dari android-templates.
+ *   1. Menyalin MainActivity.java + NovaPrinterPlugin.java + NovaReceiptPlugin.java
+ *      dari android-templates.
  *   2. Menambahkan izin Bluetooth (Classic + BLE) ke AndroidManifest.xml.
  *   3. Menetapkan versionName/versionCode aplikasi.
  *   4. Menambahkan dukungan tanda tangan rilis dari `android/key.properties`.
@@ -36,7 +37,7 @@ if (!existsSync(androidDir)) {
 // 1) Salin kelas Java (MainActivity + plugin printer).
 const pkgDir = join(androidDir, 'app', 'src', 'main', 'java', 'id', 'kasirnova', 'kasir');
 mkdirSync(pkgDir, { recursive: true });
-for (const file of ['MainActivity.java', 'NovaPrinterPlugin.java']) {
+for (const file of ['MainActivity.java', 'NovaPrinterPlugin.java', 'NovaReceiptPlugin.java']) {
   copyFileSync(join(templatesDir, file), join(pkgDir, file));
   console.log(`✓ ${file} -> android/app/src/main/java/id/kasirnova/kasir/`);
 }

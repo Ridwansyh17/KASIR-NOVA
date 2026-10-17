@@ -914,3 +914,321 @@ body {
 .btn.xlsx .icon path {
   fill: currentColor;
 }
+
+/* ==========================================================================
+   HALAMAN CETAK "LAPORAN TRANSAKSI" (Owner — 17 Okt 2026)
+   --------------------------------------------------------------------------
+   #print-report TIDAK tampil di layar; hanya muncul saat mencetak (Ctrl+P atau
+   tombol "Cetak Laporan Transaksi"). Tata letak mengikuti contoh yang dikirim
+   Pemilik 17 Okt 2026 (lihat docs/35-laporan-transaksi-cetak.md):
+     kop (logo + nama + tagline) & judul/periode -> Info Outlet/Kasir/Tanggal
+     Cetak -> kartu KPI -> tabel Detail Transaksi (BARIS PER ITEM) ->
+     Ringkasan | Produk Terlaris | Catatan -> footer + nomor halaman.
+   Versi cetak memakai garis tipis & latar terang (hemat tinta dan tetap
+   terbaca pada printer hitam-putih), bukan kartu berwarna seperti di layar.
+   ====================================================================== */
+#print-report {
+  display: none;
+}
+
+@media print {
+  /* Layar aplikasi tidak ikut tercetak. */
+  body > *:not(#print-report) {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+    color: #0b1b33;
+    margin: 0;
+    font-size: 10.5px;
+  }
+
+  #print-report {
+    display: block !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  #print-report * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #print-report .pr-page {
+    width: 100%;
+  }
+
+  /* ------------------------------------------------------------- kop --- */
+  #print-report .pr-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #062a66;
+  }
+
+  #print-report .pr-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+
+  #print-report .pr-logo {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
+
+  #print-report .pr-brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+
+  #print-report .pr-brand-name {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: #062a66;
+  }
+
+  #print-report .pr-brand-tag {
+    font-size: 9px;
+    color: #5b6b85;
+  }
+
+  #print-report .pr-head-right {
+    text-align: right;
+  }
+
+  #print-report .pr-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #062a66;
+    letter-spacing: 0.2px;
+  }
+
+  #print-report .pr-periode {
+    font-size: 10px;
+    color: #5b6b85;
+  }
+
+  /* ------------------------------------------------------ info periode --- */
+  #print-report .pr-meta {
+    display: flex;
+    gap: 10px;
+    margin: 10px 0 12px;
+  }
+
+  #print-report .pr-meta > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 9px;
+    border: 1px solid #c9d6e8;
+    border-radius: 4px;
+    background: #f6f9fd;
+  }
+
+  #print-report .pr-meta span {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5b6b85;
+  }
+
+  #print-report .pr-meta strong {
+    font-size: 11px;
+  }
+
+  /* ----------------------------------------------------------- KPI --- */
+  #print-report .pr-kpi {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  #print-report .pr-kpi-card {
+    flex: 1 1 0;
+    min-width: 108px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 7px 9px;
+    border: 1px solid #cdd9ea;
+    border-left: 3px solid #0072f6;
+    border-radius: 4px;
+    background: #f8fbff;
+    break-inside: avoid;
+  }
+
+  #print-report .pr-kpi-label {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5b6b85;
+  }
+
+  #print-report .pr-kpi-value {
+    font-size: 13px;
+    color: #062a66;
+  }
+
+  #print-report .pr-kpi-card small {
+    font-size: 8px;
+    color: #5b6b85;
+  }
+
+  /* -------------------------------------------------------- bagian --- */
+  #print-report .pr-section {
+    margin-bottom: 12px;
+  }
+
+  #print-report .pr-section-title {
+    margin: 0 0 5px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #062a66;
+    border-bottom: 1px solid #cdd9ea;
+    padding-bottom: 3px;
+  }
+
+  #print-report .pr-warn {
+    margin: 0 0 6px;
+    padding: 5px 8px;
+    font-size: 9px;
+    border: 1px solid #e6b800;
+    background: #fffbe6;
+    border-radius: 3px;
+  }
+
+  /* --------------------------------------------------------- tabel --- */
+  #print-report .pr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9px;
+  }
+
+  #print-report .pr-table thead {
+    display: table-header-group;
+  }
+
+  #print-report .pr-table th {
+    text-align: left;
+    font-size: 8px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #062a66;
+    background: #eef4fd;
+    border: 1px solid #cdd9ea;
+    padding: 4px 5px;
+  }
+
+  #print-report .pr-table td {
+    border: 1px solid #e2e9f4;
+    padding: 3px 5px;
+    vertical-align: top;
+  }
+
+  #print-report .pr-table tbody tr:nth-child(even) td {
+    background: #fafcff;
+  }
+
+  #print-report .pr-table tr {
+    break-inside: avoid;
+  }
+
+  #print-report .pr-right {
+    text-align: right;
+  }
+
+  #print-report .pr-num {
+    text-align: right;
+    color: #5b6b85;
+  }
+
+  #print-report .pr-mono {
+    font-family: ui-monospace, "Consolas", "Courier New", monospace;
+    font-size: 8.5px;
+  }
+
+  #print-report .pr-strong {
+    font-weight: 700;
+  }
+
+  #print-report .pr-empty {
+    text-align: center;
+    color: #5b6b85;
+    font-style: italic;
+  }
+
+  /* ------------------------------------------------- blok bawah 3 kolom --- */
+  #print-report .pr-bottom {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  #print-report .pr-box {
+    flex: 1 1 0;
+    border: 1px solid #cdd9ea;
+    border-radius: 4px;
+    padding: 7px 9px;
+    break-inside: avoid;
+  }
+
+  #print-report .pr-box.pr-notes {
+    background: #f8fbff;
+  }
+
+  #print-report .pr-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+    border-bottom: 1px dotted #cdd9ea;
+    font-size: 9px;
+  }
+
+  #print-report .pr-line:last-child {
+    border-bottom: 0;
+  }
+
+  #print-report .pr-line small {
+    font-weight: 400;
+    color: #5b6b85;
+  }
+
+  #print-report .pr-table-mini td,
+  #print-report .pr-table-mini th {
+    font-size: 8.5px;
+  }
+
+  #print-report .pr-notes p {
+    margin: 0 0 4px;
+    font-size: 8.5px;
+    line-height: 1.45;
+  }
+
+  /* -------------------------------------------------------- footer --- */
+  #print-report .pr-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 6px;
+    border-top: 1px solid #062a66;
+    font-size: 8.5px;
+    color: #5b6b85;
+  }
+}
+

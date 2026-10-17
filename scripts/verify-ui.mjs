@@ -277,6 +277,53 @@ if (/(^|\n)\.struk-(draft|reprint)\s*\{/.test(kCss)) {
 }
 console.log('  alur pratinjau struk dicek');
 
+// ------------------------------------------- Struk PDF Kasir (17 Okt 2026) --
+// Alur baru (permintaan pemilik): setelah "Bayar" struk PDF langsung tersedia
+// (TANPA menunggu printer thermal) dan bisa DIKIRIM / DISIMPAN / DICETAK.
+console.log('\n[struk pdf kasir (17 Okt 2026)]');
+for (const id of ['struk-share-btn', 'struk-save-btn', 'struk-print-btn', 'struk-pdf-note']) {
+  if (!kHtml.includes(`id="${id}"`)) fail(`apps/kasir/index.html tanpa #${id}`);
+}
+for (const imp of ['receipt-pdf.js', 'struk-share.js']) {
+  if (!new RegExp(`from\\s+['"]\\./${imp.replace('.', '\\.')}['"]`).test(kJs)) {
+    fail(`apps/kasir/src/app.js tidak mengimpor ./${imp}`);
+  }
+}
+for (const needle of ['buildStrukPdf(', 'buildStrukPdfBundle(', 'strukShare.sharePdf(', 'strukShare.savePdf(', 'strukShare.printPdf(']) {
+  if (!kJs.includes(needle)) fail(`apps/kasir/src/app.js tanpa "${needle}"`);
+}
+for (const file of ['receipt-pdf.js', 'struk-share.js']) {
+  const path = join(root, 'apps', 'kasir', 'src', file);
+  if (!existsSync(path)) {
+    fail(`apps/kasir/src/${file} tidak ada (struk PDF kasir hilang?)`);
+    continue;
+  }
+  const src = readFileSync(path, 'utf8');
+  if (/from\s+['"]\.\//.test(src)) {
+    fail(`apps/kasir/src/${file} mengimpor modul relatif (harus murni agar bisa diuji lewat data: URL)`);
+  }
+}
+// Plugin native (APK) untuk kirim/simpan/cetak struk PDF + pendaftarannya.
+const receiptPluginPath = join(
+  root, 'apps', 'kasir-mobile', 'android', 'app', 'src', 'main', 'java', 'id', 'kasirnova', 'kasir', 'NovaReceiptPlugin.java'
+);
+const mainActivityPath = join(
+  root, 'apps', 'kasir-mobile', 'android', 'app', 'src', 'main', 'java', 'id', 'kasirnova', 'kasir', 'MainActivity.java'
+);
+if (!existsSync(receiptPluginPath)) {
+  fail('plugin native NovaReceipt tidak ada (kirim/simpan/cetak struk PDF di APK)');
+} else {
+  const pluginSrc = readFileSync(receiptPluginPath, 'utf8');
+  for (const needle of ['@CapacitorPlugin(name = "NovaReceipt")', 'public void share(', 'public void save(', 'public void print(']) {
+    if (!pluginSrc.includes(needle)) fail(`NovaReceiptPlugin.java tanpa "${needle}"`);
+  }
+}
+if (!existsSync(mainActivityPath) || !readFileSync(mainActivityPath, 'utf8').includes('registerPlugin(NovaReceiptPlugin.class)')) {
+  fail('MainActivity.java belum mendaftarkan NovaReceiptPlugin');
+}
+if (!kCss.includes('#struk-pdf-note')) fail('apps/kasir/styles/styles.css tanpa #struk-pdf-note');
+console.log('  tombol kirim/simpan/cetak + plugin native dicek');
+
 // ------------------------------- Fitur 13 Okt 2026 (FASE 6) -----------------
 // Mengunci agar fitur V0.3 (laporan keuangan/laba, ekspor Excel, pengeluaran,
 // stok, pendapatan kasir) tidak hilang saat desain V2 & FASE 3 mengubah UI.
@@ -373,6 +420,40 @@ for (const [src, label, needles] of mobileShellChecks) {
 }
 if (mobileShellMissing === 0) {
   console.log('  bilah navigasi bawah, Beranda, menu Lainnya, dan CSS HP lengkap.');
+}
+
+// ---------------------------------- Laporan Transaksi Cetak (17 Okt 2026) ---------
+// Owner 17 Okt 2026: laporan transaksi siap-cetak (baris PER ITEM) hanya di
+// panel Owner; dicetak lewat halaman HTML -> PDF. Spesifikasi: docs/35.
+console.log('\n[laporan transaksi cetak (17 Okt 2026)]');
+
+const ownerCss17 = readApp('owner', 'styles', 'styles.css');
+const printReportChecks = [
+  [ownerHtml6, 'apps/owner/index.html', ['id="rep-print-btn"', 'id="print-report"']],
+  [
+    ownerJs6,
+    'apps/owner/src/app.js',
+    ['api.reports.transactions(', 'renderPrintReport', 'printTransactionReport', 'fmtCetakID'],
+  ],
+  [ownerApi6, 'apps/owner/src/api.js', ['transactions: (businessId, params']],
+  [reportRoutes6, 'server/src/modules/report/routes.js', ["'/transactions'", 'transactionReport']],
+  [
+    ownerCss17,
+    'apps/owner/styles/styles.css',
+    ['#print-report {', '@media print {', 'body > *:not(#print-report)'],
+  ],
+];
+let printMissing = 0;
+for (const [src, label, needles] of printReportChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (laporan transaksi cetak hilang?)`);
+      printMissing++;
+    }
+  }
+}
+if (printMissing === 0) {
+  console.log('  tombol cetak, halaman cetak, endpoint, dan CSS cetak lengkap.');
 }
 
 // -------------------------------------------------- Bundel hosting (opsional)

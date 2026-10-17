@@ -18,6 +18,8 @@ import {
   strukPageCss,
   buildStrukHtml,
 } from './receipt.js';
+import { buildStrukPdf, bytesToBase64, strukPdfFileName } from './receipt-pdf.js';
+import * as strukShare from './struk-share.js';
 import {
   MODE_DRAFT,
   MODE_FINAL,
@@ -384,6 +386,12 @@ let lastTx = null;
 let receiptState = null;
 let receiptSnapshot = null;
 let thermalPrinted = false;
+/**
+ * Struk PDF dari transaksi terakhir (`{ bytes, base64, filename }`).
+ * Dibentuk SESUDAH pembayaran terkonfirmasi dan TIDAK bergantung pada printer
+ * thermal — dipakai tombol Kirim / Simpan PDF / Cetak.
+ */
+let strukPdf = null;
 
 /** Transaksi terkonfirmasi yang sedang tampil (null saat pratinjau). */
 const shownTransaction = () => receiptState?.transaction ?? null;
@@ -431,9 +439,14 @@ const applyReceiptMode = (mode) => {
   el.classList.toggle('final', isFinal);
   $('receipt-pay-row').classList.toggle('hidden', !isDraft);
   $('receipt-done-btn').classList.toggle('hidden', !isFinal);
-  // CETAK hanya tersedia setelah pembayaran terkonfirmasi server.
-  $('print-struk-btn').classList.toggle('hidden', !isFinal);
-  $('print-struk-btn-80').classList.toggle('hidden', !isFinal);
+  // Struk PDF (kirim/simpan/cetak) hanya SETELAH pembayaran terkonfirmasi
+  // server, dan TIDAK menunggu printer thermal tersambung (permintaan pemilik,
+  // 17 Okt 2026 — alur baru: bayar -> struk PDF -> kirim/simpan/cetak).
+  const hasPdf = isFinal && Boolean(strukPdf);
+  for (const id of ['struk-share-btn', 'struk-save-btn', 'struk-print-btn']) {
+    $(id).classList.toggle('hidden', !hasPdf);
+  }
+  if (!hasPdf) hide($('struk-pdf-note'));
   hide($('receipt-print-error'));
   updateThermalButton();
 };
@@ -516,10 +529,12 @@ const clearReceipt = () => {
   receiptState = null;
   receiptSnapshot = null;
   thermalPrinted = false;
+  strukPdf = null;
   const el = $('receipt');
   el.querySelectorAll('.receipt-body').forEach((node) => node.remove());
   el.classList.remove('draft', 'final');
   $('receipt-headline').textContent = 'Transaksi berhasil';
+  hide($('struk-pdf-note'));
   hide($('receipt-note'));
   hide($('receipt-print-error'));
   hide(el);
@@ -582,9 +597,114 @@ const printStruk = (width = '58') => {
   alertBox('Struk dikirim ke dialog cetak. Cek tombol cetak ulang bila perlu.', 'ok');
 };
 
-$('print-struk-btn').addEventListener('click', () => printStruk('58'));
-const btnPrint80 = $('print-struk-btn-80');
-if (btnPrint80) btnPrint80.addEventListener('click', () => printStruk('80'));
+// ------------------------------------------- Struk PDF (17 Okt 2026) --------
+// Alur baru (permintaan pemilik): setelah "Bayar" struk PDF langsung tersedia
+// sehingga kasir dapat MENGIRIM, MENYIMPAN, atau MENCETAK struk tanpa harus
+// menyambungkan printer thermal lebih dulu. Cetak thermal tetap tersedia
+// sebagai opsi tambahan (lihat printReceiptThermal).
+/** Bangun berkas struk PDF dari transaksi (tanpa perlu printer thermal). */
+const buildStrukPdfBundle = (
+  transaction,
+  context = state.context ?? {},
+  cashier = state.user?.fullName ?? ''
+) => {
+  const bytes = buildStrukPdf({
+    transaction,
+    context,
+    cashier,
+    width: printer.getSettings().width,
+  });
+  return { bytes, base64: bytesToBase64(bytes), filename: strukPdfFileName(transaction) };
+};
+
+/** Catatan status kecil di bawah judul struk (bukan pesan galat). */
+const setStrukNote = (text) => {
+  const el = $('struk-pdf-note');
+  if (!el) return;
+  if (!text) {
+    hide(el);
+    return;
+  }
+  el.textContent = text;
+  show(el);
+};
+
+/** Pastikan struk PDF sudah tersedia (hanya setelah pembayaran terkonfirmasi). */
+const requireStrukPdf = () => {
+  if (strukPdf) return strukPdf;
+  alertBox('Struk PDF belum siap — selesaikan pembayaran terlebih dahulu.', 'error');
+  return null;
+};
+
+/** Teks pendamping saat berbagi (mis. keterangan di aplikasi chat). */
+const strukShareText = () => {
+  const t = shownTransaction() ?? lastTx ?? {};
+  return `Struk ${t.invoice_no ?? ''} — ${fmtIDR(t.total)}`.trim();
+};
+
+/** KIRIM struk PDF. Bila perangkat tak mendukung kirim berkas → unduh. */
+const shareStrukPdf = async () => {
+  const pdf = requireStrukPdf();
+  if (!pdf) return;
+  const res = await strukShare.sharePdf({ ...pdf, title: 'Struk', text: strukShareText() });
+  if (res.ok) {
+    setStrukNote('Struk PDF dikirim.');
+    return;
+  }
+  if (res.reason === 'share_unsupported') {
+    const saved = strukShare.downloadPdf(pdf);
+    setStrukNote(
+      saved.ok
+        ? 'Perangkat ini tidak bisa mengirim berkas — struk PDF diunduh, silakan kirim manual.'
+        : 'Perangkat ini tidak mendukung mengirim berkas PDF.'
+    );
+    return;
+  }
+  alertBox('Struk PDF gagal dikirim.', 'error');
+};
+
+/** SIMPAN struk PDF (unduh di peramban; "Simpan ke File" di APK). */
+const saveStrukPdf = async () => {
+  const pdf = requireStrukPdf();
+  if (!pdf) return;
+  const res = await strukShare.savePdf(pdf);
+  if (res.ok) setStrukNote(`Struk PDF disimpan: ${pdf.filename}`);
+  else alertBox('Struk PDF gagal disimpan.', 'error');
+};
+
+/** CETAK struk: APK → layanan cetak Android (berkas PDF); peramban → dialog cetak. */
+const printStrukPdf = async () => {
+  const pdf = requireStrukPdf();
+  if (!pdf) return;
+  if (strukShare.canUseNative()) {
+    try {
+      const res = await strukShare.printPdf({
+        base64: pdf.base64,
+        filename: pdf.filename,
+        jobName: `Struk ${shownTransaction()?.invoice_no ?? ''}`.trim(),
+      });
+      if (res.ok) {
+        setStrukNote('Struk PDF dikirim ke layanan cetak Android.');
+        return;
+      }
+    } catch (err) {
+      alertBox(`Cetak gagal: ${describeError(err)}`, 'error');
+      return;
+    }
+  }
+  // Peramban: dialog cetak halaman (tersedia juga "Simpan sebagai PDF").
+  printStruk(printer.getSettings().width);
+};
+
+$('struk-share-btn').addEventListener('click', () => {
+  shareStrukPdf().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('struk-save-btn').addEventListener('click', () => {
+  saveStrukPdf().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('struk-print-btn').addEventListener('click', () => {
+  printStrukPdf().catch((err) => alertBox(describeError(err), 'error'));
+});
 
 // ------------------------------------------------------- Printer thermal ----
 // Cetak langsung ke printer Bluetooth (Classic SPP / BLE) di aplikasi Android.
@@ -885,6 +1005,9 @@ const showFinalReceipt = (transaction, { idempotent = false } = {}) => {
   });
   receiptState.idempotent = Boolean(idempotent);
   thermalPrinted = false;
+  // Struk PDF dibentuk SEKARANG — tanpa menunggu printer thermal — sehingga
+  // tombol Kirim / Simpan PDF / Cetak langsung tersedia setelah pembayaran.
+  strukPdf = buildStrukPdfBundle(transaction, context, cashier);
   receiptSnapshot = createSnapshot({
     transaction,
     context,
@@ -894,6 +1017,7 @@ const showFinalReceipt = (transaction, { idempotent = false } = {}) => {
     at: transaction.created_at,
   });
   renderReceiptView(transaction, MODE_FINAL);
+  setStrukNote('Struk PDF siap — kirim, simpan, atau cetak.');
 };
 
 /**

@@ -651,6 +651,88 @@ Kesalahan identik pernah terjadi 13 Okt 2026 (lihat `docs/24`) lalu terulang.
   `/Admin` `/dashboard` `/login` → `404` halaman KASIR NOVA, preflight & login
   cross-origin dari origin Hosting `204`/`200`.
 
+## 17 Okt 2026 — Laporan Transaksi Siap-Cetak (Owner)
+
+**Permintaan pemilik:** halaman laporan transaksi siap-cetak (PDF) sesuai contoh
+`contoh laporan transaksi.png`, bukan hanya ekspor tabel.
+
+**Keputusan pemilik (dijawab dalam checklist):** A1a (HTML → PDF peramban),
+A2b (**hanya Owner**; kasir tetap 403), A3a (**satu baris per item**), A4a
+(nomor transaksi tetap **`INV-`**, contoh memakai `TRX-`), A5a (cakupan kasir =
+semua transaksi outlet — dicatat, belum dibuat).
+
+**Dikerjakan:**
+- Endpoint baru `GET /api/owner/businesses/:businessId/reports/transactions`
+  (schema + service + controller + route) — hanya Owner/admin platform, tenant
+  ditegakkan; baris per item, ringkasan, rekap metode, top produk, `limit` 1…5000.
+- Panel Owner: tombol **Cetak Laporan** + halaman cetak `#print-report`
+  (kop, 5 KPI, tabel detail, Ringkasan/Produk Terlaris/Catatan, footer) dan blok
+  `@media print` A4 hemat tinta.
+- Perbaikan: omzet per metode diambil dari `transactions.total` (bukan
+  `payments.amount` yang memuat kembalian) sehingga persentasenya 100%.
+
+**Berkas:** `docs/35-laporan-transaksi-cetak.md` (spesifikasi + penyimpangan),
+`server/tests/report-transactions.test.js`, `apps/owner/{index.html,src/app.js,src/styles/styles.css,src/api.js}`,
+`server/src/modules/report/{schema,service,controller,routes}.js`,
+`scripts/verify-ui.mjs` (bagian pengunci baru), `scripts/qa-local.ps1` (label 253).
+
+**Pengujian lokal:** server **253/253** (5 tes baru), `verify:ui` **SEMUA OK**.
+**Belum dideploy** — menunggu perintah pemilik; uji cetak nyata (peramban/PDF)
+dikerjakan pemilik. APK Kasir tidak disentuh.
+
+**Temuan terpisah (menunggu keputusan):** `incomeByMethod` pada laporan keuangan
+masih memakai `payments.amount` sehingga pendapatan tunai terlihat lebih tinggi
+sebesar kembalian. Detail + bukti di `docs/35` §9.
+
+## 17 Okt 2026 — Struk PDF Kasir (kirim / simpan / cetak)
+
+**Permintaan pemilik:** *"saat klik bayar harus tampil struk pdfnya dan dari situ
+pdfnya bisa di share/kirim dan di cetak, jadi tidak perlu menunggu printer
+tersambung terlebih dahulu untuk menampilkan struk pdfnya."*
+
+**Alur baru:** `Bayar` → transaksi tercatat server → **struk langsung tersedia
+sebagai berkas PDF** (tanpa printer) → tombol **[Kirim] [Simpan PDF] [Cetak]**,
+plus **[Cetak Thermal]** sebagai opsi. Tombol `Cetak 58mm`/`Cetak 80mm` lama
+digantikan tombol **Cetak** (lebar kertas tetap dapat diatur di kartu Printer).
+
+**Dikerjakan:**
+- `apps/kasir/src/receipt-pdf.js` — pembentuk struk PDF **murni** dengan penulis
+  PDF minimal (tanpa pustaka pihak ketiga): Courier base-14, ASCII, 58/80 mm,
+  tinggi mengikuti isi, pemecahan multi-halaman, susunan baris sama dengan
+  `escpos.js`.
+- `apps/kasir/src/struk-share.js` — **simpan/kirim/cetak** (peramban: Web Share +
+  unduhan; APK: plugin native).
+- `apps/kasir/{index.html,src/app.js,styles/styles.css}` — tombol PDF + catatan
+  `#struk-pdf-note`; PDF dibentuk di `showFinalReceipt()` (setelah pembayaran).
+- **APK:** plugin Capacitor **`NovaReceipt`** (`share`/`save`/`print`, FileProvider
+  + `PrintManager`) + pendaftaran di `MainActivity`; `setup-android.mjs` menyalin
+  `NovaReceiptPlugin.java` dari `android-templates/`.
+
+**Berkas:** `docs/36-struk-pdf-kasir.md` (spesifikasi + penyimpangan),
+`server/tests/struk-pdf.test.js`, `apps/kasir-mobile/android-templates/NovaReceiptPlugin.java`,
+`apps/kasir-mobile/{package.json,scripts/setup-android.mjs}`, `scripts/verify-ui.mjs`
+(bagian **"struk pdf kasir (17 Okt 2026)"**), `scripts/qa-local.ps1` (label **264**),
+`docs/25` (§3.4/§4.2 + riwayat beta.7), `docs/30` (tabel tombol).
+
+**Pengujian lokal:** server **265/265** (12 tes baru), `verify:ui` **SEMUA OK**.
+
+**Rilis:** APK **`1.0.0-beta.7`** (versionCode `7`) dibangun
+(`gradlew assembleRelease` → BUILD SUCCESSFUL) & **didistribusikan** ke grup
+`kasir-beta` (Firebase App Distribution, 17 Okt 2026). **Tidak memerlukan deploy
+backend** (struk dibentuk di perangkat).
+
+**Perbaikan 17 Okt 2026 (laporan pemilik — PDF kosong):** pada beta.7 berkas struk
+PDF tampil **kosong** karena `/Kids` pohon halaman menunjuk objek *stream isi*
+(5+2i) alih-alih objek *halaman* (6+2i). Ditemukan dengan menguji berkas memakai
+mesin PDF bawaan Windows (gagal dimuat) + pembanding PDF acuan Chrome (berhasil),
+lalu diperbaiki & diverifikasi dengan **merender struk ke PNG** (tampil utuh,
+termasuk struk 120 item → 2 halaman). Tes baru `assertPageTreeValid` menjaga
+pohon halaman (Kids/Count/Parent/Contents/Length). APK **`1.0.0-beta.8`**
+(versionCode `8`) dibangun & didistribusikan ke grup `kasir-beta`; sertifikat rilis
+sama sehingga dapat dipasang langsung di atas beta.7. Rincian: `docs/36` §6.1.
+
+**Belum dikerjakan:** logo outlet di dalam PDF (dikecualikan pemilik).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

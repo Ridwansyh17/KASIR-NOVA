@@ -13,7 +13,7 @@
  */
 import { query } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
-import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook } from './xlsx.js';
+import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook, PAYMENT_METHOD_LABELS } from './xlsx.js';
 import { expensesInRange, expensesByCategory, exportExpenseRows } from '../expense/service.js';
 
 const GROUPED_NUMERIC = [
@@ -202,6 +202,220 @@ export const summary = async ({ businessId, filters }) => {
       qty: p.qty,
       revenue: Number(p.revenue),
     })),
+  };
+};
+
+// ------------------------------- Laporan Transaksi siap-cetak (17 Okt 2026) ---
+/** Tanggal hari ini (YYYY-MM-DD) pada zona waktu bisnis. */
+const todayInZone = (tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+
+/**
+ * Laporan Transaksi detail siap-cetak: SATU BARIS PER ITEM
+ * (permintaan Owner 17 Okt 2026 — keputusan A3a).
+ *
+ * Aturan:
+ *   - Cakupan tenant dijamin `business_id` (+ filter outlet/kasir dari
+ *     pemanggil). Rute hanya Owner/Admin sehingga Kasir tidak dapat mengakses
+ *     (keputusan A2b: hanya Owner yang membuat laporan ini).
+ *   - Baris & omzet DEFAULT hanya transaksi `completed`; bila `status` diminta,
+ *     baris mengikuti pilihan itu. Hitungan `voided`/`refunded` selalu
+ *     disertakan sebagai informasi agar tidak ada angka tersembunyi.
+ *   - Rekap metode pembayaran mengikuti definisi laporan keuangan (hanya
+ *     pembayaran `paid`) dan persentasenya dihitung dari total pembayaran lunas
+ *     yang direkap, sehingga totalnya selalu 100%.
+ *   - `rows` dibatasi `limit`; `truncated` menandai bila terpotong.
+ *
+ * CATATAN: `transaction_items` tidak menyimpan `created_at`, sehingga urutan
+ * item di dalam satu transaksi memakai nama produk (deterministik).
+ *
+ * @returns {{business, outlet, cashier, period, printed_at, summary,
+ *   payment_methods, top_products, rows, truncated}}
+ */
+export const transactionReport = async ({ businessId, filters = {} }) => {
+  const biz = await getBusiness(businessId);
+  const tz = biz.timezone;
+  const limit = Number.isFinite(filters.limit) ? filters.limit : 1000;
+  const status = filters.status ?? 'completed';
+
+  // Rentang efektif (mengikuti default BOUNDS_CTE) agar label periode tertulis
+  // benar walau Owner tidak mengisi tanggal.
+  const period = {
+    from: filters.from ?? `${todayInZone(tz).slice(0, 7)}-01`,
+    to: filters.to ?? todayInZone(tz),
+  };
+
+  // --- Baris per item (dibatasi `limit`) ------------------------------------
+  const rowFilters = { ...filters, status };
+  const { values, extra } = buildStory(businessId, tz, rowFilters);
+  const limitIdx = values.length + 1;
+  const { rows: itemRows } = await query(
+    `${BOUNDS_CTE}
+     SELECT t.invoice_no,
+            to_char(t.created_at AT TIME ZONE $3::text, 'YYYY-MM-DD') AS local_date,
+            to_char(t.created_at AT TIME ZONE $3::text, 'HH24:MI')    AS local_time,
+            ti.product_name, ti.sku, ti.qty, ti.unit_price,
+            ti.discount_amount, ti.line_total,
+            o.name AS outlet_name, c.full_name AS cashier_name,
+            COALESCE(pay.methods, ARRAY[]::text[]) AS methods
+       FROM bounds b
+       CROSS JOIN transactions t
+       JOIN transaction_items ti ON ti.transaction_id = t.id
+       LEFT JOIN outlets o ON o.id = t.outlet_id
+       LEFT JOIN cashiers c ON c.id = t.cashier_id
+       LEFT JOIN LATERAL (
+         SELECT array_agg(DISTINCT p.method) AS methods
+           FROM payments p WHERE p.transaction_id = t.id
+       ) pay ON true
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${extra}
+      ORDER BY t.created_at ASC, t.invoice_no ASC, ti.product_name ASC
+      LIMIT $${limitIdx}::int`,
+    [...values, limit + 1]
+  );
+  const truncated = itemRows.length > limit;
+  const rows = (truncated ? itemRows.slice(0, limit) : itemRows).map((r) => ({
+    invoice_no: r.invoice_no,
+    date: r.local_date,
+    time: r.local_time,
+    product_name: r.product_name,
+    sku: r.sku,
+    qty: Number(r.qty),
+    unit_price: Number(r.unit_price),
+    discount_amount: Number(r.discount_amount),
+    line_total: Number(r.line_total),
+    outlet_name: r.outlet_name,
+    cashier_name: r.cashier_name,
+    methods: r.methods ?? [],
+  }));
+
+  // --- Ringkasan per status (satu query, tanpa filter status) ---------------
+  const allStory = buildStory(businessId, tz, { ...filters, status: undefined });
+  const { rows: statusRows } = await query(
+    `${BOUNDS_CTE}
+     SELECT t.status,
+            COUNT(*)::int             AS transactions,
+            COALESCE(SUM(t.total), 0) AS total
+       FROM transactions t, bounds b
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${allStory.extra}
+      GROUP BY t.status`,
+    allStory.values
+  );
+  const stats = {};
+  for (const r of statusRows) {
+    stats[r.status] = { transactions: r.transactions, total: Number(r.total) };
+  }
+  const picked = stats[status] ?? { transactions: 0, total: 0 };
+
+  // --- Rekap metode pembayaran (hanya pembayaran LUNAS) ---------------------
+  // PENTING: omzet per metode dihitung dari `t.total`, BUKAN `payments.amount`.
+  // `payments.amount` menyimpan UANG DITERIMA; untuk tunai nilainya termasuk
+  // kembalian (mis. total 40.000 dibayar 100.000 -> amount 100.000), sehingga
+  // memakai `amount` akan MELEBIHKAN omzet tunai. Karena satu transaksi = satu
+  // pembayaran (split belum ada), total per metode berjumlah tepat sama dengan
+  // omzet periode sehingga persentasenya selalu 100%.
+  // CATATAN: `incomeByMethod` pada laporan keuangan masih memakai `p.amount`
+  // (selisih ini dicatat di docs/35 sebagai temuan terpisah).
+  const { rows: methodRows } = await query(
+    `${BOUNDS_CTE}
+     SELECT p.method,
+            COALESCE(SUM(t.total), 0)  AS total,
+            COUNT(DISTINCT t.id)::int  AS transactions
+       FROM bounds b
+       CROSS JOIN transactions t
+       JOIN payments p ON p.transaction_id = t.id AND p.status = 'paid'
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${extra}
+      GROUP BY p.method
+      ORDER BY total DESC, p.method ASC`,
+    values
+  );
+  const paidBase = methodRows.reduce((n, r) => n + Number(r.total), 0);
+  const paymentMethods = methodRows.map((r) => {
+    const total = Number(r.total);
+    return {
+      method: r.method,
+      label: PAYMENT_METHOD_LABELS[r.method] ?? r.method,
+      total,
+      transactions: Number(r.transactions),
+      percent: paidBase > 0 ? Math.round((total / paidBase) * 1000) / 10 : 0,
+    };
+  });
+
+  // --- Produk terlaris (urut QTY, sesuai contoh Owner; + kolom omzet) -------
+  const { rows: prodRows } = await query(
+    `${BOUNDS_CTE}
+     SELECT ti.product_name,
+            SUM(ti.qty)::int                AS qty,
+            COALESCE(SUM(ti.line_total), 0) AS revenue
+       FROM transaction_items ti
+       JOIN transactions t ON t.id = ti.transaction_id
+       JOIN bounds b ON true
+      WHERE t.business_id = $1
+        AND ${RANGE_PRED}
+        ${extra}
+      GROUP BY ti.product_name
+      ORDER BY qty DESC, revenue DESC, ti.product_name ASC
+      LIMIT 5`,
+    values
+  );
+
+  // --- Label outlet/kasir untuk kop laporan ---------------------------------
+  let outlet = null;
+  if (filters.outletId) {
+    const { rows: oRows } = await query(
+      `SELECT name FROM outlets WHERE id = $1 AND business_id = $2`,
+      [filters.outletId, businessId]
+    );
+    outlet = oRows[0] ? { id: filters.outletId, name: oRows[0].name } : null;
+  }
+  let cashier = null;
+  if (filters.cashierId) {
+    // `cashiers` hanya punya outlet_id (1 kasir = 1 outlet), jadi kepemilikan
+    // tenant diperiksa lewat outlet-nya agar kasir bisnis lain tidak dinamai.
+    const { rows: cRows } = await query(
+      `SELECT c.full_name
+         FROM cashiers c
+         JOIN outlets o ON o.id = c.outlet_id
+        WHERE c.id = $1 AND o.business_id = $2`,
+      [filters.cashierId, businessId]
+    );
+    cashier = cRows[0] ? { id: filters.cashierId, name: cRows[0].full_name } : null;
+  }
+
+  return {
+    business: {
+      id: biz.id,
+      name: biz.name,
+      business_type: biz.business_type,
+      currency: biz.currency,
+      timezone: tz,
+    },
+    outlet,
+    cashier,
+    period,
+    printed_at: new Date().toISOString(),
+    summary: {
+      status,
+      transactions: picked.transactions,
+      total: picked.total,
+      avg_total: picked.transactions ? Math.round(picked.total / picked.transactions) : 0,
+      voided_transactions: stats.voided?.transactions ?? 0,
+      voided_total: stats.voided?.total ?? 0,
+      refunded_transactions: stats.refunded?.transactions ?? 0,
+      refunded_total: stats.refunded?.total ?? 0,
+    },
+    payment_methods: paymentMethods,
+    top_products: prodRows.map((p) => ({
+      product_name: p.product_name,
+      qty: p.qty,
+      revenue: Number(p.revenue),
+    })),
+    rows,
+    truncated,
   };
 };
 

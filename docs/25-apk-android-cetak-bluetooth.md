@@ -19,7 +19,7 @@ struk langsung ke **printer thermal Bluetooth (ESC/POS)**, baik tipe
 | Owner / Admin Platform | tetap **web** (Firebase Hosting) |
 | Application ID | `id.kasirnova.kasir` |
 | Nama aplikasi | **KASIR NOVA** |
-| Versi | `1.0.0-beta.6` (versionCode `6`)
+| Versi | `1.0.0-beta.8` (versionCode `8`)
 | Pembungkus | **Capacitor 7** (`@capacitor/core|cli|android@^7`) |
 | Target | Android **6.0+** (minSdk 23), compile/target SDK 35 |
 | Lebar kertas | **58 mm** (32 kolom) dan **80 mm** (48 kolom) |
@@ -114,7 +114,19 @@ Diuji oleh `server/tests/cors.test.js`.
   cetak struk.
 - Tombol **Cetak Struk (Thermal)** muncul hanya saat perangkat tersambung.
 - Opsi **cetak otomatis** setelah pembayaran berhasil.
-- Tetap mempertahankan cetak browser/PDF/e-receipt yang lama.
+- Tombol **Kirim / Simpan PDF / Cetak** pada kartu struk (17 Okt 2026) — memakai
+  struk PDF, tersedia langsung setelah pembayaran.
+
+### 3.4 `apps/kasir/src/receipt-pdf.js` & `struk-share.js` — struk PDF (17 Okt 2026)
+
+- `receipt-pdf.js` — pembentuk **struk PDF** murni (tanpa DOM & tanpa pustaka
+  pihak ketiga): penulis PDF minimal (Courier base-14, ASCII) dengan susunan baris
+  sama seperti `escpos.js`, lebar 58/80 mm, halaman mengikuti isi, dan pemecahan
+  otomatis untuk struk panjang.
+- `struk-share.js` — jalur **simpan / kirim / cetak**: peramban (Web Share +
+  unduhan berkas) atau APK (plugin native `NovaReceipt`).
+- Keduanya tanpa impor relatif agar dapat diuji di Node lewat data: URL
+  (`server/tests/struk-pdf.test.js`, 11 tes).
 
 ---
 
@@ -157,6 +169,27 @@ Metode yang dipanggil dari JS:
   (runtime, syarat pemindaian BLE di versi lama).
 - `android.hardware.bluetooth` **tidak wajib** agar app tetap dapat dipasang
   pada perangkat tanpa Bluetooth (fitur cetak dinonaktifkan).
+
+### 4.2 Plugin Android `NovaReceipt` (struk PDF, 17 Okt 2026)
+
+WebView Android **tidak** mendukung unduhan berkas, `navigator.share`, maupun
+`window.print`, jadi kirim/simpan/cetak struk PDF memerlukan jembatan native.
+Berkas PDF dibentuk di JS lalu dikirim sebagai **base64** (satu sumber tata letak
+untuk struk PDF & thermal).
+
+| Metode | Fungsi |
+|---|---|
+| `share({ filename, base64, mime, title, text })` | tulis ke `cacheDir/struk/` lalu buka lembar berbagi Android (`ACTION_SEND` + FileProvider) |
+| `save({ filename, base64, mime })` | pemilih berkas sistem (`ACTION_CREATE_DOCUMENT`), lalu berkas ditulis ke lokasi pilihan kasir |
+| `print({ filename, base64, jobName })` | layanan cetak Android (`PrintManager`); jumlah halaman dibaca dari `/Count` berkas PDF; tersedia **"Save as PDF"** |
+
+- Didaftarkan di `MainActivity.java` (`registerPlugin(NovaReceiptPlugin.class)`);
+  sumber template ada di `android-templates/` dan disalin oleh `setup-android.mjs`.
+- Berbagi memakai FileProvider `${applicationId}.fileprovider` yang **sudah**
+  dideklarasikan di `AndroidManifest.xml` (`cache-path .`), jadi tidak perlu izin
+  penyimpanan tambahan.
+- Tidak memerlukan perubahan backend: struk dipakai dari data transaksi yang
+  sudah dikembalikan `POST /api/cashier/transactions`.
 
 ---
 
@@ -303,6 +336,28 @@ Status (13 Okt 2026, sudah dilakukan):
   ke grup `kasir-beta` via Firebase App Distribution (16 Okt 2026). Backend
   produksi (endpoint `GET /api/cashier/reports/daily-series`) dan web Firebase
   Hosting ikut diperbarui pada rilis ini.
+- **V2 (17 Okt 2026):** APK **`1.0.0-beta.7`** (versionCode `7`) — **STRUK PDF**:
+  setelah menekan **Bayar**, struk langsung tersedia sebagai berkas PDF dan dapat
+  **DIKIRIM**, **DISIMPAN**, atau **DICETAK** lewat tombol baru di kartu struk
+  — **tanpa menunggu printer thermal tersambung**. Cetak thermal Bluetooth tetap
+  tersedia sebagai opsi. Fitur ini memakai plugin native baru
+  **`NovaReceipt`** (`share`/`save`/`print`, lihat §4.2) karena WebView Android
+  tidak mendukung unduhan berkas, `navigator.share`, maupun `window.print`.
+  Berkas PDF dibentuk di JS (`apps/kasir/src/receipt-pdf.js`, tanpa pustaka pihak
+  ketiga). Ditandatangani **keystore rilis yang sama** seperti beta.6
+  (SHA-256 `5bf78eb1…d055`), sehingga dapat dipasang **langsung di atas** beta.6.
+  Berkas: `dist/apk/KASIR-NOVA-1.0.0-beta.7.apk` (~5,02 MB). **Telah
+  didistribusikan** ke grup `kasir-beta` via Firebase App Distribution
+  (17 Okt 2026). Rincian: `docs/36-struk-pdf-kasir.md`.
+- **V2 (17 Okt 2026):** APK **`1.0.0-beta.8`** (versionCode `8`) — **perbaikan
+  penting**: pada beta.7 berkas struk PDF tampil **KOSONG** karena `/Kids` pohon
+  halaman menunjuk objek stream isi, bukan objek halaman. `/Kids` kini menunjuk
+  objek halaman; berkas diperiksa dengan mesin PDF Windows (dimuat + dirender) dan
+  pengujian otomatis baru (`assertPageTreeValid`) dijaga agar tidak terulang.
+  Ditandatangani **keystore rilis yang sama** seperti beta.7, dapat dipasang
+  **langsung di atas** beta.7. Berkas: `dist/apk/KASIR-NOVA-1.0.0-beta.8.apk`
+  (~5,02 MB). **Telah didistribusikan** ke grup `kasir-beta` (17 Okt 2026).
+  Rincian + bukti: `docs/36` §6.1.
 
 > **Catatan penting:** desain & fitur baru pada APK hanya terlihat setelah
 > backend produksi memuat versi terbaru. Lihat `docs/24-vercel-serverless.md`.
@@ -364,7 +419,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
    `firebaseappdistribution-noreply@google.com`; buka tautannya, setujui
    undangan, lalu pasang aplikasi. (Disarankan memasang **App Tester**.)
 2. **Lewat berkas APK langsung** (paling cepat) - salin
-   `dist/apk/KASIR-NOVA-1.0.0-beta.6.apk` ke HP (USB/Google Drive), lalu buka
+   `dist/apk/KASIR-NOVA-1.0.0-beta.8.apk` ke HP (USB/Google Drive), lalu buka
    berkas di HP dan izinkan **"Install unknown apps"** untuk aplikasi
    pengelola berkas yang dipakai.
 3. Saat pertama dibuka, izinkan **Nearby devices/Bluetooth** (Android 12+) atau
@@ -374,7 +429,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
 
 ```powershell
 cd apps\kasir-mobile
-node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.6.apk
+node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.8.apk
 # atau pakai APK hasil Gradle:
 node scripts\distribute.mjs android\app\build\outputs\apk\debug\app-debug.apk
 # paling singkat (APK rilis bila ada, jika tidak APK debug):
@@ -502,17 +557,19 @@ maupun emulator). Yang perlu dikonfirmasi pemilik: splash menampilkan latar navy
 | Uji | Berkas | Status |
 |---|---|---|
 | Encoder ESC/POS (kolom, perintah, ASCII, potong) | `server/tests/printer-escpos.test.js` | ✅ lulus |
+| **Struk PDF** (berkas PDF valid, pohon halaman, lebar baris, multi-halaman, base64) + jalur **kirim/simpan/cetak** (peramban & plugin native) | `server/tests/struk-pdf.test.js` | ✅ **12 tes lulus** (17 Okt 2026) |
 | Allowlist CORS WebView (`https://localhost`, `capacitor://localhost`) | `server/tests/cors.test.js` | ✅ lulus |
-| Suite server penuh | `npm run test:server` | ✅ **220 tes, 220 lulus, 0 gagal** |
+| Suite server penuh | `npm run test:server` | ✅ **265 tes, 265 lulus, 0 gagal** |
 | Verifikasi statis UI 3 panel + smoke bundel hosting | `node scripts/verify-ui.mjs` | ✅ rujukan aset/id/`api.*`/ikon manifest OK; 12/12 aset `dist/hosting` `200` |
 | Build APK debug | `gradlew assembleDebug` | ✅ APK (~3,97 MB); package/versi/izin/plugin terverifikasi (`aapt2 dump badging`) |
-| Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (~5,01 MB), v`1.0.0-beta.6`/code 6, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2–beta.5 sebelumnya juga terverifikasi) |
+| Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (~5,02 MB), v`1.0.0-beta.8`/code 8, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2–beta.7 sebelumnya juga terverifikasi) |
 | CORS produksi untuk APK | `GET /api/health` + `Origin: https://localhost` | ✅ `200` + `Access-Control-Allow-Origin: https://localhost` |
 | CORS produksi web (regresi) | `GET /api/health` + `Origin: https://kasir-nova.web.app` | ✅ `200` + header sesuai |
-| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, lalu `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026) |
+| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026, `1.0.0-beta.7` + **`1.0.0-beta.8`** 17 Okt 2026) |
 | Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204` |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
+| **Kirim/simpan/cetak struk PDF (APK)** | perangkat nyata (rilis `kasir-beta`) | ⚠️ **belum diuji** (lembar berbagi, pemilih berkas, layanan cetak Android) |
 
 > **Catatan jujur:** karena belum tersedia printer thermal fisik, keberhasilan
 > cetak **runtime** pada perangkat nyata (SPP maupun BLE) **belum terverifikasi**.

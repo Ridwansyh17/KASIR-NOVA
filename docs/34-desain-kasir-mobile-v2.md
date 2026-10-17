@@ -261,7 +261,7 @@ GET /api/cashier/reports/daily-series (tanpa token)   → 401  (rute ada, bukan 
 |---|---|---|
 | Backend produksi | `npx.cmd vercel deploy --prod --yes` | `https://kasir-nova.vercel.app` — endpoint baru `200`/`401` sesuai harapan |
 | Web (Firebase Hosting) | `node scripts/build-hosting.mjs` + `firebase.cmd deploy --only hosting` | `https://kasir-nova.web.app/kasir/` memuat `#bottom-nav`, `#home-chart`, `#brand-context` |
-| APK beta | `npm run sync` → `setup-android.mjs` (beta.6/code 6) → `apk:release` → `npm run distribute` | `dist/apk/KASIR-NOVA-1.0.0-beta.6.apk` (~5,01 MB), sertifikat sama seperti beta.5, **terkirim ke grup `kasir-beta`** |
+| APK beta | `npm run sync` → `setup-android.mjs` (beta.8/code 8) → `apk:release` → `npm run distribute` | `dist/apk/KASIR-NOVA-1.0.0-beta.8.apk` (~5,02 MB; struk PDF + perbaikan PDF kosong), sertifikat sama seperti beta.7, **terkirim ke grup `kasir-beta`** (17 Okt 2026) |
 
 > ⚠️ Pada deploy 17 Okt 2026, langkah Hosting di atas dijalankan **tanpa argumen**
 > saat default script masih "base kosong", sehingga `NOVA_API_BASE` ter-deploy
