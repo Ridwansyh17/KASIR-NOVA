@@ -114,9 +114,14 @@ modul pluggable agar integrasi tidak mengganggu inti:
 - **Metode pembayaran digital & gateway** — abstraksi `PaymentProvider`
   (interface `charge / refund / status`). Sekarang hanya tunai (cash) yang
   diimplementasikan; kartu/QR/wallet diisi setelah penyedia ditetapkan.
+  **Sejak 17 Okt 2026:** gateway **langganan** sudah diimplementasikan lewat
+  abstraksi tipis `createInvoice / checkStatus / verifyCallback` dengan Duitku
+  sebagai penyedia pertama (**mode sandbox**; produksi dikunci
+  `PAYMENT_ALLOW_PRODUCTION`). Pembayaran **penjualan kasir tetap manual** —
+  lihat `docs/38-pembayaran-langganan-gateway.md`.
 - **Perpanjangan langganan otomatis** — tabel `subscription_payments`
   dan job penagihan terpisah. Sekarang langganan dicatat manual oleh Admin
-  Platform.
+  Platform (atau dibeli Owner lewat gateway dengan `auto_renew = false`).
 
 ## 8. Catatan Teknologi (dan alasannya)
 

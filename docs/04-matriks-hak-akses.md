@@ -182,9 +182,16 @@
 | Operasi | A | O | K |
 |---|---|---|---|
 | Melihat langganan bisnisnya | ✅ | ✅ | ❌ |
-| Membayar/memperpanjang | ✅ (manual, sementara) | ✅ (memicu bukti bayar) | ❌ |
+| Membayar/memperpanjang | ✅ (manual) | ✅ **self-service** (tagihan VA/QRIS gateway, 17 Okt 2026) | ❌ |
+| Membuat tagihan langganan (gateway) | ❌ | ✅ (hanya bisnisnya) | ❌ |
 | Mengubah plan | ✅ | ❌ | ❌ |
 | Akses fitur saat langganan kedaluwarsa | ❌ (diblokir server) | ❌ | ❌ |
+
+> Callback gateway (`POST /api/payments/duitku/callback`) adalah endpoint
+> **publik** tanpa peran — pengamannya **verifikasi tanda tangan HMAC-SHA256** +
+> nominal harus sama dengan tagihan + rate limit (opsional allowlist IP).
+> Aktivasi langganan dicatat di audit atas nama **Owner** pemilik tagihan
+> (`actor_role='owner'`).
 
 > Fase 10 (implementasi): gerbang `enforceSubscriptionActive` di **level
 > server**, di dalam transaksi DB — pembuatan transaksi penjualan (baris

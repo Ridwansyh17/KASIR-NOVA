@@ -42,6 +42,29 @@ Berkas yang menambahkan dukungan Vercel:
 
 > Rahasia tidak pernah disimpan di repo — hanya di dashboard Vercel.
 
+### Variabel gateway pembayaran langganan (opsional, 17 Okt 2026)
+
+Hanya perlu diisi bila pembayaran langganan via gateway akan diaktifkan (uji
+sandbox). Bila dibiarkan kosong/`disabled`, endpoint pembayaran langganan
+menjawab **503** dan aplikasi tetap berjalan normal. Rincian:
+`docs/38-pembayaran-langganan-gateway.md`.
+
+| Key | Nilai (contoh sandbox) |
+|---|---|
+| `PAYMENT_PROVIDER` | `duitku` |
+| `PAYMENT_MODE` | `sandbox` |
+| `DUITKU_MERCHANT_CODE` | kode merchant sandbox (rahasia) |
+| `DUITKU_API_KEY` | API key sandbox (rahasia) |
+| `PAYMENT_CHANNELS` | `BC,I1,M2,BR` (VA) |
+| `PAYMENT_API_BASE_URL` | `https://kasir-nova.vercel.app` (dasar `callbackUrl`) |
+| `PAYMENT_OWNER_PANEL_URL` | `https://kasir-nova.web.app/owner` (tujuan `returnUrl`) |
+| `PAYMENT_CALLBACK_IP_ALLOWLIST` | opsional; daftar IP callback Duitku |
+| `PAYMENT_ALLOW_PRODUCTION` | `false` (jangan `true` tanpa keputusan pemilik) |
+
+> Callback gateway membutuhkan URL publik → backend **wajib sudah dideploy**
+> (atau tunnel) agar callback sungguhan dapat diterima. `VERCEL_PROJECT_PRODUCTION_URL`
+> otomatis dipakai bila `PAYMENT_API_BASE_URL` tidak diisi.
+
 ---
 
 ## Deploy (CLI)

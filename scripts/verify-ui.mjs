@@ -720,6 +720,156 @@ if (/new\s+root\(\)\s*\.\s*(Blob|File|Uint8Array)\s*\(/.test(kShareLap)) {
   console.log('  konstruktor Blob/File diambil lewat variabel (jalur unduh web aman).');
 }
 
+// --------------------- Pembayaran langganan (gateway, 17 Okt 2026) -----------
+// Owner membayar langganan lewat API inti per kanal (VA/QRIS) Duitku SANDBOX.
+// Kunci regresi di sini:
+//   - nominal tagihan SELALU dari harga paket di server (klien tidak boleh
+//     mengirim nominal),
+//   - kredensial gateway tidak pernah bocor ke panel,
+//   - tanda tangan callback tidak pernah disimpan,
+//   - endpoint callback publik tetap memverifikasi tanda tangan.
+console.log('\n[pembayaran langganan (gateway, 17 Okt 2026)]');
+
+const readServer = (...parts) => readFileSync(join(root, 'server', ...parts), 'utf8');
+const payDuitku = readServer('src', 'payments', 'duitku.js');
+const payRegistry = readServer('src', 'payments', 'index.js');
+const payService = readServer('src', 'modules', 'subscription-invoice', 'service.js');
+const paySchema = readServer('src', 'modules', 'subscription-invoice', 'schema.js');
+const payRoutes = readServer('src', 'modules', 'subscription-invoice', 'routes.js');
+const payCallback = readServer('src', 'modules', 'subscription-invoice', 'callback-routes.js');
+const payMigration = readServer('src', 'db', 'migrations', '0010_subscription_invoices.sql');
+const payEnv = readServer('.env.example');
+const appJs = readServer('src', 'app.js');
+const ownerRoutes = readServer('src', 'modules', 'owner', 'routes.js');
+
+const payChecks = [
+  [
+    ownerHtml6,
+    'apps/owner/index.html',
+    [
+      'id="sub-pay-btn"',
+      'id="sub-invoice-body"',
+      'id="pay-modal"',
+      'id="pay-channels"',
+      'id="pay-number"',
+      'id="pay-sync"',
+    ],
+  ],
+  [
+    ownerJs6,
+    'apps/owner/src/app.js',
+    [
+      'loadSubscriptionInvoices',
+      'api.createSubscriptionInvoice(',
+      'api.syncSubscriptionInvoice(',
+      'INVOICE_STATUS_TEXT',
+      'handlePaymentReturn',
+    ],
+  ],
+  [
+    ownerApi6,
+    'apps/owner/src/api.js',
+    ['/subscription/plans', '/subscription/invoices', '/sync'],
+  ],
+  [
+    payDuitku,
+    'server/src/payments/duitku.js',
+    [
+      "createHmac('sha256'",
+      'timingSafeEqual',
+      '/v2/inquiry',
+      '/transactionStatus',
+      'signCallback',
+      'verifyCallback',
+      'stripSignature',
+    ],
+  ],
+  [
+    payRegistry,
+    'server/src/payments/index.js',
+    ['requireProvider', 'describePayments', 'setProviderForTests', 'allowProduction'],
+  ],
+  [
+    payService,
+    'server/src/modules/subscription-invoice/service.js',
+    [
+      'handleDuitkuCallback',
+      'createInvoiceForPlan',
+      'syncInvoiceStatus',
+      'senToRupiah',
+      'applyPaidInvoice',
+      'make_interval(days =>',
+      'subscription.invoice_paid',
+    ],
+  ],
+  [payRoutes, 'server/src/modules/subscription-invoice/routes.js', ['requireBusinessAccess', 'invoiceSyncLimiter']],
+  [
+    payCallback,
+    'server/src/modules/subscription-invoice/callback-routes.js',
+    ["'/duitku/callback'", "'/duitku/return'", 'webhookLimiter', 'handleDuitkuCallback'],
+  ],
+  [
+    payMigration,
+    'server/src/db/migrations/0010_subscription_invoices.sql',
+    ['subscription_invoices', 'order_id', 'provider_reference', 'callback_payload'],
+  ],
+  [
+    payEnv,
+    'server/.env.example',
+    ['DUITKU_MERCHANT_CODE', 'PAYMENT_CALLBACK_URL', 'PAYMENT_CHANNELS'],
+  ],
+  [appJs, 'server/src/app.js', ["app.use('/api/payments'"]],
+  [ownerRoutes, 'server/src/modules/owner/routes.js', ['subscription-invoice/routes.js']],
+];
+let payMissing = 0;
+for (const [src, label, needles] of payChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (pembayaran langganan hilang?)`);
+      payMissing++;
+    }
+  }
+}
+
+// Negatif 1: nominal tagihan tidak boleh berasal dari klien.
+if (/\bamount\b/.test(paySchema)) {
+  fail('skema tagihan langganan menerima `amount` dari klien (nominal wajib dari server)');
+  payMissing++;
+}
+if (!/plan\.price/.test(payService)) {
+  fail('service tagihan langganan tidak memakai plan.price sebagai nominal');
+  payMissing++;
+}
+
+// Negatif 2: rahasia gateway tidak boleh ada di panel (frontend).
+const panelSrcs = [
+  ['apps/owner/index.html', ownerHtml6],
+  ['apps/owner/src/app.js', ownerJs6],
+  ['apps/owner/src/api.js', ownerApi6],
+];
+for (const [label, src] of panelSrcs) {
+  if (/DUITKU_API_KEY|MERCHANT_CODE|apiKey/.test(src)) {
+    fail(`${label} memuat kredensial gateway (rahasia hanya di server)`);
+    payMissing++;
+  }
+}
+
+// Negatif 3: tanda tangan callback wajib dibuang sebelum disimpan.
+if (!/stripSignature\(body\)/.test(payService)) {
+  fail('service tagihan langganan menyimpan callback tanpa membuang tanda tangan');
+  payMissing++;
+}
+
+// Negatif 4: endpoint callback publik tetap wajib memverifikasi tanda tangan.
+if (/requireAuth/.test(payCallback)) {
+  fail('rute callback gateway memakai requireAuth (gateway tidak punya JWT)');
+  payMissing++;
+}
+
+if (payMissing === 0) {
+  console.log('  panel, klien Duitku (HMAC), rute owner, callback publik, migrasi, dan env: lengkap.');
+}
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;

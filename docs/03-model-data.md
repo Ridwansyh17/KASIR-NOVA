@@ -230,6 +230,30 @@ refresh_tokens (sesi, per peran)
 > sebagai data referensi operasional di migrasi `0004`; bisnis baru otomatis
 > diberi langganan plan default (keputusan Opsi A).
 
+### `subscription_invoices` (migrasi `0010`, 17 Okt 2026)
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | UUID PK | |
+| business_id | UUID FK → businesses, CASCADE | tenant pemilik tagihan |
+| plan_id | UUID FK → subscription_plans, RESTRICT | paket yang dibeli |
+| subscription_id | UUID FK → subscriptions, SET NULL | langganan hasil pembayaran |
+| order_id | TEXT UNIQUE | nomor pesanan kita (≤50 char) |
+| amount | BIGINT (sen) | **snapshot** harga paket saat tagihan dibuat |
+| status | ENUM `subscription_invoice_status` | `pending`/`paid`/`failed`/`expired`/`canceled` |
+| provider | TEXT | penyedia gateway (`duitku`) |
+| payment_method | TEXT | kode kanal (`BC`, `I1`, `NQ`, …) |
+| provider_reference, va_number, qr_string, payment_url | TEXT | data dari gateway |
+| expires_at, paid_at, failed_at | TIMESTAMPTZ | |
+| attempts | INT | jumlah panggilan/pemeriksaan gateway |
+| inquiry_payload, callback_payload | JSONB | bukti (**tanpa** `signature`) |
+| created_by | UUID FK → owners, SET NULL | Owner yang memulai tagihan |
+
+> **Index unik parsial** `ON subscription_invoices(business_id) WHERE
+> status='pending'` ⇒ satu tagihan pending per bisnis. Tabel ini **terpisah**
+> dari `payments` (yang terikat penjualan: `payments.transaction_id` NOT NULL).
+> Dipakai untuk pembayaran **langganan** saja — lihat
+> `docs/38-pembayaran-langganan-gateway.md`.
+
 ### `refresh_tokens`
 | id, user_type (`platform_admin`/`owner`/`cashier`), user_id, token_hash TEXT, expires_at, revoked_at NULL, created_at, ip, user_agent |
 

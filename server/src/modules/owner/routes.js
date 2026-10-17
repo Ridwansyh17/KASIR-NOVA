@@ -27,6 +27,7 @@ import { createAuditRouter } from '../audit/routes.js';
 import { ownerSessionRouter } from '../session/routes.js';
 import { expenseRoutes } from '../expense/routes.js';
 import { createInventoryRouter } from '../inventory/routes.js';
+import subscriptionInvoiceRoutes from '../subscription-invoice/routes.js';
 import {
   createBusinessSchema,
   updateBusinessSchema,
@@ -72,6 +73,10 @@ router.get(
   requireBusinessAccess(),
   controller.getSubscription
 );
+
+// Tagihan langganan (payment gateway): paket, buat tagihan VA/QRIS, riwayat,
+// cek status manual. Owner self-service (uji sandbox Duitku).
+router.use('/businesses/:businessId/subscription', subscriptionInvoiceRoutes);
 
 // Kelola outlet (sub-router dengan mergeParams agar :businessId tersedia).
 router.use('/businesses/:businessId/outlets', outletRoutes);

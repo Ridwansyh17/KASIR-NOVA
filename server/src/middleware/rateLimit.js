@@ -45,4 +45,40 @@ export const pinLimiter = rateLimit({
   },
 });
 
-export default { loginLimiter, pinLimiter };
+/**
+ * Limiter callback gateway pembayaran (publik, tanpa sesi).
+ *
+ * Duitku mengirim ulang callback maksimal 5x sampai menerima HTTP 200, jadi
+ * batas dibuat longgar (120 permintaan / 5 menit per IP) — fungsi utamanya
+ * hanya mencegah banjir permintaan ke endpoint publik, bukan menggantikan
+ * verifikasi tanda tangan (HMAC) yang tetap wajib.
+ */
+export const webhookLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: { message: 'Terlalu banyak permintaan callback dari IP ini.' },
+  },
+});
+
+/**
+ * Limiter cek status tagihan manual oleh Owner. Duitku membatasi hit rate
+ * (bisa memblokir ~1 jam), jadi tombol "Cek status" dibatasi ketat:
+ * 20 pemeriksaan / 5 menit per IP.
+ */
+export const invoiceSyncLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message:
+        'Terlalu banyak pemeriksaan status tagihan. Tunggu beberapa menit sebelum mencoba lagi.',
+    },
+  },
+});
+
+export default { loginLimiter, pinLimiter, webhookLimiter, invoiceSyncLimiter };

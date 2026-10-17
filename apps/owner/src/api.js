@@ -302,6 +302,29 @@ export const api = {
   subscription: (businessId) =>
     request(`/api/owner/businesses/${businessId}/subscription`),
 
+  // Pembayaran langganan (payment gateway, uji sandbox Duitku).
+  subscriptionPlans: (businessId) =>
+    request(`/api/owner/businesses/${businessId}/subscription/plans`),
+
+  subscriptionInvoices: (businessId, params = {}) =>
+    request(`/api/owner/businesses/${businessId}/subscription/invoices${queryString(params)}`),
+
+  subscriptionInvoice: (businessId, invoiceId) =>
+    request(`/api/owner/businesses/${businessId}/subscription/invoices/${invoiceId}`),
+
+  createSubscriptionInvoice: (businessId, data) =>
+    request(`/api/owner/businesses/${businessId}/subscription/invoices`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** Cek status ke gateway (manual; dibatasi server untuk menjaga hit rate). */
+  syncSubscriptionInvoice: (businessId, invoiceId) =>
+    request(`/api/owner/businesses/${businessId}/subscription/invoices/${invoiceId}/sync`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
   outlets: {
     list: (businessId) => request(`/api/owner/businesses/${businessId}/outlets`),
     get: (businessId, outletId) =>

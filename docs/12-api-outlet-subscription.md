@@ -85,6 +85,27 @@ Body opsional (paling sedikit satu field): `{ "name"?, "address"?, "phone"?,
 Mengembalikan langganan **terbaru** (termasuk status non-aktif). `404` bila
 bisnis belum pernah punya langganan.
 
+### 7. Tagihan langganan — pembayaran online (gateway)
+
+Sejak 17 Okt 2026 Owner dapat membayar langganan sendiri lewat gateway
+(uji **sandbox Duitku**). Rincian lengkap: **`docs/38-pembayaran-langganan-gateway.md`**.
+
+Prefix tetap `/api/owner/businesses/:businessId/subscription`:
+
+| Metode | Path | Ringkas |
+|---|---|---|
+| `GET` | `/plans` | `{ gateway, plans }` — paket yang dapat dibeli + kanal aktif |
+| `GET` | `/invoices?status=&page=&limit=` | riwayat tagihan bisnis |
+| `POST` | `/invoices` | body `{ planId, paymentMethod }` → tagihan VA/QRIS |
+| `GET` | `/invoices/:invoiceId` | detail tagihan |
+| `POST` | `/invoices/:invoiceId/sync` | cek status ke gateway (manual) |
+
+Endpoint **publik** (tanpa sesi, verifikasi tanda tangan HMAC-SHA256):
+`POST /api/payments/duitku/callback` dan `GET /api/payments/duitku/return`.
+Harga tagihan **selalu** dari `subscription_plans.price` (sen) di server —
+klien tidak pernah mengirim nominal. Tanpa konfigurasi gateway, endpoint
+pembayaran menjawab **503** dan aplikasi tetap berjalan normal.
+
 ---
 
 ## B. Paket langganan — Admin Platform (role `platform_admin`)

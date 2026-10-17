@@ -196,6 +196,385 @@ const renderSubscription = (view) => {
   $('sub-expires').textContent = fmtDate(st.expires_at);
 };
 
+// ------------------------------------- Pembayaran langganan (gateway) --------
+/**
+ * Pembayaran langganan online (uji sandbox Duitku).
+ *
+ * Semua keputusan penting tetap di server: harga paket, kanal yang boleh dipakai,
+ * pembuatan tagihan, dan aktivasi langganan. Panel ini hanya:
+ *   1. menampilkan status gateway + riwayat tagihan,
+ *   2. meminta server membuat tagihan (VA/QRIS),
+ *   3. menampilkan nomor/QRIS + tombol "Cek Status" (tanpa polling otomatis,
+ *      agar tidak melanggar batas hit rate gateway).
+ */
+const INVOICE_STATUS_TEXT = {
+  pending: 'menunggu',
+  paid: 'lunas',
+  failed: 'gagal',
+  expired: 'kedaluwarsa',
+  canceled: 'dibatalkan',
+};
+
+state.payGateway = null; // ringkasan gateway dari server (tanpa rahasia apa pun)
+state.payPlans = [];
+state.payInvoice = null; // tagihan yang sedang ditampilkan di modal
+
+const invoiceStatusBadge = (status) => {
+  const cls = status === 'paid' ? 'ok' : status === 'pending' ? '' : 'off';
+  return `<span class="badge ${cls}">${escapeHtml(INVOICE_STATUS_TEXT[status] ?? status)}</span>`;
+};
+
+/** Catatan status gateway + aktif/nonaktif tombol bayar. */
+const renderGatewayNote = () => {
+  const g = state.payGateway;
+  const note = $('sub-gateway-note');
+  const btn = $('sub-pay-btn');
+  if (!g) {
+    note.textContent = '';
+    return;
+  }
+  if (g.enabled) {
+    const kanal = (g.channels ?? []).map((c) => c.label).join(', ');
+    note.textContent = `Pembayaran online aktif (${g.provider}, mode ${g.mode}). Kanal: ${kanal || '—'}.`;
+    btn.disabled = false;
+    btn.title = '';
+  } else {
+    note.textContent =
+      'Pembayaran online belum dikonfigurasi di server. Admin Platform perlu mengisi kredensial gateway.';
+    btn.disabled = true;
+    btn.title = 'Gateway pembayaran belum dikonfigurasi';
+  }
+};
+
+const renderSubscriptionInvoices = (data) => {
+  const body = $('sub-invoice-body');
+  const items = data?.items ?? [];
+  body.innerHTML = '';
+  $('sub-invoice-empty').classList.toggle('hidden', items.length > 0);
+
+  for (const inv of items) {
+    const openBtn = inv.payment_url
+      ? `<a class="btn small" href="${escapeHtml(inv.payment_url)}" target="_blank" rel="noopener">Buka</a>`
+      : '';
+    const syncBtn =
+      inv.status === 'pending'
+        ? `<button class="btn small" data-action="sync" data-id="${inv.id}">Cek status</button>`
+        : '';
+    const nomor = inv.va_number
+      ? `<div class="muted small">VA ${escapeHtml(inv.va_number)}</div>`
+      : inv.qr_string
+        ? '<div class="muted small">QRIS</div>'
+        : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(fmtDate(inv.created_at))}</td>
+      <td>${escapeHtml(inv.plan?.name ?? '—')}${nomor}</td>
+      <td class="right strong">${money(inv.amount)}</td>
+      <td>${escapeHtml(inv.payment_method_label ?? inv.payment_method ?? '—')}</td>
+      <td>${invoiceStatusBadge(inv.status)}</td>
+      <td class="right">${syncBtn} ${openBtn}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+/** Muat opsi checkout (paket + status gateway) dan riwayat tagihan bisnis aktif. */
+const loadSubscriptionInvoices = async () => {
+  const b = activeBusiness();
+  if (!b) {
+    hide($('subscription-section'));
+    return;
+  }
+  const errEl = $('sub-invoice-error');
+  hide(errEl);
+
+  let hasil = null;
+  try {
+    hasil = await guard(() =>
+      Promise.all([
+        api.subscriptionPlans(b.id),
+        api.subscriptionInvoices(b.id, { limit: 20 }),
+      ])
+    );
+  } catch (err) {
+    errEl.textContent = describeError(err);
+    show(errEl);
+    return;
+  }
+  if (!hasil) return; // sesi berakhir; guard() sudah mengalihkan ke login
+
+  const [opsi, tagihan] = hasil;
+  state.payGateway = opsi.gateway;
+  state.payPlans = opsi.plans ?? [];
+  renderGatewayNote();
+  renderSubscriptionInvoices(tagihan);
+};
+
+/** Segarkan kartu langganan + riwayat tagihan setelah pembayaran. */
+const refreshSubscriptionOnly = async () => {
+  const b = activeBusiness();
+  if (!b) return;
+  const sub = await guard(() => api.subscription(b.id));
+  renderSubscription(sub ?? null);
+  await loadSubscriptionInvoices();
+};
+
+const renderPayPlanInfo = () => {
+  const plan = state.payPlans.find((p) => p.id === $('pay-plan').value);
+  $('pay-plan-info').textContent = plan
+    ? `Maksimal ${plan.max_outlets} outlet & ${plan.max_cashiers} kasir, aktif ${plan.duration_days} hari sejak pembayaran berhasil.`
+    : '';
+};
+
+/** Isi pilihan paket + kanal pada langkah pertama modal bayar. */
+const renderPayForm = () => {
+  const sel = $('pay-plan');
+  sel.innerHTML = '';
+  const bisaDibeli = state.payPlans.filter((p) => p.purchasable);
+  for (const p of state.payPlans) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.disabled = !p.purchasable;
+    opt.textContent = `${p.name} — ${fmtIDR(p.price)} / ${p.duration_days} hari${
+      p.purchasable ? '' : ' (tidak bisa ditagih)'
+    }`;
+    sel.appendChild(opt);
+  }
+  if (bisaDibeli[0]) sel.value = bisaDibeli[0].id;
+  renderPayPlanInfo();
+
+  const wrap = $('pay-channels');
+  wrap.innerHTML = '';
+  const channels = state.payGateway?.channels ?? [];
+  for (const c of channels) {
+    const ket =
+      c.kind === 'qris'
+        ? 'Bayar dengan memindai kode QRIS'
+        : c.kind === 'va'
+          ? 'Bayar lewat m-banking/ATM ke nomor Virtual Account'
+          : 'Ikuti instruksi kanal ini';
+    const label = document.createElement('label');
+    label.className = 'pay-channel';
+    label.innerHTML = `
+      <input type="radio" name="pay-channel" value="${escapeHtml(c.code)}" />
+      <span>
+        <strong>${escapeHtml(c.label)}</strong>
+        <span class="muted small">${escapeHtml(ket)}</span>
+      </span>`;
+    wrap.appendChild(label);
+  }
+  const first = wrap.querySelector('input[name=pay-channel]');
+  if (first) first.checked = true;
+
+  const kosong = $('pay-channels-empty');
+  const btn = $('pay-create');
+  if (!state.payGateway?.enabled || channels.length === 0) {
+    kosong.textContent = state.payGateway?.enabled
+      ? 'Belum ada kanal pembayaran aktif di server.'
+      : 'Pembayaran online belum dikonfigurasi di server.';
+    show(kosong);
+    btn.disabled = true;
+  } else if (bisaDibeli.length === 0) {
+    kosong.textContent = 'Belum ada paket berbayar yang dapat dibeli.';
+    show(kosong);
+    btn.disabled = true;
+  } else {
+    hide(kosong);
+    btn.disabled = false;
+  }
+};
+
+const openPayModal = async () => {
+  const b = activeBusiness();
+  if (!b) return;
+  state.payInvoice = null;
+  hide($('pay-error'));
+  hide($('pay-pay-error'));
+  try {
+    // Muat ulang opsi saat modal dibuka: status gateway bisa berubah tanpa reload.
+    const opsi = await guard(() => api.subscriptionPlans(b.id));
+    if (!opsi) return;
+    state.payGateway = opsi.gateway;
+    state.payPlans = opsi.plans ?? [];
+    renderGatewayNote();
+    renderPayForm();
+    show($('pay-step-choose'));
+    hide($('pay-step-pay'));
+    show($('pay-modal'));
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  }
+};
+
+/** Tampilkan instruksi pembayaran (nomor VA / string QRIS + tautan gateway). */
+const renderPayInstruction = () => {
+  const inv = state.payInvoice;
+  if (!inv) return;
+
+  $('pay-invoice-meta').textContent = `${inv.plan?.name ?? 'Paket'} • ${fmtIDR(
+    inv.amount
+  )} • ${inv.payment_method_label ?? inv.payment_method} • No. pesanan ${inv.order_id}`;
+
+  $('pay-instruction').textContent =
+    inv.payment_kind === 'qris'
+      ? 'Selesaikan pembayaran QRIS sebesar nominal di atas sebelum masa berlaku berakhir.'
+      : inv.payment_kind === 'va'
+        ? 'Bayar ke nomor Virtual Account di bawah ini tepat sebesar nominal di atas.'
+        : 'Selesaikan pembayaran mengikuti instruksi kanal terpilih.';
+
+  $('pay-number').textContent = inv.va_number || inv.qr_string || inv.order_id || '—';
+
+  const qrWrap = $('pay-qr-wrap');
+  if (inv.qr_string && !inv.va_number) {
+    $('pay-qr').value = inv.qr_string;
+    show(qrWrap);
+  } else {
+    $('pay-qr').value = '';
+    hide(qrWrap);
+  }
+
+  const open = $('pay-open');
+  if (inv.payment_url) {
+    open.href = inv.payment_url;
+    show(open);
+  } else {
+    hide(open);
+  }
+  $('pay-copy').classList.toggle('hidden', !(inv.va_number || inv.qr_string));
+
+  $('pay-expiry').textContent = inv.expires_at
+    ? `Berlaku sampai ${fmtDate(inv.expires_at)}.`
+    : '';
+  $('pay-status-line').innerHTML = `Status tagihan: ${invoiceStatusBadge(inv.status)}`;
+  hide($('pay-pay-error'));
+};
+
+const createPayInvoice = async () => {
+  const b = activeBusiness();
+  if (!b) return;
+  const errEl = $('pay-error');
+  hide(errEl);
+
+  const planId = $('pay-plan').value;
+  const method = document.querySelector('input[name=pay-channel]:checked')?.value;
+  if (!planId || !method) {
+    errEl.textContent = 'Pilih paket dan metode pembayaran terlebih dahulu.';
+    show(errEl);
+    return;
+  }
+
+  const btn = $('pay-create');
+  btn.disabled = true;
+  btn.textContent = 'Menghubungi gateway…';
+  try {
+    const hasil = await guard(() =>
+      api.createSubscriptionInvoice(b.id, { planId, paymentMethod: method })
+    );
+    if (!hasil) return; // sesi berakhir
+    state.payInvoice = hasil.invoice;
+    renderPayInstruction();
+    hide($('pay-step-choose'));
+    show($('pay-step-pay'));
+    await loadSubscriptionInvoices();
+    if (hasil.invoice.status === 'paid') await refreshSubscriptionOnly();
+  } catch (err) {
+    errEl.textContent = describeError(err);
+    show(errEl);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buat Tagihan';
+  }
+};
+
+/** Cek status tagihan ke gateway (manual, dibatasi server). */
+const syncPayCurrent = async () => {
+  const b = activeBusiness();
+  if (!b || !state.payInvoice) return;
+  const errEl = $('pay-pay-error');
+  hide(errEl);
+
+  const btn = $('pay-sync');
+  btn.disabled = true;
+  btn.textContent = 'Memeriksa…';
+  try {
+    const hasil = await guard(() => api.syncSubscriptionInvoice(b.id, state.payInvoice.id));
+    if (!hasil) return;
+    state.payInvoice = hasil.invoice;
+    renderPayInstruction();
+
+    if (hasil.invoice.status === 'paid') {
+      alertBox('Pembayaran diterima. Langganan sudah diperbarui.', 'ok');
+      await refreshSubscriptionOnly();
+    } else if (hasil.checked) {
+      const pesan = hasil.gateway_status?.message || hasil.gateway_status?.code || 'belum lunas';
+      $('pay-pay-error').textContent = `Gateway menyatakan: ${pesan}.`;
+      show($('pay-pay-error'));
+    } else {
+      alertBox('Status tagihan belum berubah.', 'info');
+    }
+  } catch (err) {
+    errEl.textContent = describeError(err);
+    show(errEl);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Cek Status';
+  }
+};
+
+const closePayModal = () => hide($('pay-modal'));
+
+$('sub-pay-btn').addEventListener('click', () => {
+  openPayModal().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('sub-invoice-refresh').addEventListener('click', () => {
+  loadSubscriptionInvoices().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('pay-plan').addEventListener('change', renderPayPlanInfo);
+$('pay-cancel').addEventListener('click', closePayModal);
+$('pay-close').addEventListener('click', closePayModal);
+$('pay-modal').addEventListener('click', (event) => {
+  if (event.target === $('pay-modal')) closePayModal();
+});
+$('pay-create').addEventListener('click', () => {
+  createPayInvoice().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('pay-sync').addEventListener('click', () => {
+  syncPayCurrent().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('pay-copy').addEventListener('click', async () => {
+  const teks = state.payInvoice?.va_number || state.payInvoice?.qr_string || '';
+  if (!teks) return;
+  try {
+    await navigator.clipboard.writeText(teks);
+    alertBox('Nomor pembayaran disalin.', 'ok');
+  } catch {
+    alertBox('Tidak dapat menyalin otomatis. Salin manual dari kotak nomor.', 'error');
+  }
+});
+
+// Tombol "Cek status" pada baris riwayat tagihan.
+$('sub-invoice-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action="sync"]');
+  if (!btn) return;
+  const b = activeBusiness();
+  if (!b) return;
+  btn.disabled = true;
+  try {
+    const hasil = await guard(() => api.syncSubscriptionInvoice(b.id, btn.dataset.id));
+    if (!hasil) return;
+    alertBox(
+      hasil.invoice.status === 'paid'
+        ? 'Tagihan lunas. Langganan sudah diperbarui.'
+        : 'Status tagihan diperbarui.',
+      'ok'
+    );
+    await refreshSubscriptionOnly();
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 // ----------------------------------------------------------- Outlet ----------
 const renderOutletList = (items) => {
   const list = $('outlet-list');
@@ -676,6 +1055,7 @@ const refreshContext = async () => {
   if (!b) return;
   const sub = await guard(() => api.subscription(b.id));
   renderSubscription(sub ?? null);
+  await loadSubscriptionInvoices();
   await loadOutlets();
   await loadCashiers();
   await loadProducts();
@@ -2384,6 +2764,28 @@ $('mov-outlet-filter').addEventListener('change', loadMovements);
 
 // ------------------------------------------------------------- Bootstrap -----
 /**
+ * Tangani kembalinya pengguna dari halaman pembayaran gateway
+ * (`?pembayaran=selesai&order_id=...&status=...`).
+ *
+ * HANYA informasi: dokumentasi Duitku memperingatkan parameter `resultCode` pada
+ * redirect dapat diubah manual, jadi status langganan TIDAK diubah di sini.
+ * Status resmi hanya berubah lewat callback bertanda tangan atau tombol
+ * "Cek status". Query dibersihkan agar pesan tidak muncul lagi saat dimuat ulang.
+ */
+const handlePaymentReturn = () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('pembayaran') !== 'selesai') return;
+  const orderId = params.get('order_id');
+  alertBox(
+    orderId
+      ? `Terima kasih. Pembayaran untuk pesanan ${orderId} sedang diverifikasi. Gunakan "Cek status" bila langganan belum berubah.`
+      : 'Terima kasih. Pembayaran sedang diverifikasi oleh sistem.',
+    'ok'
+  );
+  window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+};
+
+/**
  * Bootstrap panel Owner dengan PEMULIHAN SESI (persistent login).
  *
  * Alur lama bergantung pada `guard()` yang menelan 401 dan tetap
@@ -2408,6 +2810,7 @@ const boot = async () => {
     hide($('login-view'));
     show($('app-view'));
     await loadBusinesses();
+    handlePaymentReturn();
   } catch (err) {
     // Sesi tidak dapat diverifikasi (mis. jaringan). Token TIDAK dihapus;
     // tampilkan login disertai pesan agar penyebabnya jelas.

@@ -65,6 +65,29 @@ async function reqBinary(path, options = {}) {
   return { status: res.status, buffer, headers: res.headers };
 }
 
+async function reqForm(path, form, options = {}) {
+  const base = await start();
+  const res = await fetch(`${base}${path}`, {
+    ...options,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...options.headers,
+    },
+    body: new URLSearchParams(form ?? {}).toString(),
+  });
+  let body = null;
+  const text = await res.text();
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+  }
+  return { status: res.status, body, headers: res.headers };
+}
+
 export const request = {
   get: (path, opts) => req(path, { ...opts, method: 'GET' }),
   post: (path, data, opts) =>
@@ -76,6 +99,8 @@ export const request = {
   del: (path, opts) => req(path, { ...opts, method: 'DELETE' }),
   /** Ambil respons BINARY (mis. .xlsx) sebagai Buffer, tanpa parsing teks. */
   binary: (path, opts) => reqBinary(path, { ...opts, method: 'GET' }),
+  /** POST body `application/x-www-form-urlencoded` (mis. callback gateway). */
+  postForm: (path, form, opts) => reqForm(path, form, opts),
   stop,
 };
 

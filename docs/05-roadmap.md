@@ -913,11 +913,66 @@ menampilkan *exit code 1* palsu walau CLI melaporkan `ready`.
 Excel/Google Sheets; uji langsung tab baru di perangkat; **rebuild APK beta.9**
 (pemilik memilih "nanti saja") agar fitur ini ikut di APK.
 
+## 17 Okt 2026 — Pembayaran Langganan via Payment Gateway (Duitku SANDBOX)
+
+Permintaan pemilik: menyiapkan **integrasi payment gateway untuk pembayaran
+langganan** agar uji coba dapat dilakukan sebelum produksi.
+
+- **Keputusan pemilik:** penyedia **Duitku SANDBOX**; bentuk tagihan **API inti
+  per kanal** (VA/QRIS lewat `/v2/inquiry`), **bukan** halaman Snap; yang membayar
+  **Owner self-service**; aktivasi setelah pembayaran **sukses** (callback);
+  `auto_renew` tetap `false`; kredensial diisi pemilik di `server/.env`
+  (tidak pernah di-commit/di-paste); uji webhook **lokal dulu**; **hanya
+  langganan** (penjualan kasir tetap manual); rilis APK ditahan.
+- **Migrasi `0010_subscription_invoices.sql`:** enum `subscription_invoice_status`
+  + tabel `subscription_invoices` (amount **sen**, `order_id` unik, snapshot
+  `plan.price`, data VA/QRIS dari gateway, `inquiry_payload`/`callback_payload`
+  tanpa `signature`, `attempts`, `created_by`) dengan index **unik parsial**
+  "satu tagihan pending per bisnis" — tabel **terpisah** dari `payments`
+  (yang terikat penjualan).
+- **Modul baru `server/src/payments/`:** `duitku.js` (HMAC-SHA256:
+  inquiry `merchantCode+orderId+amount`, status `merchantCode+orderId`,
+  callback `merchantCode+amount+orderId`; `timingSafeEqual`;
+  `stripSignature`), `channels.js` (katalog kanal + `maxExpiry`), `index.js`
+  (registri penyedia + `setProviderForTests` + `describePayments`).
+  Kredensial kosong ⇒ **503**, server tetap jalan; mode produksi terkunci
+  `PAYMENT_ALLOW_PRODUCTION`.
+- **Modul baru `server/src/modules/subscription-invoice/`:** `checkoutOptions`
+  (paket + kanal + status gateway), `createInvoiceForPlan` (nominal dari
+  `plan.price`, pakai-ulang tagihan pending, batalkan pending lain, sen→rupiah),
+  `handleDuitkuCallback` (verifikasi tanda tangan, cek nominal, idempoten),
+  `syncInvoiceStatus` (cek manual, dibatasi limiter), aktivasi langganan dengan
+  pola `assignSubscription` **dalam satu transaksi** + audit per Owner.
+- **Rute:** `/api/owner/businesses/:businessId/subscription/{plans,invoices,…}`
+  (`requireBusinessAccess`) dan **publik** `POST /api/payments/duitku/callback`
+  + `GET /api/payments/duitku/return` (limiter + allowlist IP opsional).
+- **Panel Owner:** tombol **Bayar / Perpanjang**, modal pilih paket & kanal,
+  tampilan nomor VA/string QRIS + tautan pembayaran, tombol **Cek Status**, dan
+  **riwayat tagihan** di kartu Langganan.
+- **Tes baru:** `duitku-client.test.js` (**12**) + `subscription-invoice.test.js`
+  (**18**) dengan transport gateway disuntikkan dan verifikasi tanda tangan
+  memakai implementasi asli. **Dokumen baru** `docs/38-pembayaran-langganan-gateway.md`;
+  `docs/01`, `docs/03`, `docs/11` (#4), `docs/12`, `docs/24`, `README.md`,
+  `scripts/verify-ui.mjs` (bagian **"pembayaran langganan (17 Okt 2026)"** + 4
+  pengunci negatif), `scripts/qa-local.ps1` (label **321**).
+
+**Pengujian lokal:** suite server **321/321** lulus, `node scripts/verify-ui.mjs`
+**SEMUA OK**, `scripts/qa-local.ps1` **SEMUA TAHAP LULUS** (7/7), Chrome headless
+`/owner/` menampilkan `#login-view` + `#pay-modal` (modul panel tidak blank).
+
+**Belum dikerjakan:** panggilan **sungguhan** ke Duitku (butuh kredensial sandbox
+di `server/.env`), uji **callback sungguhan** (butuh backend dapat dijangkau
+internet → menunggu izin deploy), **gambar QR** QRIS di panel (keputusan pemilik),
+mode produksi, dan penagihan otomatis (`auto_renew`).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
-- **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
-  tambah provider di tabel `payments.provider`.
+- **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
+  **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal
+  kartu/QR/wallet untuk **penjualan kasir** masih ditangguhkan (tetap dicatat
+  manual) — tambah provider di tabel `payments.provider` bila nanti dibutuhkan.
 - **Perpanjangan langganan otomatis**: job penagihan terpisah — sementara
-  dicatat manual oleh Admin Platform.
+  dicatat manual oleh Admin Platform atau dibeli Owner lewat gateway
+  (`auto_renew` tetap `false`).
 
 ## Urutan untuk RAM ~2 GB
 - Jalankan **satu server** + **satu app** + satu PostgreSQL. Hindari

@@ -36,6 +36,13 @@ copy .env.example server\.env
 
 Edit `server\.env` bila perlu (DATABASE_URL sudah sesuai untuk dev).
 
+> **Opsional — gateway pembayaran langganan (uji sandbox).** Isi
+> `PAYMENT_PROVIDER=duitku`, `PAYMENT_MODE=sandbox`, `DUITKU_MERCHANT_CODE`,
+> `DUITKU_API_KEY` (+ `PAYMENT_API_BASE_URL`/`PAYMENT_OWNER_PANEL_URL`) hanya bila
+> ingin menguji pembayaran langganan. Biarkan kosong untuk menonaktifkannya —
+> server tetap berjalan dan endpoint pembayaran menjawab 503. Kredensial
+> **tidak boleh** di-commit. Rincian: `docs/38-pembayaran-langganan-gateway.md`.
+
 ### 3. Install dependency & migrasi
 
 ```cmd
@@ -225,6 +232,17 @@ roadmap fase.
   (kirim/simpan/cetak) sukses diuji pemilik di perangkat** (17 Okt 2026).
   **Belum terverifikasi:** cetak ke printer fisik (tidak ada perangkat di
   lingkungan pengembangan).
-- **Modul tertunda** (butuh keputusan pemilik): gateway pembayaran digital dan
-  perpanjangan langganan otomatis — lihat *Modul Ditangguhkan* di
-  `docs/05-roadmap.md`.
+- **Pembayaran Langganan via Payment Gateway (17 Okt 2026)**: Owner membayar
+  langganan sendiri dari panel Owner (tombol **Bayar / Perpanjang**) memakai
+  **API inti per kanal Duitku SANDBOX** (Virtual Account / QRIS): server membuat
+  tagihan (`subscription_invoices`, migrasi `0010`), menampilkan nomor VA/string
+  QRIS, lalu mengaktifkan langganan **setelah callback bertanda tangan
+  (HMAC-SHA256) menyatakan berhasil** — pola sama dengan Admin memasang paket,
+  `auto_renew` tetap `false`. Nominal **selalu** dari `subscription_plans.price`
+  (sen) di server; tanpa kredensial, endpoint menjawab **503** dan aplikasi tetap
+  jalan; mode produksi terkunci kunci pengaman `PAYMENT_ALLOW_PRODUCTION`.
+  Lingkup **hanya langganan** — pembayaran penjualan kasir tetap manual.
+  Rincian & cara uji sandbox: `docs/38-pembayaran-langganan-gateway.md`.
+- **Modul tertunda** (butuh keputusan pemilik): kanal gateway untuk **penjualan
+  kasir** (kartu/QR/wallet tetap dicatat manual) dan perpanjangan langganan
+  otomatis — lihat *Modul Ditangguhkan* di `docs/05-roadmap.md`.

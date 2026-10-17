@@ -61,6 +61,60 @@ export const env = {
     }
     return list;
   })(),
+  // ------------------------------------------------------- Pembayaran langganan
+  // Gateway pembayaran untuk langganan (uji coba memakai SANDBOX Duitku).
+  // OPSIONAL & tidak fatal: bila belum dikonfigurasi, server tetap berjalan dan
+  // endpoint pembayaran langganan menjawab 503 (lihat src/payments/index.js).
+  // Rahasia hanya dibaca dari lingkungan; tidak pernah masuk basis data/log.
+  payments: (() => {
+    const num = (value, fallback) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+    const list = (value, fallback) => {
+      const items = String(value ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return items.length > 0 ? items : fallback;
+    };
+    const mode = String(process.env.PAYMENT_MODE ?? 'sandbox').trim().toLowerCase();
+    // URL dasar API publik (dipakai menyusun callbackUrl/returnUrl default).
+    const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    const apiBaseUrl = String(
+      process.env.PAYMENT_API_BASE_URL ??
+        process.env.RENDER_EXTERNAL_URL ??
+        (vercelUrl ? `https://${vercelUrl}` : '')
+    )
+      .trim()
+      .replace(/\/+$/, '');
+
+    return {
+      provider: String(process.env.PAYMENT_PROVIDER ?? 'disabled').trim().toLowerCase(),
+      mode: mode === 'production' ? 'production' : 'sandbox',
+      // Kunci pengaman: endpoint produksi (uang nyata) wajib dinyalakan eksplisit.
+      allowProduction: process.env.PAYMENT_ALLOW_PRODUCTION === 'true',
+      channels: list(process.env.PAYMENT_CHANNELS, ['BC', 'I1', 'M2', 'BR']).map((c) =>
+        c.toUpperCase()
+      ),
+      expiryMinutes: Math.max(1, Math.floor(num(process.env.PAYMENT_EXPIRY_MINUTES, 1440))),
+      minAmountIdr: Math.max(1, Math.floor(num(process.env.PAYMENT_MIN_AMOUNT_IDR, 10000))),
+      callbackUrl: String(process.env.PAYMENT_CALLBACK_URL ?? '').trim(),
+      returnUrl: String(process.env.PAYMENT_RETURN_URL ?? '').trim(),
+      apiBaseUrl,
+      ownerPanelUrl: String(
+        process.env.PAYMENT_OWNER_PANEL_URL ?? process.env.OWNER_PANEL_URL ?? ''
+      )
+        .trim()
+        .replace(/\/+$/, ''),
+      callbackIpAllowlist: list(process.env.PAYMENT_CALLBACK_IP_ALLOWLIST, []),
+      duitku: {
+        merchantCode: String(process.env.DUITKU_MERCHANT_CODE ?? '').trim(),
+        apiKey: String(process.env.DUITKU_API_KEY ?? '').trim(),
+        baseUrl: String(process.env.DUITKU_BASE_URL ?? '').trim().replace(/\/+$/, ''),
+      },
+    };
+  })(),
   isProduction: process.env.NODE_ENV === 'production',
   // Opsional: paksa penyajian app statis dari Express walau di produksi.
   // Berguna untuk host yang menyajikan app + API same-origin (mis. Render).

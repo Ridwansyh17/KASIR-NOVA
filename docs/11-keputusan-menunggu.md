@@ -62,7 +62,6 @@ item yang menahan Fase 7.
 | **Diskon** | **Per transaksi** (bukan per item): **persen** (maks 100) atau **nominal** (sen). Diterapkan **sebelum pajak**. Kasir **tanpa batas nominal** (kontrol aturan diskon utuh oleh Owner/rencana lanjutan). |
 | **Void** | Hanya oleh **Owner**. Otomatis **mengembalikan stok** ke outlet. Status `voided`, dicatat `voided_by`/`voided_at` + audit. |
 | **Pembayaran** | **Tunai** (boleh lebih → kembalian) + **kartu/QR/wallet dicatat manual** (tanpa gateway pembayaran). **Satu pembayaran per transaksi**; split pembayaran = fase lanjut. |
-
 Catatan implementasi: semua nominal disimpan dalam **sen (BIGINT)**; server
 menghitung ulang harga/total dari katalog (harga tidak bisa di-override kasir);
 anti-duplikasi dengan `client_ref` unik per outlet.
@@ -80,6 +79,26 @@ anti-duplikasi dengan `client_ref` unik per outlet.
 | **Keunikan PIN** | **Boleh sama** antar kasir — alur pilih kartu kasir di layar, lalu PIN hanya memverifikasi identitas yang dipilih. |
 | **Lockout** | **5× salah → kunci sementara 15 menit** (`pin_locked_until`); **10× salah → status `locked`** (perlu unlock Owner). |
 | **Status PIN vs password** | **PIN opsional** — password tetap ada; Owner pasang/hapus PIN per kasir. |
+
+---
+
+## KEPUTUSAN MENUNGGU #4 — Pembayaran langganan via payment gateway
+
+**✅ DIPUTUSKAN 17 Okt 2026** (dijawab pemilik proyek lewat tool pertanyaan) —
+dikerjakan sebagai fitur "Pembayaran Langganan (gateway sandbox)":
+lihat **`docs/38-pembayaran-langganan-gateway.md`**.
+
+| Aspek | Keputusan |
+|---|---|
+| Penyedia & mode | **Duitku, SANDBOX** (produksi belum) |
+| Bentuk tagihan | **API inti per kanal** (VA/QRIS: `/v2/inquiry`), bukan halaman Snap |
+| Siapa yang membayar | **Owner self-service** di panel Owner (pilih paket + kanal) |
+| Aktivasi | Setelah pembayaran **sukses** (callback bertanda tangan) — pola sama dengan Admin memasang paket |
+| `auto_renew` | Tetap **`false`** (belum ada penagihan otomatis) |
+| Kredensial | Diisi **pemilik proyek** di `server/.env`/Vercel — tidak pernah di-commit/paste di chat |
+| Uji webhook | **Lokal dulu**, lalu minta izin bila perlu deploy backend |
+| Lingkup | **Hanya langganan**; pembayaran penjualan kasir tetap manual |
+| APK | Rilis APK **ditahan** atas permintaan pemilik ("jangan rilis dulu") |
 
 ---
 

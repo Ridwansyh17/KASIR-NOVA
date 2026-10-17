@@ -21,6 +21,7 @@ import authRouter from './modules/auth/routes.js';
 import platformAdminRouter from './modules/platform-admin/routes.js';
 import ownerRouter from './modules/owner/routes.js';
 import cashierAreaRouter from './modules/cashier-area/routes.js';
+import paymentCallbackRouter from './modules/subscription-invoice/callback-routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -63,6 +64,8 @@ app.use('/api/auth', authRouter);
 app.use('/api/platform', platformAdminRouter);
 app.use('/api/owner', ownerRouter);
 app.use('/api/cashier', cashierAreaRouter);
+// Callback gateway pembayaran (PUBLIK, tanpa sesi) — verifikasi tanda tangan HMAC.
+app.use('/api/payments', paymentCallbackRouter);
 
 // Panel Admin Platform. Di dev disajikan statis oleh Express agar mudah diuji.
 // Di produksi frontend disajikan Firebase Hosting (backend tidak melayani file),

@@ -916,6 +916,72 @@ body {
 }
 
 /* ==========================================================================
+   PEMBAYARAN LANGGANAN (payment gateway) — panel Owner
+   ========================================================================== */
+#subscription-section h4 {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+#subscription-section .detail-actions {
+  margin-bottom: 6px;
+}
+
+.pay-channels {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+
+.pay-channel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-2);
+  cursor: pointer;
+}
+
+.pay-channel input {
+  margin-top: 3px;
+}
+
+.pay-channel > span {
+  display: grid;
+  gap: 2px;
+}
+
+.pay-box {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+}
+
+.pay-number {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.pay-qr-text {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
+/* ==========================================================================
    HALAMAN CETAK "LAPORAN TRANSAKSI" (Owner — 17 Okt 2026)
    --------------------------------------------------------------------------
    #print-report TIDAK tampil di layar; hanya muncul saat mencetak (Ctrl+P atau
