@@ -6,6 +6,7 @@
  * & isolasi tenant tetap ditegakkan server; UI ini hanya alat bantu.
  */
 import { api, login, logout, restoreSession, tokenStore, ApiError } from './api.js';
+import { renderPrintReport, PRINT_STATUS_LABELS } from './report-print.js';
 
 const $ = (id) => document.getElementById(id);
 const ACTIVE_KEY = 'nova_owner_business';
@@ -1706,6 +1707,8 @@ const loadReport = async () => {
 // Halaman cetak HTML siap-simpan-PDF. Baris = PER ITEM (keputusan A3a) dan
 // hanya panel Owner yang menyediakannya (keputusan A2b). Tata letak mengikuti
 // contoh Pemilik 17 Okt 2026 (lihat docs/35-laporan-transaksi-cetak.md).
+// Penyusun HTML + PAGINASI (nomor "Halaman i dari N") ada di modul murni
+// `./report-print.js` supaya bisa diuji Node tanpa DOM.
 
 const BULAN_ID = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -1751,184 +1754,6 @@ const fmtTanggalJamRingkas = (date, time) => {
   return `${d}/${m}/${y} ${String(time ?? '').slice(0, 5)}`;
 };
 
-/** Bangun HTML halaman cetak dari data server (semua nilai di-escape). */
-const renderPrintReport = (data) => {
-  const s = data.summary;
-  const periode = fmtPeriodeID(data.period.from, data.period.to);
-  const outletLabel = data.outlet?.name ?? 'Semua outlet';
-  const kasirLabel = data.cashier?.name ?? 'Semua kasir yang bertugas';
-  const dicetak = fmtCetakID(data.printed_at, data.business.timezone);
-
-  // Kartu KPI: total transaksi, total penjualan, tiap metode, lalu rata-rata.
-  const kpi = [
-    { label: 'Total Transaksi', value: String(s.transactions), sub: 'Transaksi' },
-    { label: 'Total Penjualan', value: fmtIDR(s.total), sub: '' },
-    ...data.payment_methods.map((m) => ({
-      label: m.label,
-      value: fmtIDR(m.total),
-      sub: `(${m.percent}%)`,
-    })),
-    { label: 'Rata-rata Transaksi', value: fmtIDR(s.avg_total), sub: 'transaksi' },
-  ];
-
-  const metodeLabel = (list) =>
-    (list ?? []).map((m) => METHOD_LABELS[m] ?? m).join(', ') || '—';
-
-  const rowsHtml = data.rows.length
-    ? data.rows
-        .map(
-          (r, i) => `<tr>
-            <td class="pr-num">${i + 1}</td>
-            <td class="pr-mono">${escapeHtml(r.invoice_no)}</td>
-            <td>${escapeHtml(fmtTanggalJamRingkas(r.date, r.time))}</td>
-            <td>${escapeHtml(r.product_name)}</td>
-            <td class="pr-right">${escapeHtml(r.qty)}</td>
-            <td class="pr-right">${escapeHtml(fmtIDR(r.unit_price))}</td>
-            <td class="pr-right pr-strong">${escapeHtml(fmtIDR(r.line_total))}</td>
-            <td>${escapeHtml(metodeLabel(r.methods))}</td>
-            <td>${escapeHtml(r.cashier_name ?? '—')}</td>
-            <td>${escapeHtml(r.outlet_name ?? outletLabel)}</td>
-          </tr>`
-        )
-        .join('')
-    : '<tr><td colspan="10" class="pr-empty">Belum ada transaksi pada rentang ini.</td></tr>';
-
-  const metodeRingkas = data.payment_methods.length
-    ? data.payment_methods
-        .map(
-          (m) => `<div class="pr-line"><span>${escapeHtml(m.label)}</span>
-            <strong>${escapeHtml(fmtIDR(m.total))} <small>(${m.percent}%)</small></strong></div>`
-        )
-        .join('')
-    : '<div class="pr-line"><span>Belum ada pembayaran lunas</span></div>';
-
-  const produkHtml = data.top_products.length
-    ? data.top_products
-        .map(
-          (p) => `<tr><td>${escapeHtml(p.product_name)}</td>
-            <td class="pr-right">${escapeHtml(p.qty)}</td>
-            <td class="pr-right">${escapeHtml(fmtIDR(p.revenue))}</td></tr>`
-        )
-        .join('')
-    : '<tr><td colspan="3" class="pr-empty">Belum ada produk terjual.</td></tr>';
-
-  const peringatan = data.truncated
-    ? `<p class="pr-warn">Perhatian: laporan dipotong pada ${data.rows.length} baris pertama.
-       Persempit rentang tanggal atau pilih satu outlet agar seluruh baris tercetak.</p>`
-    : '';
-
-  const voidInfo =
-    s.voided_transactions || s.refunded_transactions
-      ? `<div class="pr-line"><span>Dibatalkan (void)</span>
-           <strong>${escapeHtml(fmtIDR(s.voided_total))}
-           <small>${s.voided_transactions} transaksi</small></strong></div>
-         <div class="pr-line"><span>Refund</span>
-           <strong>${escapeHtml(fmtIDR(s.refunded_total))}
-           <small>${s.refunded_transactions} transaksi</small></strong></div>`
-      : '';
-
-  const halaman = data.rows.length <= 28 ? ' | Halaman 1 dari 1' : '';
-
-  return `
-    <div class="pr-page">
-      <header class="pr-head">
-        <div class="pr-brand">
-          <img class="pr-logo" src="./assets/logo-kasir-nova.png" alt="" />
-          <div class="pr-brand-text">
-            <strong class="pr-brand-name">KASIR NOVA</strong>
-            <span class="pr-brand-tag">Solusi Kasir Semua Bisnis</span>
-          </div>
-        </div>
-        <div class="pr-head-right">
-          <h1 class="pr-title">Laporan Transaksi</h1>
-          <span class="pr-periode">Periode ${escapeHtml(periode)}</span>
-        </div>
-      </header>
-
-      <section class="pr-meta">
-        <div><span>Outlet</span><strong>${escapeHtml(outletLabel)}</strong></div>
-        <div><span>Kasir</span><strong>${escapeHtml(kasirLabel)}</strong></div>
-        <div><span>Tanggal Cetak</span><strong>${escapeHtml(dicetak)}</strong></div>
-      </section>
-
-      <section class="pr-kpi">
-        ${kpi
-          .map(
-            (c) => `<div class="pr-kpi-card">
-              <span class="pr-kpi-label">${escapeHtml(c.label)}</span>
-              <strong class="pr-kpi-value">${escapeHtml(c.value)}</strong>
-              ${c.sub ? `<small>${escapeHtml(c.sub)}</small>` : ''}
-            </div>`
-          )
-          .join('')}
-      </section>
-
-      <section class="pr-section">
-        <h2 class="pr-section-title">Detail Transaksi</h2>
-        ${peringatan}
-        <table class="pr-table">
-          <thead>
-            <tr>
-              <th class="pr-num">NO</th>
-              <th>No. Transaksi</th>
-              <th>Tanggal &amp; Waktu</th>
-              <th>Produk</th>
-              <th class="pr-right">Qty</th>
-              <th class="pr-right">Harga Satuan</th>
-              <th class="pr-right">Total</th>
-              <th>Metode Pembayaran</th>
-              <th>Kasir</th>
-              <th>Outlet</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </section>
-
-      <section class="pr-bottom">
-        <div class="pr-box">
-          <h3 class="pr-box-title">Ringkasan Penjualan</h3>
-          ${
-            s.status === 'completed'
-              ? ''
-              : `<div class="pr-line"><span>Status transaksi</span>
-            <strong>${escapeHtml(STATUS_LABELS[s.status] ?? s.status)}</strong></div>`
-          }
-          <div class="pr-line"><span>Total Transaksi</span>
-            <strong>${s.transactions} transaksi</strong></div>
-          <div class="pr-line"><span>Total Penjualan (Omzet)</span>
-            <strong>${escapeHtml(fmtIDR(s.total))}</strong></div>
-          ${metodeRingkas}
-          ${voidInfo}
-        </div>
-
-        <div class="pr-box">
-          <h2 class="pr-section-title">Produk Terlaris</h2>
-          <table class="pr-table pr-table-mini">
-            <thead>
-              <tr><th>Produk</th><th class="pr-right">Qty</th><th class="pr-right">Total</th></tr>
-            </thead>
-            <tbody>${produkHtml}</tbody>
-          </table>
-        </div>
-
-        <div class="pr-box pr-notes">
-          <h2 class="pr-section-title">Catatan</h2>
-          <p>Laporan ini dihasilkan dari sistem KASIR NOVA.</p>
-          <p>Data berdasarkan transaksi pada outlet: <strong>- ${escapeHtml(outletLabel)}</strong></p>
-          <p>Kasir yang bertugas: <strong>${escapeHtml(kasirLabel)}</strong></p>
-          <p>Periode: <strong>${escapeHtml(periode)}</strong></p>
-          <p>Terima kasih telah menggunakan KASIR NOVA.</p>
-        </div>
-      </section>
-
-      <footer class="pr-foot">
-        <div><strong>KASIR NOVA</strong> · Solusi Kasir Semua Bisnis</div>
-        <div>Dicetak ${escapeHtml(dicetak)}${escapeHtml(halaman)}</div>
-      </footer>
-    </div>`;
-};
-
 const printTransactionReport = async () => {
   const b = activeBusiness();
   if (!b) return;
@@ -1938,7 +1763,15 @@ const printTransactionReport = async () => {
   try {
     const data = await guard(() => api.reports.transactions(b.id, reportQuery()));
     if (!data) return;
-    $('print-report').innerHTML = renderPrintReport(data);
+    $('print-report').innerHTML = renderPrintReport(data, {
+      escape: escapeHtml,
+      idr: fmtIDR,
+      periode: fmtPeriodeID,
+      cetak: fmtCetakID,
+      tanggalJam: fmtTanggalJamRingkas,
+      metode: (list) => (list ?? []).map((m) => METHOD_LABELS[m] ?? m).join(', ') || '—',
+      status: (key) => PRINT_STATUS_LABELS[key] ?? key,
+    });
     window.print();
     alertBox(
       'Halaman cetak dibuka. Pilih "Simpan sebagai PDF" atau printer Anda. Jangan ubah filter sebelum dialog cetak ditutup.',

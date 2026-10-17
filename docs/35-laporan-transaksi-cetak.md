@@ -28,6 +28,9 @@ Keputusan lain yang sudah berlaku: halaman cetak **tidak** dibuat untuk panel Ka
 **Ekspor Excel untuk Laporan Transaksi** dari daftar pekerjaan lanjutan —
 diterapkan pada **§5b** (tombol *Ekspor Laporan Transaksi (.xlsx)*).
 
+**Tambahan berikutnya (17 Okt 2026):** pemilik memilih **nomor halaman pada
+cetak laporan** — diterapkan pada **§5c** ("Halaman i dari N" per halaman).
+
 ---
 
 ## 2. Cara membaca contoh (agen tidak dapat "melihat" gambar)
@@ -147,6 +150,57 @@ Keputusan teknis:
 
 ---
 
+## 5c. Paginasi & nomor halaman (17 Okt 2026 — permintaan pemilik)
+
+Pemilik meminta **nomor halaman** (mis. "Halaman 1 dari 3") pada cetak laporan
+yang lebih dari satu halaman A4.
+
+**Masalah:** peramban memenggal halaman sendiri, dan CSS paged media **tidak
+menyediakan nomor halaman** untuk dipakai di dalam aliran dokumen
+(`@page { @bottom-center { content: counter(page) } }` tidak didukung Chrome —
+hanya bekerja pada mesin cetak seperti PrinceXML/WeasyPrint). Karena itu nomor
+halaman **tidak mungkin** benar tanpa memenggal halaman secara eksplisit.
+
+**Penyelesaian:** laporan disusun menjadi **beberapa halaman eksplisit**
+(`div.pr-page`, dipisah `break-before: page`) sehingga setiap halaman menulis
+footer-nya sendiri: **"Dicetak &lt;tanggal&gt; | Halaman i dari N"**. Halaman 2
+dan seterusnya memakai **kop ringkas** + judul "Detail Transaksi (lanjutan)" dan
+**header tabel diulang** (setiap halaman punya `<table>` sendiri dengan `thead`).
+
+**Kapasitas baris per halaman diukur, bukan dikira-kira.** Alat ukurnya
+`scripts/print-report-check.mjs`: menyusun laporan sintetis (memuat nama produk
+panjang), mencetaknya ke PDF dengan **Chrome headless** (`--print-to-pdf`, A4),
+lalu membandingkan **jumlah halaman PDF** dengan **jumlah halaman rencana**.
+Bila sebuah halaman rencana meluber, halaman PDF bertambah sehingga ketahuan.
+
+| Batas ukur (data uji nama panjang) | Baris |
+|---|---|
+| Halaman 1 (kop + info + kartu KPI) | ≈ 24 baris |
+| Halaman lanjutan (kop ringkas) | ≈ 29 baris |
+| Blok bawah (Ringkasan + Produk Terlaris + Catatan) | ≈ 5 baris |
+
+Nilai yang dipakai (`PRINT_LAYOUT` di `apps/owner/src/report-print.js`)
+**sengaja lebih kecil** sebagai margin aman (nama produk pada data nyata bisa
+lebih panjang sehingga baris terlipat dan bertambah tinggi):
+**halaman 1 = 21 baris**, **halaman lanjutan = 26 baris**, **blok bawah = 5 baris**.
+
+Konsekuensi yang diterima pemilik (dan dicatat jujur di sini):
+
+- Laporan **kecil (≤ 16 baris)** tetap **satu halaman** bersama blok bawah.
+- Laporan yang lebih besar bisa memakai **halaman terakhir khusus blok bawah**
+  (17 baris = 17 + 5 > 21) — lebih baik daripada ringkasan terpotong; sebelumnya
+  (tanpa paginasi) laporan ≥ 29 baris terpotong tanpa nomor halaman.
+- Halaman yang belum penuh itu **wajar**; yang tidak boleh adalah isi terpotong.
+
+Pembuktian akhir (17 Okt 2026, Chrome 140):
+
+```powershell
+node scripts/print-report-check.mjs --counts=0,1,16,17,20,21,46,47,68,120,400
+# SEMUA OK: jumlah halaman PDF = jumlah halaman yang direncanakan
+```
+
+---
+
 ## 6. Berkas yang dibuat / diubah
 
 **Dibuat**
@@ -171,12 +225,21 @@ Keputusan teknis:
   `reports.transactionsXlsx(businessId, params)`.
 - `apps/owner/index.html` — tombol `#rep-print-btn`, `#rep-transactions-xlsx`,
   wadah `#print-report`.
-- `apps/owner/src/app.js` — `renderPrintReport`, `printTransactionReport`,
-  `downloadTransactionReportExcel`, formatter tanggal Indonesia.
-- `apps/owner/styles/styles.css` — blok `@media print` (ter-scope ke `#print-report`).
-- `scripts/verify-ui.mjs` — pengunci **"laporan transaksi cetak (17 Okt 2026)"**
-  dan **"ekspor Excel laporan transaksi (17 Okt 2026)"**.
-- `scripts/qa-local.ps1` — label jumlah tes backend (248 → **253**, **265** setelah tes struk PDF, **266** setelah tes omzet/kembalian, lalu **268** setelah tes ekspor Excel).
+- `apps/owner/src/app.js` — `printTransactionReport`,
+  `downloadTransactionReportExcel`, formatter tanggal Indonesia; penyusun HTML
+  laporan dipindah ke modul `report-print.js` (§5c).
+- `apps/owner/src/report-print.js` (**baru**) — modul **murni** (tanpa DOM):
+  `planPrintPages()` (pembagian baris per halaman), `renderPrintReport()`
+  (HTML + footer nomor halaman), `PRINT_STATUS_LABELS`.
+- `apps/owner/styles/styles.css` — blok `@media print` (ter-scope ke `#print-report`),
+  pemisah `#print-report .pr-page + .pr-page { break-before: page }`, kop ringkas `.pr-cont`.
+- `scripts/print-report-check.mjs` (**baru**) — pengukur/pembukti tata letak cetak
+  (Chrome headless `--print-to-pdf`, A4; bandingkan halaman rencana vs halaman PDF).
+- `server/tests/report-print-pages.test.js` (**baru**) — 10 kasus paginasi & nomor halaman.
+- `scripts/verify-ui.mjs` — pengunci **"laporan transaksi cetak (17 Okt 2026)"**,
+  **"nomor halaman cetak laporan (17 Okt 2026)"**, **"ekspor Excel laporan transaksi (17 Okt 2026)"**,
+  dan penjaga regresi `STATUS_LABELS` tanpa definisi.
+- `scripts/qa-local.ps1` — label jumlah tes backend (248 → **253**, **265** setelah tes struk PDF, **266** setelah tes omzet/kembalian, **268** setelah tes ekspor Excel, **278** setelah tes paginasi cetak).
 - `docs/16-api-laporan.md`, `docs/05-roadmap.md`, `README.md` — endpoint + catatan progres.
 
 Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
@@ -199,8 +262,10 @@ Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
 | Perintah | Hasil |
 |---|---|
 | `node --test tests/report-transactions.test.js` | **8/8 lulus** (termasuk omzet/kembalian + 2 tes ekspor Excel) |
-| `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **268/268**) |
+| `node --test tests/report-print-pages.test.js` | **10/10 lulus** (paginasi + nomor halaman, lihat §5c) |
+| `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **278/278**) |
 | `node scripts/verify-ui.mjs` | **SEMUA OK** (termasuk bagian baru + **sintaks semua berkas JS panel**) |
+| `node scripts/print-report-check.mjs` | **SEMUA OK** — jumlah halaman PDF = jumlah halaman rencana untuk 0…400 baris (Chrome headless) |
 
 > **Regresi 17 Okt 2026 (dilaporkan pemilik):** blok duplikat di
 > `apps/owner/src/app.js` membuat **panel Owner blank putih** setelah deploy
@@ -230,10 +295,25 @@ Kasus uji `report-transactions.test.js`:
    baris **PERINGATAN "TERPOTONG"**, batas `limit` (0 / 20001 / bukan angka → 422),
    isolasi peran (owner lain 404, kasir 403, admin 200 dengan angka identik).
 
-Uji pada peramban (dialog cetak, PDF, tata letak A4) **belum** dijalankan —
-memerlukan perangkat/manusia; dicatat sebagai pekerjaan pemilik. Berkas Excel
-diverifikasi **otomatis** (dibuka ulang dengan ExcelJS), tetapi pembukaan di
-**Microsoft Excel/Google Sheets** tetap menunggu pemilik.
+Kasus uji `report-print-pages.test.js` (§5c, modul murni dimuat lewat `data:` URL):
+
+9. Pembagian halaman: kapasitas halaman 1 (21) < lanjutan (26); blok bawah menempel
+   bila masih ada ruang (16 baris → 1 halaman; 17 baris → blok bawah pindah halaman);
+   nomor baris menerus & `startIndex` benar; laporan kosong tetap 1 halaman;
+   kapasitas 0 tidak membuat perulangan tanpa akhir.
+10. Hasil render: 400 baris → **16 halaman** dan **setiap** halaman memuat
+    "Halaman i dari 16"; kolom NO menerus 1…400; kop ringkas + judul "(lanjutan)"
+    hanya di halaman 2+; blok bawah hanya di halaman terakhir; teks berbahaya
+    di-escape; peringatan "dipotong" hanya di halaman 1; status void → "Dibatalkan"
+    (regresi `STATUS_LABELS`).
+
+Uji pada peramban (dialog cetak, PDF, tata letak A4) **belum** dijalankan oleh agen —
+dialog cetak memerlukan manusia; dicatat sebagai pekerjaan pemilik. Sebagai gantinya
+**tata letak A4 diukur otomatis**: `scripts/print-report-check.mjs` mencetak laporan
+sintetis ke PDF lewat **Chrome headless** (A4, `--print-to-pdf`) dan memastikan
+jumlah halaman PDF = jumlah halaman rencana untuk 0…400 baris (tanpa halaman meluber
+atau kosong). Berkas Excel diverifikasi **otomatis** (dibuka ulang dengan ExcelJS),
+tetapi pembukaan di **Microsoft Excel/Google Sheets** tetap menunggu pemilik.
 
 ---
 
@@ -244,12 +324,16 @@ diverifikasi **otomatis** (dibuka ulang dengan ExcelJS), tetapi pembukaan di
 - **Uji buka berkas Excel** di aplikasi Excel/Google Sheets milik pemilik
   (isi & format sudah diverifikasi otomatis lewat ExcelJS).
 - **Laporan untuk Kasir** (keputusan A5a dicatat, belum diminta).
-- **Nomor halaman multi-halaman** (butuh perhitungan paginasi; saat ini hanya untuk
-  laporan ≤ 28 baris).
 
 > **Selesai 17 Okt 2026 (permintaan pemilik):** **Varian Excel** dari laporan ini
 > sudah tersedia — tombol *Ekspor Laporan Transaksi (.xlsx)* di panel Owner
 > (lihat §5b).
+>
+> **Selesai 17 Okt 2026 (permintaan pemilik):** **nomor halaman** pada laporan
+> multi-halaman — "Halaman i dari N" di footer **setiap** halaman, dengan
+> paginasi eksplisit + kapasitas baris **terukur** (lihat §5c). Pekerjaan ini
+> menggantikan catatan lama "hanya untuk laporan ≤ 28 baris": laporan sekarang
+> dipenggal sesuai kapasitas nyata dan bisa jauh melewati 28 baris.
 
 ---
 

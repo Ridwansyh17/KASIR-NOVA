@@ -23,6 +23,11 @@ end-to-end terhadap server lokal + DB dev (lihat §3a).
 > Satu perintah untuk seluruh matriks ini: `scripts/qa-local.ps1` (npm
 > `qa:local`). Tambahkan `-WithE2E` untuk sekalian menjalankan E2E 31 langkah;
 > skrip menampilkan ringkasan LULUS/GAGAL per tahap.
+>
+> **Pembaruan 17 Okt 2026:** skrip kini juga menjalankan tahap **tata letak cetak
+> laporan** (`scripts/print-report-check.mjs` — Chrome headless, dilewati otomatis
+> bila Chrome tidak terpasang), dan jumlah tes backend bertambah mengikuti fitur
+> baru (lihat `docs/35` §5c & §7).
 
 ## 2. Cakupan uji backend (246)
 

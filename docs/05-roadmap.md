@@ -800,6 +800,51 @@ proyek Vercel yang salah": `docs/24` bagian *Deploy 17 Okt 2026 (lanjutan)*.
 **Belum dikerjakan:** pembukaan berkas di Excel/Google Sheets versi pemilik;
 tombol ini tidak muncul di APK (panel Owner hanya di web).
 
+## 17 Okt 2026 - Nomor Halaman Cetak Laporan Transaksi (Owner)
+
+Permintaan pemilik (dipilih dari daftar lanjutan): **nomor halaman** ("Halaman i
+dari N") pada cetak *Laporan Transaksi* yang lebih dari satu halaman A4.
+
+**Inti masalah:** CSS paged media tidak memberi nomor halaman ke dalam aliran
+dokumen (Chrome tidak mendukung `@bottom-center { content: counter(page) }`), dan
+peramban memenggal halaman sesuka ukuran isi. Jadi laporan harus **dipenggal
+sendiri** supaya nomornya benar.
+
+**Dikerjakan:**
+- `apps/owner/src/report-print.js` (**baru**; murni, tanpa DOM) —
+  `PRINT_LAYOUT { rowsFirstPage: 21, rowsNextPage: 26, tailRows: 5 }`,
+  `planPrintPages()` (pembagian baris + peletakan blok bawah),
+  `pageLabel()`, `renderPrintReport()` (HTML per halaman + footer nomor halaman),
+  `PRINT_STATUS_LABELS`.
+- `apps/owner/src/app.js` — penyusun HTML laporan (178 baris) dipindah dari `app.js`
+  ke modul di atas; panggilan kini mengirim peta formatter
+  (`escape/idr/periode/cetak/tanggalJam/metode/status`).
+- `apps/owner/styles/styles.css` — `#print-report .pr-page + .pr-page { break-before: page }`
+  + gaya kop ringkas `.pr-cont` untuk halaman lanjutan.
+- `scripts/print-report-check.mjs` (**baru**) — pengukur tata letak nyata: cetak
+  laporan sintetis ke **PDF via Chrome headless** (A4) lalu bandingkan jumlah
+  halaman PDF dengan jumlah halaman rencana.
+- `server/tests/report-print-pages.test.js` (**baru**) — **10 kasus** paginasi,
+  nomor halaman, escaping, dan regresi label status.
+
+**Kapasitas (diukur, lalu diberi margin):** halaman 1 ≈ 24 baris, halaman lanjutan
+≈ 29 baris, blok bawah ≈ 5 baris → dipakai **21 / 26 / 5**. Konsekuensi yang
+diterima: laporan **≤ 16 baris** tetap 1 halaman; laporan 17–21 baris memakai
+halaman terakhir khusus untuk ringkasan (lebih baik daripada ringkasan terpotong).
+
+**Berkas:** `docs/35` (§5c + §5b/section terkait + §6 + §7 + §8), `docs/16`
+(jumlah tes), `scripts/verify-ui.mjs` (bagian **"nomor halaman cetak laporan
+(17 Okt 2026)"** + penjaga regresi `STATUS_LABELS`), `scripts/qa-local.ps1`
+(label **278**), `README.md`.
+
+**Pengujian lokal:** `report-print-pages.test.js` **10/10**, suite server
+**278/278**, `verify:ui` **SEMUA OK**, `scripts/qa-local.ps1` semua tahap lulus,
+dan `print-report-check.mjs` **SEMUA OK** untuk 0…400 baris (jumlah halaman PDF =
+jumlah halaman rencana; tidak ada halaman meluber/kosong).
+
+**Belum dikerjakan:** pencetakan sungguhan oleh pemilik (dialog cetak Chrome/Edge →
+PDF) untuk menilai tampilan; tombol ini juga tidak muncul di APK.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.

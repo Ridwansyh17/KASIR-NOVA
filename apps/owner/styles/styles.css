@@ -962,6 +962,28 @@ body {
     width: 100%;
   }
 
+  /* Paginasi eksplisit (17 Okt 2026): setiap halaman dipisah tegas supaya
+     footer dapat menulis nomor halaman masing-masing ("Halaman i dari N").
+     Peramban TIDAK dipakai untuk memenggal sendiri — kapasitas baris per
+     halaman sudah dibatasi di `src/report-print.js` (diukur, lihat docs/35). */
+  #print-report .pr-page + .pr-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Kop ringkas pada halaman lanjutan (halaman 2 dan seterusnya). */
+  #print-report .pr-cont {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 5px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #cdd9ea;
+    font-size: 9px;
+    color: #5b6b85;
+  }
+
   /* ------------------------------------------------------------- kop --- */
   #print-report .pr-head {
     display: flex;

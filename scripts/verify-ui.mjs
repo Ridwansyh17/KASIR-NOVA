@@ -501,6 +501,61 @@ if (printMissing === 0) {
   console.log('  tombol cetak, halaman cetak, endpoint, dan CSS cetak lengkap.');
 }
 
+// --------------------- Nomor halaman cetak laporan (17 Okt 2026) -------------
+// Permintaan pemilik (lanjutan): nomor "Halaman i dari N" pada cetak laporan
+// yang lebih dari satu halaman A4. Paginasi eksplisit (kapasitas baris diukur
+// dengan Chrome headless --print-to-pdf, lihat scripts/print-report-check.mjs).
+console.log('\n[nomor halaman cetak laporan (17 Okt 2026)]');
+
+const reportPrintSrc = readApp('owner', 'src', 'report-print.js');
+const halamanChecks = [
+  [
+    reportPrintSrc,
+    'apps/owner/src/report-print.js',
+    [
+      'export const PRINT_LAYOUT',
+      'planPrintPages',
+      'pageLabel',
+      'renderPrintReport',
+      'PRINT_STATUS_LABELS',
+      'Halaman ${page} dari ${total}',
+    ],
+  ],
+  [
+    ownerJs6,
+    'apps/owner/src/app.js',
+    ['./report-print.js', 'renderPrintReport(data, {', 'PRINT_STATUS_LABELS'],
+  ],
+  [
+    ownerCss17,
+    'apps/owner/styles/styles.css',
+    ['#print-report .pr-page + .pr-page', 'break-before: page', '#print-report .pr-cont'],
+  ],
+];
+let halamanMissing = 0;
+for (const [src, label, needles] of halamanChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (nomor halaman cetak hilang?)`);
+      halamanMissing++;
+    }
+  }
+}
+if (halamanMissing === 0) {
+  console.log('  modul paginasi, pemisah halaman, dan nomor halaman lengkap.');
+}
+
+// Regresi: `STATUS_LABELS` tanpa awalan `PRINT_` pernah membuat cetak laporan
+// dengan filter void/refund gagal (ReferenceError). Jangan sampai kembali.
+const statusLabelsBare = ownerJs6.match(/(?<!PRINT_)STATUS_LABELS\s*\[/g) ?? [];
+if (statusLabelsBare.length > 0) {
+  fail(
+    `apps/owner/src/app.js memakai STATUS_LABELS tanpa definisi (${statusLabelsBare.length} kali) — cetak laporan void/refund akan gagal.`
+  );
+} else {
+  console.log('  label status cetak memakai PRINT_STATUS_LABELS (bukan STATUS_LABELS liar).');
+}
+
 // -------------------------- Ekspor Excel Laporan Transaksi (17 Okt 2026) -----
 // Berkas .xlsx untuk laporan yang SAMA (satu baris per ITEM) — permintaan Owner.
 console.log('\n[ekspor Excel laporan transaksi (17 Okt 2026)]');

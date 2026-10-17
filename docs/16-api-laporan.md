@@ -408,5 +408,6 @@ item), sehingga Owner dapat mengolahnya di Excel tanpa mengetik ulang:
      peran (owner lain 404, kasir 403, admin 200).
 - Total suite server (17 Okt 2026, setelah tes laporan transaksi): **253/253**
   → setelah tes **struk PDF**, **omzet/kembalian**, dan **ekspor Excel laporan
-  transaksi** menjadi **268/268**.
+  transaksi** menjadi **278/278** (ditambah **10 kasus paginasi & nomor halaman
+   cetak**, `server/tests/report-print-pages.test.js` — lihat `docs/35` §5c).
   (`report-transactions.test.js` menambah 5 dari 248, kini berisi **8 kasus**).
