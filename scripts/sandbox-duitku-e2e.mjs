@@ -21,6 +21,7 @@
  * Pemakaian (dari root repo, server lokal harus jalan):
  *   node scripts/sandbox-duitku-e2e.mjs                 # gateway belum diisi ⇒ berhenti rapi
  *   node scripts/sandbox-duitku-e2e.mjs --show-va       # tampilkan nomor VA penuh
+ *   node scripts/sandbox-duitku-e2e.mjs --channel NQ    # pakai kanal tertentu (mis. QRIS)
  *   BASE_URL=http://localhost:4000 node scripts/sandbox-duitku-e2e.mjs
  */
 import { readFileSync } from 'node:fs';
@@ -30,6 +31,13 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = process.env.BASE_URL || 'http://localhost:4000';
 const SHOW_VA = process.argv.includes('--show-va');
+const argValue = (name) => {
+  const i = process.argv.indexOf(name);
+  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith('--')
+    ? process.argv[i + 1].trim().toUpperCase()
+    : null;
+};
+const CHANNEL = argValue('--channel');
 
 /** Baca satu nilai dari server/.env (nilai TIDAK pernah dicetak). */
 const envValue = (name) => {
@@ -120,7 +128,12 @@ if (opsi.status !== 200) {
   process.exit(1);
 }
 const gateway = opsi.json.gateway ?? {};
-const paket = (opsi.json.plans ?? []).filter((p) => p.purchasable);
+// Hanya paket berbayar yang memenuhi minimum gateway (nominal < minimum
+// ditolak server dengan 422, jadi tidak ada gunanya diuji).
+const minIdr = Number(gateway.min_amount_idr ?? 0);
+const semuaBerbayar = (opsi.json.plans ?? []).filter((p) => p.purchasable);
+const terlaluKecil = semuaBerbayar.filter((p) => p.price < minIdr * 100);
+const paket = semuaBerbayar.filter((p) => p.price >= minIdr * 100);
 const ringkasGateway = `provider=${gateway.provider} mode=${gateway.mode} enabled=${gateway.enabled} kanal=${(gateway.channels ?? []).map((c) => c.code).join(',') || '-'}${gateway.reason ? ` alasan=${gateway.reason}` : ''}`;
 
 if (!gateway.enabled) {
@@ -142,11 +155,29 @@ if (!gateway.enabled) {
 }
 step('4. Status gateway pembayaran', true, ringkasGateway);
 
-step('5. Paket berbayar tersedia', paket.length > 0, paket[0] ? `${paket[0].name} = ${paket[0].price} sen / ${paket[0].duration_days} hari` : 'tidak ada');
-if (!paket.length) process.exit(1);
+const infoPaket = paket[0]
+  ? `${paket[0].name} = ${paket[0].price} sen / ${paket[0].duration_days} hari` +
+    (terlaluKecil.length > 0 ? ` (dilewati ${terlaluKecil.length} paket < minimum Rp ${minIdr.toLocaleString('id-ID')})` : '')
+  : `tidak ada paket ≥ Rp ${minIdr.toLocaleString('id-ID')}`;
+step('5. Paket berbayar tersedia', paket.length > 0, infoPaket);
+if (!paket.length) {
+  console.log(
+    `\nRingkasan: tidak ada paket berbayar yang memenuhi minimum gateway (Rp ${minIdr.toLocaleString('id-ID')}).\n` +
+      'Buat paket uji dengan harga ≥ minimum, atau turunkan PAYMENT_MIN_AMOUNT_IDR di server/.env.'
+  );
+  process.exit(1);
+}
 
 // ------------------------------------------------------- 6. buat tagihan
-const kanal = (gateway.channels ?? [])[0]?.code;
+const kanalTersedia = (gateway.channels ?? []).map((c) => c.code);
+if (CHANNEL && !kanalTersedia.includes(CHANNEL)) {
+  console.log(
+    `\nRingkasan: kanal ${CHANNEL} tidak aktif di server ini (aktif: ${kanalTersedia.join(',') || '-'}).\n` +
+      `Tambahkan kode itu pada PAYMENT_CHANNELS di server/.env lalu restart server.`
+  );
+  process.exit(1);
+}
+const kanal = CHANNEL || kanalTersedia[0];
 const buat = await api(`${subPath}/invoices`, {
   method: 'POST',
   token,
@@ -164,7 +195,7 @@ step(
   `status=${buat.status} reused=${buat.json?.reused === true} order=${inv.order_id} status=${inv.status} nominal=${inv.amount} sen kanal=${inv.payment_method_label ?? inv.payment_method}`
 );
 console.log(
-  `         VA/QR  : ${inv.va_number ? `VA ${mask(inv.va_number)}` : inv.qr_string ? 'QRIS (string tersedia di panel)' : '(tidak ada)'}` +
+  `         VA/QR  : ${inv.va_number ? `VA ${mask(inv.va_number)}` : inv.qr_string ? `QRIS qrString ${String(inv.qr_string).length} karakter (digambar di panel)` : '(tidak ada)'}` +
     `\n         berlaku: ${inv.expires_at ?? '-'}` +
     `\n         tautan : ${inv.payment_url ?? '-'}`
 );

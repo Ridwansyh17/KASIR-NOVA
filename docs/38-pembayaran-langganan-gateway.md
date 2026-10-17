@@ -276,11 +276,17 @@ Hasil terakhir: **321/321** tes backend lulus, `scripts/verify-ui.mjs` →
    cd server ; npm.cmd run dev
    # terminal 2: dari root repo
    npm.cmd run sandbox:duitku          # tambahkan --show-va bila ingin nomor VA penuh
+   node scripts/sandbox-duitku-e2e.mjs --channel NQ   # uji kanal tertentu (mis. QRIS)
    ```
 
    Sebelum kredensial diisi, harness berhenti rapi dengan pesan
    *"gateway BELUM dikonfigurasi"* (status keluar 0) dan **tidak** membuat
-   tagihan apa pun.
+   tagihan apa pun. Bila kredensial baru sebagian, harness menampilkan
+   `alasan` dari server (mis. `kredensial_duitku_belum_lengkap`).
+   Harness memilih paket berbayar termurah yang **memenuhi**
+   `PAYMENT_MIN_AMOUNT_IDR` (default Rp 10.000); paket di bawah minimum
+   dilewati karena server menolaknya dengan 422 (aturan internal kami, bukan
+   aturan Duitku).
 3. Atau lewat panel: login Owner → **Langganan** → **Bayar / Perpanjang** →
    pilih paket & kanal `BC`.
 4. Bayar VA sandbox lewat halaman demo Duitku
@@ -296,13 +302,49 @@ Hasil terakhir: **321/321** tes backend lulus, `scripts/verify-ui.mjs` →
    Selama belum diisi, endpoint menjawab **503** (aman) — sudah diverifikasi di
    produksi.
 
+### Bukti uji sandbox (17 Okt 2026, server lokal)
+
+Kredensial sandbox diisi pemilik di `server/.env` (tidak masuk repo). Harness
+`npm.cmd run sandbox:duitku` dijalankan dari root repo:
+
+| Langkah | Hasil |
+| --- | --- |
+| 1. Health server lokal | PASS (`db=up`) |
+| 2. Login Owner | PASS (`role=owner`) |
+| 3. Bisnis milik Owner | PASS ("Demo Kasir NOVA") |
+| 4. Status gateway | PASS `provider=duitku mode=sandbox enabled=true kanal=BC,I1,M2,BR` |
+| 5. Paket berbayar | PASS "Paket Uji 10rb" (1 paket Rp 5.000 dilewati: < minimum) |
+| 6. Buat tagihan | PASS `201 order=SINV-20261017075100-221B9DFB status=pending kanal=BCA Virtual Account` |
+| 7. Cek status ke gateway | PASS `status=200 tagihan=pending diperiksa=true` |
+
+Artinya **inquiry** dan **cek status** sudah benar-benar berbicara dengan sandbox
+Duitku (bukan tiruan). Yang belum: menyelesaikan pembayaran sampai langganan
+teraktivasi, dan callback asli dari Duitku ke produksi.
+
+Uji kanal **QRIS** (`node scripts/sandbox-duitku-e2e.mjs --channel NQ`; kode `NQ`
+= QRIS (Nobu) ditambahkan pada `PAYMENT_CHANNELS`):
+
+| Langkah | Hasil |
+| --- | --- |
+| 6. Buat tagihan | PASS `201 order=SINV-20261017075246-B99D29DB status=pending kanal=QRIS (Nobu)` |
+| 6. `qrString` dari gateway | **294 karakter** (inilah yang digambar panel Owner — §12) |
+| 7. Cek status ke gateway | PASS `status=200 tagihan=pending` |
+
+Tagihan uji memakai paket yang sama tetapi kanal berbeda, sehingga tagihan VA
+yang masih pending **tidak** terpakai ulang (aturan pakai-ulang: bisnis + paket
++ kanal). Menyelesaikan pembayaran QRIS sandbox tetap perlu aplikasi staging
+(ShopeePay/Nusapay) — lihat §8.
+
 ---
 
 ## 11. Batasan & tindak lanjut
 
 - **Gambar QR QRIS** sudah dirender di panel Owner (17 Okt 2026) memakai encoder
   yang di-**vendor** apa adanya — lihat §12.
-- **Callback sungguhan belum diuji** (butuh kredensial + URL publik).
+- **Inquiry + cek status gateway sudah diuji nyata** ke sandbox Duitku
+  (17 Okt 2026) — lihat §10 "Bukti uji sandbox".
+- **Pembayaran penuh (aktivasi langganan) & callback asli belum diuji**
+  (butuh menyelesaikan pembayaran di halaman demo Duitku + URL publik).
 - `auto_renew` masih `false`; penagihan otomatis (tabel
   `subscription_payments` + job) tetap modul ditangguhkan.
 - Mode **production** belum diaktifkan; kunci pengaman
