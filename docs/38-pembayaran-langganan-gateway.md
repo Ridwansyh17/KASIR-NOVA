@@ -283,12 +283,52 @@ Hasil terakhir: **321/321** tes backend lulus, `scripts/verify-ui.mjs` →
 
 ## 11. Batasan & tindak lanjut
 
-- **Gambar QR QRIS** belum dirender di panel: string QRIS ditampilkan (dapat
-  disalin) + tautan halaman pembayaran Duitku. Menampilkan gambar QR perlu
-  keputusan pemilik (menulis encoder QR sendiri atau memakai pustaka pihak
-  ketiga yang di-*vendor*).
+- **Gambar QR QRIS** sudah dirender di panel Owner (17 Okt 2026) memakai encoder
+  yang di-**vendor** apa adanya — lihat §12.
 - **Callback sungguhan belum diuji** (butuh kredensial + URL publik).
 - `auto_renew` masih `false`; penagihan otomatis (tabel
   `subscription_payments` + job) tetap modul ditangguhkan.
 - Mode **production** belum diaktifkan; kunci pengaman
   `PAYMENT_ALLOW_PRODUCTION` mencegah tagihan nyata tanpa persetujuan.
+
+---
+
+## 12. Kode QR QRIS (encoder yang di-vendor)
+
+Owner memindai QRIS dari layar, jadi `qrString` dari gateway perlu digambar
+sebagai **kode QR**, bukan hanya ditampilkan sebagai teks.
+
+| Berkas | Isi |
+|---|---|
+| `shared/vendor/qrcode-generator.js` | pustaka pihak ketiga, **apa adanya** (verbatim) |
+| `shared/qr-code.js` | modul bersama KASIR NOVA: `encode` / `toSvg` / `toDataUrl` / `isAvailable` |
+| `apps/owner/src/{qr-code.js,vendor/qrcode-generator.js}` | salinan (dijaga identik oleh `scripts/sync-shared.mjs` + `verify-ui.mjs`) |
+| `scripts/test-qr-code.mjs` | 9 uji (struktur QR, quiet zone, BCH format-info, kapasitas, galat) |
+
+- **Pustaka:** *QR Code Generator for JavaScript* — Copyright (c) 2009
+  Kazuhiko Arase, **lisensi MIT** (header asli dipertahankan di berkas vendor).
+  Sumber: `https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js`
+  (SHA-256 `18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780`,
+  56.694 byte). Pembaruan = salin berkas rilis baru apa adanya, lalu
+  `node scripts/sync-shared.mjs`.
+- **Keluaran:** SVG **data URL** (tanpa canvas) → cukup `<img src="…">`,
+  tidak menambah dependensi DOM/runtime apa pun.
+- **Quiet zone 4 modul** (syarat EMVCo/QRIS), ECC default **M**; bila isi
+  melampaui kapasitas ECC M (2.331 byte) otomatis turun ke **L**, dan bila
+  tetap tidak muat dipakai pesan galat yang jelas (panel kembali ke string
+  QRIS + tautan gateway).
+- **Keamanan:** isi QR **tidak pernah** masuk ke markup SVG — hanya koordinat
+  modul (angka) hasil hitungan pustaka, jadi tidak ada jalur injeksi
+  HTML/SVG dari data gateway. Pengunci negatif di
+  `scripts/verify-ui.mjs` menolak `<text>`/`<foreignObject>` di modul ini dan
+  menolak `qr_string` dipasang mentah sebagai `src` gambar.
+- **Bukti dapat dipindai (17 Okt 2026):** encoder diuji dengan **decoder
+  independen (jsQR)** di luar repo — **5/5 terbaca identik**: `HELLO WORLD`
+  (v1), QRIS ~230 karakter (v10), 700 karakter (v21), 1.200 karakter (v29),
+  1.800 karakter ECC L (v31). Selain itu, dirender di **Chrome headless**
+  (`/owner/`): `window.NovaQr.isAvailable() = true`,
+  `img` QR **berhasil dimuat** dengan ukuran 390×390 px (65 modul × 6 px,
+  termasuk quiet zone 4 modul).
+- **Uji pindai nyata** dengan aplikasi e-wallet tetap disarankan sekali saat
+  uji sandbox (manual, oleh pemilik proyek).
+

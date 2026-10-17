@@ -75,6 +75,12 @@ nova-kasir/
 │       │   └── utils.js      # Format rupiah, tanggal, dll.
 │       └── package.json
 │
+├── shared/                   # Modul frontend KANONIK (disalin ke apps/*)
+│   ├── product-image.js      # Smart Product Image (FASE 2)
+│   ├── qr-code.js            # Kode QR QRIS (pembayaran langganan, 17 Okt 2026)
+│   └── vendor/               # Pustaka pihak ketiga APA ADANYA (lisensi asli)
+│       └── qrcode-generator.js   # MIT, (c) 2009 Kazuhiko Arase
+│
 ├── scripts/                  # Skrip operasional (install PG, backup, dll.)
 ├── .gitignore                # Abaikan node_modules, .env, dist, log
 ├── .env.example              # Contoh variabel lingkungan root
@@ -91,5 +97,11 @@ nova-kasir/
   Build terpisah mencegah kode Kasir ikut dimuat di bundle Admin.
 - **`packages/shared`:** format IDR, konstanta peran, dan skema validasi
   dipakai ulang oleh server dan semua apps sehingga aturan tidak menyimpang.
+- **`shared/` (frontend kanonik):** aplikasi tidak memakai bundler, jadi modul
+  frontend yang dipakai lebih dari satu panel disimpan satu kali di `shared/`
+  lalu **disalin** ke `apps/<panel>/src/` oleh `scripts/sync-shared.mjs`
+  (dijaga identik oleh `scripts/verify-ui.mjs`). Pustaka pihak ketiga
+  disimpan apa adanya di `shared/vendor/` agar lisensi & versinya jelas
+  (saat ini: encoder QR MIT untuk QRIS langganan).
 - **`migrations/` SQL murni terlacak:** setiap perubahan skema tercatat di git
   dan bisa di-rollback, bukan skema hasil desain manual.

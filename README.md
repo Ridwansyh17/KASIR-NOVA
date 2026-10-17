@@ -135,6 +135,8 @@ apps/owner   Panel Owner (multi-bisnis)
 apps/kasir   Aplikasi Kasir (POS)
 apps/kasir-mobile  Kemasan Capacitor -> APK Android (printer Bluetooth)
 packages/    Kode bersama (validasi, konstanta, format IDR)
+shared/      Modul frontend kanonik (disalin ke apps/* oleh scripts/sync-shared.mjs)
+             + shared/vendor/ untuk pustaka pihak ketiga apa adanya (encoder QR, MIT)
 docs/        Dokumentasi arsitektur & roadmap
 ```
 
@@ -235,8 +237,9 @@ roadmap fase.
 - **Pembayaran Langganan via Payment Gateway (17 Okt 2026)**: Owner membayar
   langganan sendiri dari panel Owner (tombol **Bayar / Perpanjang**) memakai
   **API inti per kanal Duitku SANDBOX** (Virtual Account / QRIS): server membuat
-  tagihan (`subscription_invoices`, migrasi `0010`), menampilkan nomor VA/string
-  QRIS, lalu mengaktifkan langganan **setelah callback bertanda tangan
+  tagihan (`subscription_invoices`, migrasi `0010`), menampilkan nomor VA /
+  **kode QR QRIS** (gambar QR dari encoder MIT yang di-vendor + string yang
+  dapat disalin), lalu mengaktifkan langganan **setelah callback bertanda tangan
   (HMAC-SHA256) menyatakan berhasil** — pola sama dengan Admin memasang paket,
   `auto_renew` tetap `false`. Nominal **selalu** dari `subscription_plans.price`
   (sen) di server; tanpa kredensial, endpoint menjawab **503** dan aplikasi tetap

@@ -405,7 +405,32 @@ const openPayModal = async () => {
   }
 };
 
-/** Tampilkan instruksi pembayaran (nomor VA / string QRIS + tautan gateway). */
+/**
+ * Tampilkan gambar QR dari string QRIS (modul bersama `shared/qr-code.js`).
+ *
+ * Degradasi rapi: bila pustaka QR belum termuat atau isi ditolak, gambar
+ * disembunyikan dan panel tetap menampilkan string QRIS + tautan gateway.
+ * @returns {boolean} true bila gambar berhasil dipasang
+ */
+const showQrImage = (img, text) => {
+  const QR = typeof window !== 'undefined' ? window.NovaQr : null;
+  const gagal = () => {
+    hide(img);
+    img.removeAttribute('src');
+    return false;
+  };
+  if (!QR?.isAvailable?.()) return gagal();
+  try {
+    // margin 4 modul = syarat quiet zone EMVCo/QRIS; scale 6 px per modul.
+    img.src = QR.toDataUrl(text, { margin: 4, scale: 6 });
+    show(img);
+    return true;
+  } catch {
+    return gagal();
+  }
+};
+
+/** Tampilkan instruksi pembayaran (nomor VA / kode QRIS + tautan gateway). */
 const renderPayInstruction = () => {
   const inv = state.payInvoice;
   if (!inv) return;
@@ -424,11 +449,15 @@ const renderPayInstruction = () => {
   $('pay-number').textContent = inv.va_number || inv.qr_string || inv.order_id || '—';
 
   const qrWrap = $('pay-qr-wrap');
+  const qrImg = $('pay-qr-img');
   if (inv.qr_string && !inv.va_number) {
     $('pay-qr').value = inv.qr_string;
+    showQrImage(qrImg, inv.qr_string);
     show(qrWrap);
   } else {
     $('pay-qr').value = '';
+    hide(qrImg);
+    qrImg.removeAttribute('src');
     hide(qrWrap);
   }
 

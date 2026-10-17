@@ -981,6 +981,21 @@ body {
   resize: vertical;
 }
 
+/* Gambar QRIS: latar putih + tepi tipis agar tetap terbaca &
+   kontras saat dicetak/difoto. `image-rendering: pixelated` menjaga
+   tepi modul tetap tajam (SVG tetap dipakai, ini hanya pengaman). */
+.pay-qr-img {
+  width: 216px;
+  height: 216px;
+  max-width: 100%;
+  align-self: center;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  image-rendering: pixelated;
+}
+
 /* ==========================================================================
    HALAMAN CETAK "LAPORAN TRANSAKSI" (Owner — 17 Okt 2026)
    --------------------------------------------------------------------------

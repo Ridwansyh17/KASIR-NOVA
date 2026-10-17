@@ -947,8 +947,19 @@ langganan** agar uji coba dapat dilakukan sebelum produksi.
   (`requireBusinessAccess`) dan **publik** `POST /api/payments/duitku/callback`
   + `GET /api/payments/duitku/return` (limiter + allowlist IP opsional).
 - **Panel Owner:** tombol **Bayar / Perpanjang**, modal pilih paket & kanal,
-  tampilan nomor VA/string QRIS + tautan pembayaran, tombol **Cek Status**, dan
-  **riwayat tagihan** di kartu Langganan.
+  tampilan nomor VA/**kode QR QRIS** (gambar QR + string yang dapat disalin) +
+  tautan pembayaran, tombol **Cek Status**, dan **riwayat tagihan** di kartu
+  Langganan.
+- **Encoder QR di-vendor (17 Okt 2026):** Owner memindai QRIS dari layar, jadi
+  `qrString` digambar sebagai kode QR memakai pustaka *QR Code Generator for
+  JavaScript* (MIT, Kazuhiko Arase) yang di-*vendor* apa adanya di
+  `shared/vendor/qrcode-generator.js`, dibungkus `shared/qr-code.js`
+  (keluaran SVG data URL, tanpa canvas, quiet zone 4 modul sesuai EMVCo/QRIS).
+  Salinan ke `apps/owner/src/` dijaga oleh `scripts/sync-shared.mjs`;
+  uji baru `scripts/test-qr-code.mjs` (**9 kasus**). Bukti dapat dipindai:
+  **decoder independen (jsQR) 5/5 terbaca identik** (termasuk QRIS ~230
+  karakter → versi 10) + render nyata di Chrome headless (gambar 390×390 px).
+  Rincian: `docs/38` §12.
 - **Tes baru:** `duitku-client.test.js` (**12**) + `subscription-invoice.test.js`
   (**18**) dengan transport gateway disuntikkan dan verifikasi tanda tangan
   memakai implementasi asli. **Dokumen baru** `docs/38-pembayaran-langganan-gateway.md`;
@@ -957,13 +968,15 @@ langganan** agar uji coba dapat dilakukan sebelum produksi.
   pengunci negatif), `scripts/qa-local.ps1` (label **321**).
 
 **Pengujian lokal:** suite server **321/321** lulus, `node scripts/verify-ui.mjs`
-**SEMUA OK**, `scripts/qa-local.ps1` **SEMUA TAHAP LULUS** (7/7), Chrome headless
-`/owner/` menampilkan `#login-view` + `#pay-modal` (modul panel tidak blank).
+**SEMUA OK**, `scripts/qa-local.ps1` **SEMUA TAHAP LULUS** (8/8: tahap baru
+*Kode QR QRIS*), Chrome headless `/owner/` menampilkan `#login-view` +
+`#pay-modal` (modul panel tidak blank) dan berhasil memuat gambar QR
+(390×390 px).
 
 **Belum dikerjakan:** panggilan **sungguhan** ke Duitku (butuh kredensial sandbox
 di `server/.env`), uji **callback sungguhan** (butuh backend dapat dijangkau
-internet → menunggu izin deploy), **gambar QR** QRIS di panel (keputusan pemilik),
-mode produksi, dan penagihan otomatis (`auto_renew`).
+internet → menunggu izin deploy), mode produksi, dan penagihan otomatis
+(`auto_renew`).
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk

@@ -1006,11 +1006,23 @@
               <a id="pay-open" class="btn small hidden" target="_blank" rel="noopener">Buka halaman pembayaran</a>
             </div>
             <div id="pay-qr-wrap" class="hidden">
-              <p class="muted small">
-                String QRIS di bawah dapat disalin ke aplikasi pembayaran yang mendukung input QRIS
-                manual, atau gunakan tombol “Buka halaman pembayaran” untuk menampilkan kode QR.
+              <img
+                id="pay-qr-img"
+                class="pay-qr-img hidden"
+                alt="Kode QRIS untuk pembayaran langganan"
+              />
+              <p id="pay-qr-note" class="muted small">
+                Pindai kode QR di atas dengan aplikasi pembayaran/e-wallet yang mendukung QRIS.
+                Bila kode tidak tampil, salin string QRIS di bawah ke aplikasi yang mendukung
+                input QRIS manual, atau gunakan tombol &ldquo;Buka halaman pembayaran&rdquo;.
               </p>
-              <textarea id="pay-qr" class="pay-qr-text" readonly rows="4"></textarea>
+              <textarea
+                id="pay-qr"
+                class="pay-qr-text"
+                readonly
+                rows="4"
+                aria-label="String QRIS"
+              ></textarea>
             </div>
           </div>
 
@@ -1109,6 +1121,8 @@
     <!-- Konfigurasi runtime (API base URL) — dimuat sebelum app.js. -->
     <script src="./config.js"></script>
     <script src="./src/product-image.js"></script>
+    <script src="./src/vendor/qrcode-generator.js"></script>
+    <script src="./src/qr-code.js"></script>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

@@ -22,6 +22,19 @@ export const SHARED_FILES = [
     from: 'shared/product-image.js',
     to: ['apps/owner/src/product-image.js', 'apps/kasir/src/product-image.js'],
   },
+  // Kode QR (QRIS) — hanya panel Owner yang menampilkannya (pembayaran
+  // langganan, 17 Okt 2026). Tambahkan 'apps/kasir/src/qr-code.js' di sini
+  // bila panel kasir suatu saat butuh menampilkan QR.
+  {
+    from: 'shared/qr-code.js',
+    to: ['apps/owner/src/qr-code.js'],
+  },
+  // Pustaka pihak ketiga yang di-vendor apa adanya (MIT, Kazuhiko Arase).
+  // Jangan diubah: pembaruan dilakukan dengan menyalin berkas rilis baru.
+  {
+    from: 'shared/vendor/qrcode-generator.js',
+    to: ['apps/owner/src/vendor/qrcode-generator.js'],
+  },
 ];
 
 let changed = 0;

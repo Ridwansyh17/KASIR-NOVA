@@ -28,6 +28,12 @@ end-to-end terhadap server lokal + DB dev (lihat §3a).
 > laporan** (`scripts/print-report-check.mjs` — Chrome headless, dilewati otomatis
 > bila Chrome tidak terpasang), dan jumlah tes backend bertambah mengikuti fitur
 > baru (lihat `docs/35` §5c & §7).
+>
+> **Pembaruan 17 Okt 2026 (sore):** urutan tahap `qa-local.ps1` menjadi **8
+> tahap** — ditambah **Kode QR QRIS** (`node --test scripts/test-qr-code.mjs`,
+> 9 kasus) untuk pembayaran langganan; jumlah tes backend menjadi **321** dan
+> `verify-ui.mjs` menambah bagian *"pembayaran langganan"* + *"kode QR QRIS"*
+> (lihat `docs/38`).
 
 ## 2. Cakupan uji backend (246)
 

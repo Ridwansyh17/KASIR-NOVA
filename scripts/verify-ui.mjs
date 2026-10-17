@@ -870,6 +870,119 @@ if (payMissing === 0) {
   console.log('  panel, klien Duitku (HMAC), rute owner, callback publik, migrasi, dan env: lengkap.');
 }
 
+// ----------------------- Kode QR QRIS (17 Okt 2026) --------------------------
+// Owner menampilkan QRIS dari `qrString` gateway sebagai GAMBAR QR. Encoder
+// dipakai dari pustaka yang di-vendor apa adanya (MIT, Kazuhiko Arase) dan
+// dibungkus modul bersama `shared/qr-code.js` (SVG data URL, tanpa canvas).
+// Kunci regresi:
+//   - salinan di panel tidak menyimpang dari sumber kanonik,
+//   - berkas vendor utuh + lisensi aslinya tetap ada,
+//   - skrip dimuat SEBELUM app.js (kalau tidak, QR tidak akan muncul),
+//   - isi QR tidak pernah ditulis ke markup (hanya koordinat modul).
+console.log('\n[kode QR QRIS (17 Okt 2026)]');
+
+const qrCanonicalPath = join(root, 'shared', 'qr-code.js');
+const qrVendorCanonicalPath = join(root, 'shared', 'vendor', 'qrcode-generator.js');
+const qrCopies = [
+  ['apps/owner/src/qr-code.js', qrCanonicalPath],
+  ['apps/owner/src/vendor/qrcode-generator.js', qrVendorCanonicalPath],
+];
+
+let qrMissing = 0;
+for (const [rel, canonicalPath] of qrCopies) {
+  const abs = join(root, rel);
+  if (!existsSync(canonicalPath)) {
+    fail(`sumber kanonik tidak ada: ${canonicalPath}`);
+    qrMissing++;
+  } else if (!existsSync(abs)) {
+    fail(`${rel} tidak ada (jalankan: node scripts/sync-shared.mjs)`);
+    qrMissing++;
+  } else if (readFileSync(abs, 'utf8') !== readFileSync(canonicalPath, 'utf8')) {
+    fail(`${rel} menyimpang dari sumber kanonik (jalankan: node scripts/sync-shared.mjs)`);
+    qrMissing++;
+  } else {
+    console.log(`  salinan bersama OK: ${rel}`);
+  }
+}
+
+const qrModule = readFileSync(qrCanonicalPath, 'utf8');
+const qrVendor = readFileSync(qrVendorCanonicalPath, 'utf8');
+const syncShared = readFileSync(join(root, 'scripts', 'sync-shared.mjs'), 'utf8');
+
+for (const [label, src, needles] of [
+  [
+    'shared/qr-code.js',
+    qrModule,
+    ['toDataUrl', 'toSvg', 'isAvailable', 'QUIET_ZONE_MODULES', 'data:image/svg+xml'],
+  ],
+  [
+    'scripts/sync-shared.mjs',
+    syncShared,
+    ["'shared/qr-code.js'", 'qrcode-generator.js'],
+  ],
+  [
+    'apps/owner/index.html',
+    ownerHtml6,
+    [
+      'src="./src/vendor/qrcode-generator.js"',
+      'src="./src/qr-code.js"',
+      'id="pay-qr-img"',
+      'id="pay-qr-wrap"',
+    ],
+  ],
+  ['apps/owner/src/app.js', ownerJs6, ['window.NovaQr', 'showQrImage', '.toDataUrl(']],
+  ['apps/owner/styles/styles.css', readApp('owner', 'styles', 'styles.css'), ['.pay-qr-img']],
+]) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (kode QR QRIS hilang?)`);
+      qrMissing++;
+    }
+  }
+}
+
+// Lisensi pustaka vendor wajib utuh (MIT, Kazuhiko Arase 2009).
+for (const [label, needle] of [
+  ['header hak cipta', 'Copyright (c) 2009 Kazuhiko Arase'],
+  ['lisensi MIT', 'Licensed under the MIT license'],
+]) {
+  if (!qrVendor.includes(needle)) {
+    fail(`shared/vendor/qrcode-generator.js: ${label} hilang dari berkas vendor`);
+    qrMissing++;
+  }
+}
+
+// Urutan <script>: modul QR harus dimuat sebelum app.js.
+const atQr = ownerHtml6.indexOf('src="./src/qr-code.js"');
+const atVendor = ownerHtml6.indexOf('src="./src/vendor/qrcode-generator.js"');
+const atAppJs = ownerHtml6.indexOf('src="./src/app.js"');
+if (atVendor < 0 || atQr < 0 || atAppJs < 0 || atVendor > atQr || atQr > atAppJs) {
+  fail('apps/owner/index.html: vendor/qrcode-generator.js lalu qr-code.js harus dimuat sebelum app.js');
+  qrMissing++;
+}
+
+// Negatif 1: SVG hanya berisi koordinat modul — tidak ada elemen teks/markup
+// yang bisa memuat isi QR (anti-injeksi dari data gateway).
+if (/<text|<foreignObject|textContent/.test(qrModule)) {
+  fail('shared/qr-code.js memuat elemen teks/markup di SVG (isi QR bisa bocor ke markup)');
+  qrMissing++;
+}
+if (!/image-rendering/.test(readApp('owner', 'styles', 'styles.css'))) {
+  fail('apps/owner/styles/styles.css: .pay-qr-img tanpa image-rendering (modul bisa buram)');
+  qrMissing++;
+}
+
+// Negatif 2: `qrString` tidak boleh dipasang mentah sebagai sumber gambar
+// (string QRIS bukan berkas gambar — harus lewat encoder).
+if (/\.src\s*=\s*[^;\n]*qr_string/i.test(ownerJs6)) {
+  fail('apps/owner/src/app.js memasang qr_string mentah ke src gambar (harus lewat NovaQr.toDataUrl)');
+  qrMissing++;
+}
+
+if (qrMissing === 0) {
+  console.log('  vendor MIT utuh, modul bersama identik, dimuat sebelum app.js, isi QR tidak masuk markup: lengkap.');
+}
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;
@@ -919,6 +1032,8 @@ if (!hasHosting) {
     ['/owner/assets/favicon-32.png', 'png'],
     ['/owner/src/app.js', 'js'],
     ['/owner/src/product-image.js', 'js'],
+    ['/owner/src/qr-code.js', 'js'],
+    ['/owner/src/vendor/qrcode-generator.js', 'js'],
     ['/admin/', 'html'],
     ['/admin/assets/favicon-32.png', 'png'],
     ['/admin/src/app.js', 'js'],

@@ -14,6 +14,7 @@
     "verify:ui": "node scripts/verify-ui.mjs",
     "test:auth": "node --test scripts/test-auth-restore.mjs",
     "test:image": "node --test scripts/test-product-image.mjs",
+    "test:qr": "node --test scripts/test-qr-code.mjs",
     "sync:shared": "node scripts/sync-shared.mjs",
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
