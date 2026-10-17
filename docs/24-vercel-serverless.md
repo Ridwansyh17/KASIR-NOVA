@@ -278,11 +278,17 @@ ke `.mjs` agar memakai semantik modul) — 14 berkas. Dibuktikan bekerja: menamb
 | `scripts/verify-ui.mjs` (termasuk cek sintaks 14 berkas) | ✅ SEMUA OK |
 | `scripts/qa-local.ps1` | ✅ SEMUA TAHAP LULUS (backend 266/266) |
 
-> **Catatan cache (perlu diketahui pemilik):** Firebase Hosting menyajikan
-> `*.js` dengan `Cache-Control: public, max-age=3600`, sehingga peramban bisa
-> masih memakai berkas lama **sampai ±1 jam** setelah deploy. Untuk melihat versi
-> terbaru: **Ctrl+F5** (hard refresh) atau mode incognito. Bila diinginkan,
-> header bisa diubah menjadi `no-cache` (revalidasi via ETag) di `firebase.json`
-> — **menunggu izin pemilik** karena ini perubahan konfigurasi produksi.
+> **Catatan cache (sudah diperbaiki 17 Okt 2026, izin pemilik):** sebelumnya
+> `firebase.json` menyajikan `*.js`/`*.css` dengan
+> `Cache-Control: public, max-age=3600`, sehingga peramban bisa masih memakai
+> berkas lama **sampai ±1 jam** setelah deploy (inilah yang membuat panel Owner
+> tetap putih walau sudah dideploy ulang). Kini `**/*.@(js|css)` di
+> `firebase.json` memakai **`Cache-Control: no-cache`** — peramban tetap
+> merevalidasi lewat ETag (jawaban `304` murah), jadi setelah setiap deploy
+> pengguna **langsung** mendapat kode terbaru. Dokumen HTML (`/`, `/kasir/`,
+> `/owner/`, `/admin/`, `**/index.html`, `/404.html`) sudah `no-cache` sejak
+> sebelumnya. Verifikasi: `GET /owner/src/app.js` & `/owner/styles/styles.css`
+> → `cache-control: no-cache`; Chrome headless profil baru →
+> `/owner/` `/kasir/` `/admin/` tampil.
 
 

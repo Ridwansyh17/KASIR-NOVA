@@ -694,6 +694,9 @@ diterapkan & hosting dideploy ulang; diverifikasi dengan **Chrome headless**
 (`#login-view` tampil di `/owner/`, `/kasir/`, `/admin/`). Pencegahan: `verify-ui`
 kini menjalankan `node --check` atas seluruh berkas `apps/*/src/*.js` (14 berkas).
 Detail + bukti: `docs/24` bagian "Insiden 17 Okt 2026".
+**Tindak lanjut (izin pemilik):** header cache aset di `firebase.json` diubah dari
+`max-age=3600` menjadi **`no-cache`** (revalidasi ETag) agar perbaikan langsung
+terlihat tanpa hard refresh; hosting dideploy ulang & diverifikasi.
 
 **Temuan omzet tunai — SUDAH DIPERBAIKI (17 Okt 2026, dengan izin pemilik):**
 `incomeByMethod` pada laporan keuangan memakai `payments.amount` (uang **diterima**,
