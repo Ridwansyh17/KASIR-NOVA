@@ -194,9 +194,10 @@ roadmap fase.
   cetak lewat plugin `NovaReceipt`. APK ditandatangani keystore rilis dan
   dibagikan lewat **Firebase App Distribution** (grup `kasir-beta`); berkas siap
   pasang di `dist/apk/`. Runbook:
-  `docs/25-apk-android-cetak-bluetooth.md`. **Belum terverifikasi:** cetak ke
-  printer fisik (tidak ada perangkat di lingkungan pengembangan) dan aksi PDF di
-  perangkat (berbagi/simpan/cetak) — diuji pemilik dari rilis `kasir-beta`.
+  `docs/25-apk-android-cetak-bluetooth.md`. **Sudah terverifikasi:** **struk PDF
+  (kirim/simpan/cetak) sukses diuji pemilik di perangkat** (17 Okt 2026).
+  **Belum terverifikasi:** cetak ke printer fisik (tidak ada perangkat di
+  lingkungan pengembangan).
 - **Modul tertunda** (butuh keputusan pemilik): gateway pembayaran digital dan
   perpanjangan langganan otomatis — lihat *Modul Ditangguhkan* di
   `docs/05-roadmap.md`.

@@ -711,8 +711,8 @@ digantikan tombol **Cetak** (lebar kertas tetap dapat diatur di kartu Printer).
 **Berkas:** `docs/36-struk-pdf-kasir.md` (spesifikasi + penyimpangan),
 `server/tests/struk-pdf.test.js`, `apps/kasir-mobile/android-templates/NovaReceiptPlugin.java`,
 `apps/kasir-mobile/{package.json,scripts/setup-android.mjs}`, `scripts/verify-ui.mjs`
-(bagian **"struk pdf kasir (17 Okt 2026)"**), `scripts/qa-local.ps1` (label **264**),
-`docs/25` (§3.4/§4.2 + riwayat beta.7), `docs/30` (tabel tombol).
+(bagian **"struk pdf kasir (17 Okt 2026)"**), `scripts/qa-local.ps1` (label **265**),
+`docs/25` (§3.4/§4.2 + riwayat beta.7/beta.8), `docs/30` (tabel tombol).
 
 **Pengujian lokal:** server **265/265** (12 tes baru), `verify:ui` **SEMUA OK**.
 
@@ -730,6 +730,12 @@ termasuk struk 120 item → 2 halaman). Tes baru `assertPageTreeValid` menjaga
 pohon halaman (Kids/Count/Parent/Contents/Length). APK **`1.0.0-beta.8`**
 (versionCode `8`) dibangun & didistribusikan ke grup `kasir-beta`; sertifikat rilis
 sama sehingga dapat dipasang langsung di atas beta.7. Rincian: `docs/36` §6.1.
+
+**Hasil uji perangkat (17 Okt 2026):** pemilik melaporkan **"uji struk pdf sukses"**
+pada APK `1.0.0-beta.8` — struk PDF tampil & dapat dipakai (kirim/simpan/cetak)
+tanpa menunggu printer thermal tersambung. APK juga dikirim ke penguji
+`arshakacoffe@gmail.com` (grup `kasir-beta`). Cetak ke printer thermal fisik tetap
+belum terverifikasi (tidak ada printer di lingkungan pengembangan).
 
 **Belum dikerjakan:** logo outlet di dalam PDF (dikecualikan pemilik).
 

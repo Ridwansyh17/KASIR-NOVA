@@ -2,6 +2,7 @@
 
 > **Status:** kode selesai & **diuji lokal 17 Okt 2026** (`server/tests/struk-pdf.test.js`
 > **12/12 lulus**, seluruh backend **265/265 lulus**, `verify:ui` **SEMUA OK**).
+> **Uji di perangkat: SUKSES** (dilaporkan pemilik, 17 Okt 2026).
 > **APK `1.0.0-beta.8`** (memuat plugin native `NovaReceipt` + **perbaikan PDF
 > kosong**, §6.1) **sudah dibangun & didistribusikan** ke grup `kasir-beta`
 > pada 17 Okt 2026 — lihat §6.
@@ -150,9 +151,10 @@ Sudah dikerjakan atas perintah pemilik ("lakukan selain no.4"):
    Verifikasi: `aapt dump badging` → `versionCode='8' versionName='1.0.0-beta.8'`;
    isi APK diperiksa (`assets/public/src/receipt-pdf.js` memuat perbaikan §6.1);
    `gradlew assembleRelease` → **BUILD SUCCESSFUL**.
-2. ⏳ **Uji di perangkat** (lembar berbagi PDF, pemilih penyimpanan, layanan cetak
-   Android / "Save as PDF") — memerlukan HP kasir; pemilik dapat menguji langsung
-   dari rilis `kasir-beta`.
+2. ✅ **Uji di perangkat** — **pemilik melaporkan SUKSES** ("uji struk pdf sukses",
+   17 Okt 2026) pada rilis `kasir-beta` (beta.8): struk PDF tampil & dapat
+   dipakai dari kartu struk. (Rincian aksi yang dicoba ada di pemilik; cetak ke
+   printer thermal fisik tetap belum diuji karena tidak ada perangkat printer.)
 3. ✅ **Jumlah halaman cetak** kini dibaca dari berkas PDF (`pdfPageCount`, pola
    `/Count n`) dan dilaporkan ke `PrintDocumentInfo`, bukan lagi
    `PAGE_COUNT_UNKNOWN`.

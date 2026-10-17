@@ -357,7 +357,8 @@ Status (13 Okt 2026, sudah dilakukan):
   Ditandatangani **keystore rilis yang sama** seperti beta.7, dapat dipasang
   **langsung di atas** beta.7. Berkas: `dist/apk/KASIR-NOVA-1.0.0-beta.8.apk`
   (~5,02 MB). **Telah didistribusikan** ke grup `kasir-beta` (17 Okt 2026).
-  Rincian + bukti: `docs/36` §6.1.
+  **Hasil uji perangkat: SUKSES** — pemilik melaporkan "uji struk pdf sukses"
+  (17 Okt 2026). Rincian + bukti: `docs/36` §6.1.
 
 > **Catatan penting:** desain & fitur baru pada APK hanya terlihat setelah
 > backend produksi memuat versi terbaru. Lihat `docs/24-vercel-serverless.md`.
@@ -569,13 +570,15 @@ maupun emulator). Yang perlu dikonfirmasi pemilik: splash menampilkan latar navy
 | Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204` |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
-| **Kirim/simpan/cetak struk PDF (APK)** | perangkat nyata (rilis `kasir-beta`) | ⚠️ **belum diuji** (lembar berbagi, pemilih berkas, layanan cetak Android) |
+| **Kirim/simpan/cetak struk PDF (APK)** | perangkat nyata (rilis `kasir-beta`) | ✅ **diuji pemilik — SUKSES** (17 Okt 2026, APK beta.8) |
 
 > **Catatan jujur:** karena belum tersedia printer thermal fisik, keberhasilan
 > cetak **runtime** pada perangkat nyata (SPP maupun BLE) **belum terverifikasi**.
 > Yang sudah terverifikasi: byte ESC/POS benar (diuji unit), plugin terpasang &
 > terkompilasi, APK terbentuk, dan alur UI tersedia. Petunjuk uji perangkat:
 > pasangkan printer → buka APK → *Printers* → pindai → sambung → **Uji Cetak**.
+> Khusus **struk PDF** (kirim/simpan/cetak lewat plugin `NovaReceipt`), jalur
+> perangkat **sudah diuji pemilik dan SUKSES** (17 Okt 2026, APK beta.8).
 
 ---
 
