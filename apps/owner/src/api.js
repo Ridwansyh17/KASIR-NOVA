@@ -406,6 +406,18 @@ export const api = {
      */
     transactions: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports/transactions${queryString(params)}`),
+    /**
+     * Unduh Laporan Transaksi (SATU BARIS PER ITEM) sebagai .xlsx
+     * (Ringkasan + Detail Transaksi + Rekap Metode + Produk Terlaris).
+     * Server memakai batas baris lebih tinggi (bawaan 5000) daripada halaman.
+     * @returns {Promise<{blob: Blob, filename: string}>}
+     */
+    transactionsXlsx: (businessId, params = {}) =>
+      downloadXlsx(
+        `/api/owner/businesses/${businessId}/reports/transactions/export`,
+        params,
+        'KASIR_NOVA_Laporan_Transaksi.xlsx'
+      ),
     /** Perbandingan agregat tiap outlet dalam satu bisnis (Fase 16). */
     outlets: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/reports/outlets${queryString(params)}`),

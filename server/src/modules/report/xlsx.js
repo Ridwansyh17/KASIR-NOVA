@@ -677,9 +677,244 @@ export const buildFinanceWorkbook = async ({
   return Buffer.from(await wb.xlsx.writeBuffer());
 };
 
+/**
+ * Laporan Transaksi siap-cetak (17 Okt 2026) sebagai berkas Excel dengan
+ * **satu baris per ITEM** (sama seperti halaman cetak — keputusan A3a).
+ *
+ * Sheet:
+ *   1. `Ringkasan`              — informasi laporan, ringkasan, peringatan bila
+ *                                 data terpotong (limit server).
+ *   2. `Detail Transaksi`       — baris per item + baris TOTAL.
+ *   3. `Rekap Metode Pembayaran`— omzet & persentase per metode (sumber sama
+ *                                 dengan halaman cetak: `report.payment_methods`).
+ *   4. `Produk Terlaris`        — 5 produk teratas (urut qty) + omzet.
+ *
+ * Angka omzet memakai `transactions.total` (bukan `payments.amount`) karena
+ * `payments.amount` adalah UANG DITERIMA (memuat kembalian tunai) — lihat
+ * catatan pada `report/service.js` dan `docs/35` §9.
+ *
+ * @param {object} args
+ * @param {object} args.business    - { name, business_type, currency, timezone }
+ * @param {object} args.report      - hasil `service.transactionReport()`
+ * @param {object} args.filters     - filter terpakai (termasuk outletLabel/cashierLabel)
+ * @param {string} args.generatedAt - waktu lokal zona bisnis (untuk kop berkas)
+ * @returns {Promise<Buffer>}
+ */
+export const buildTransactionReportWorkbook = async ({
+  business,
+  report,
+  filters,
+  generatedAt,
+}) => {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'KASIR NOVA';
+  wb.created = new Date();
+
+  const { period, summary, rows } = report;
+  const methods = report.payment_methods ?? [];
+  const topProducts = report.top_products ?? [];
+  const sumQty = rows.reduce((n, r) => n + Number(r.qty ?? 0), 0);
+  const sumLine = rows.reduce((n, r) => n + Number(r.line_total ?? 0), 0);
+  const sumMethodOmzet = methods.reduce((n, m) => n + Number(m.total ?? 0), 0);
+
+  // ------------------------------------------------ Sheet: Ringkasan ------
+  const ws = wb.addWorksheet('Ringkasan');
+  ws.columns = [
+    { key: 'label', width: 44 },
+    { key: 'value', width: 34 },
+  ];
+
+  ws.mergeCells('A1:B1');
+  const heading = ws.getCell('A1');
+  heading.value = 'KASIR NOVA — Laporan Transaksi';
+  heading.font = { bold: true, size: 15, color: { argb: NAVY } };
+  ws.getCell('A2').value = `Dibuat: ${generatedAt}`;
+  ws.getCell('A2').font = { italic: true, color: { argb: 'FF5A6B85' } };
+
+  const { section, info, money, count } = summaryParts(ws);
+
+  ws.addRow([]);
+  section('INFORMASI LAPORAN');
+  info('Nama Bisnis', business.name);
+  info('Jenis Usaha', business.business_type || 'Tidak diisi');
+  info('Mata Uang', business.currency || 'IDR');
+  info('Zona Waktu', business.timezone || 'Asia/Jakarta');
+  info('Periode', `${formatDateID(period.from)} s.d. ${formatDateID(period.to)}`);
+  info(
+    'Filter Outlet',
+    filters.outletId ? filters.outletLabel || 'Tidak ditemukan pada bisnis ini' : 'Semua outlet'
+  );
+  info(
+    'Filter Kasir',
+    filters.cashierId ? filters.cashierLabel || 'Tidak ditemukan pada bisnis ini' : 'Semua kasir'
+  );
+  info(
+    'Filter Status Transaksi',
+    filterLabel(TRANSACTION_STATUS_LABELS, filters.status, 'Selesai (bawaan)')
+  );
+  info(
+    'Filter Metode Pembayaran',
+    filterLabel(PAYMENT_METHOD_LABELS, filters.paymentMethod, 'Semua metode')
+  );
+  info(
+    'Filter Status Pembayaran',
+    filterLabel(PAYMENT_STATUS_LABELS, filters.paymentStatus, 'Semua status')
+  );
+  info('Kata Kunci Pencarian', filters.search || '—');
+
+  ws.addRow([]);
+  section('RINGKASAN');
+  count('Jumlah transaksi', summary.transactions);
+  money('Total omzet', summary.total, true);
+  money('Rata-rata per transaksi', summary.avg_total);
+  count('Jumlah item (qty) pada berkas ini', sumQty);
+  count('Jumlah baris item pada berkas ini', rows.length);
+  count('Transaksi dibatalkan (void)', summary.voided_transactions);
+  money('Nilai transaksi void', summary.voided_total);
+  count('Transaksi refund', summary.refunded_transactions);
+  money('Nilai transaksi refund', summary.refunded_total);
+
+  if (report.truncated) {
+    ws.addRow([]);
+    const warn = ws.addRow([
+      'PERINGATAN',
+      `Data TERPOTONG pada ${rows.length} baris pertama. Persempit rentang tanggal/outlet lalu unduh ulang agar lengkap.`,
+    ]);
+    warn.font = { bold: true, color: { argb: 'FFB00020' } };
+    warn.getCell(2).alignment = { wrapText: true, vertical: 'middle' };
+  }
+
+  ws.addRow([]);
+  section('REKAP METODE PEMBAYARAN (PEMBAYARAN LUNAS)');
+  if (!methods.length) {
+    ws.addRow(['—', 'Tidak ada pembayaran lunas pada periode ini']);
+  } else {
+    for (const m of methods) {
+      const r = ws.addRow([
+        `${m.label ?? labelOf(PAYMENT_METHOD_LABELS, m.method)} (${m.transactions} transaksi)`,
+        senToRupiah(m.total),
+      ]);
+      r.getCell(2).numFmt = CURRENCY_FMT;
+      r.getCell(2).alignment = { horizontal: 'right' };
+    }
+  }
+
+  // ------------------------------------------ Sheet: Detail Transaksi -----
+  const det = wb.addWorksheet('Detail Transaksi', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  det.columns = [
+    { header: 'No', key: 'no', width: 6 },
+    { header: 'Nomor Transaksi', key: 'invoice', width: 24 },
+    { header: 'Tanggal', key: 'date', width: 12 },
+    { header: 'Waktu', key: 'time', width: 9 },
+    { header: 'Outlet', key: 'outlet', width: 22 },
+    { header: 'Kasir', key: 'cashier', width: 20 },
+    { header: 'Produk', key: 'product', width: 32 },
+    { header: 'SKU', key: 'sku', width: 16 },
+    { header: 'Qty', key: 'qty', width: 8 },
+    { header: 'Harga Satuan', key: 'price', width: 15 },
+    { header: 'Diskon', key: 'discount', width: 13 },
+    { header: 'Subtotal Baris', key: 'line', width: 16 },
+    { header: 'Metode Pembayaran', key: 'method', width: 20 },
+  ];
+  styleHeader(det.getRow(1));
+
+  rows.forEach((r, i) => {
+    det.addRow({
+      no: i + 1,
+      invoice: sanitizeText(r.invoice_no),
+      date: formatDateID(r.date),
+      time: r.time ?? '',
+      outlet: sanitizeText(r.outlet_name),
+      cashier: sanitizeText(r.cashier_name || '—'),
+      product: sanitizeText(r.product_name),
+      sku: sanitizeText(r.sku),
+      qty: Number(r.qty ?? 0),
+      price: senToRupiah(r.unit_price),
+      discount: senToRupiah(r.discount_amount),
+      line: senToRupiah(r.line_total),
+      method: (r.methods ?? []).map((m) => labelOf(PAYMENT_METHOD_LABELS, m)).join(', ') || '—',
+    });
+  });
+
+  const totalRow = det.addRow({
+    invoice: 'TOTAL',
+    qty: sumQty,
+    line: senToRupiah(sumLine),
+  });
+  totalRow.font = { bold: true };
+  ['price', 'discount', 'line'].forEach((k) => applyCurrency(det, k, 2));
+  det.autoFilter = { from: 'A1', to: 'M1' };
+
+  // ------------------------------------ Sheet: Rekap Metode Pembayaran ----
+  const met = wb.addWorksheet('Rekap Metode Pembayaran', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  met.columns = [
+    { header: 'Metode Pembayaran', key: 'method', width: 24 },
+    { header: 'Jumlah Transaksi', key: 'count', width: 18 },
+    { header: 'Omzet', key: 'total', width: 18 },
+    { header: 'Persentase', key: 'percent', width: 14 },
+  ];
+  styleHeader(met.getRow(1));
+
+  if (!methods.length) {
+    met.addRow({ method: '—', count: 0, total: 0, percent: 0 });
+  } else {
+    for (const m of methods) {
+      met.addRow({
+        method: sanitizeText(m.label ?? labelOf(PAYMENT_METHOD_LABELS, m.method)),
+        count: m.transactions,
+        total: senToRupiah(m.total),
+        percent: Number(m.percent ?? 0) / 100,
+      });
+    }
+    const metTotal = met.addRow({
+      method: 'TOTAL',
+      count: methods.reduce((n, m) => n + Number(m.transactions ?? 0), 0),
+      total: senToRupiah(sumMethodOmzet),
+      percent: sumMethodOmzet > 0 ? 1 : 0,
+    });
+    metTotal.font = { bold: true };
+  }
+  applyCurrency(met, 'total', 2);
+  const percentCol = met.getColumn('percent').number;
+  for (let r = 2; r <= met.rowCount; r += 1) met.getCell(r, percentCol).numFmt = '0.0%';
+
+  // ------------------------------------------- Sheet: Produk Terlaris -----
+  const prod = wb.addWorksheet('Produk Terlaris', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+  });
+  prod.columns = [
+    { header: 'No', key: 'no', width: 6 },
+    { header: 'Produk', key: 'name', width: 36 },
+    { header: 'Qty Terjual', key: 'qty', width: 14 },
+    { header: 'Omzet', key: 'revenue', width: 18 },
+  ];
+  styleHeader(prod.getRow(1));
+  if (!topProducts.length) {
+    prod.addRow({ no: '—', name: 'Tidak ada penjualan pada periode ini', qty: 0, revenue: 0 });
+  } else {
+    topProducts.forEach((p, i) => {
+      prod.addRow({
+        no: i + 1,
+        name: sanitizeText(p.product_name),
+        qty: Number(p.qty ?? 0),
+        revenue: senToRupiah(p.revenue),
+      });
+    });
+  }
+  applyCurrency(prod, 'revenue', 2);
+  prod.autoFilter = { from: 'A1', to: 'D1' };
+
+  return Buffer.from(await wb.xlsx.writeBuffer());
+};
+
 export default {
   buildTransactionsWorkbook,
   buildComparisonWorkbook,
   buildFinanceWorkbook,
+  buildTransactionReportWorkbook,
   sanitizeText,
 };

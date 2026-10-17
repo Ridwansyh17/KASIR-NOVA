@@ -41,6 +41,21 @@ export const transactionReport = async (req, res, next) => {
   }
 };
 
+/** Ekspor Excel laporan yang sama (satu baris per item) — 17 Okt 2026. */
+export const transactionReportExport = async (req, res, next) => {
+  try {
+    sendXlsx(
+      res,
+      await service.exportTransactionReportXlsx({
+        businessId: req.params.businessId,
+        filters: req.query,
+      })
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const exportReport = async (req, res, next) => {
   try {
     const filters = req.query;
@@ -147,6 +162,8 @@ export const financeExport = async (req, res, next) => {
 export default {
   grouped,
   summary,
+  transactionReport,
+  transactionReportExport,
   exportReport,
   outletComparison,
   outletComparisonExport,

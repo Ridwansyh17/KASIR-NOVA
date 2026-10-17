@@ -13,7 +13,7 @@
  */
 import { query } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
-import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook, PAYMENT_METHOD_LABELS } from './xlsx.js';
+import { buildTransactionsWorkbook, buildComparisonWorkbook, buildFinanceWorkbook, buildTransactionReportWorkbook, PAYMENT_METHOD_LABELS } from './xlsx.js';
 import { expensesInRange, expensesByCategory, exportExpenseRows } from '../expense/service.js';
 
 const GROUPED_NUMERIC = [
@@ -1020,15 +1020,47 @@ export const exportFinanceXlsx = async ({ businessId, filters }) => {
   return { buffer, filename };
 };
 
+/**
+ * Ekspor **Laporan Transaksi** (baris per item) ke .xlsx — 17 Okt 2026.
+ *
+ * Memakai `transactionReport()` yang sama dengan halaman cetak sehingga angka,
+ * filter, dan cakupan tenant identik. `limit` diambil dari filter (skema ekspor
+ * memakai batas lebih tinggi, bawaan 5000) dan bila masih terpotong, berkas
+ * memuat peringatan pada sheet `Ringkasan`.
+ *
+ * @returns {Promise<{buffer: Buffer, filename: string}>}
+ */
+export const exportTransactionReportXlsx = async ({ businessId, filters = {} }) => {
+  const business = await getBusiness(businessId);
+  const report = await transactionReport({ businessId, filters });
+  const generatedAt = new Date().toLocaleString('id-ID', { timeZone: business.timezone });
+
+  const buffer = await buildTransactionReportWorkbook({
+    business,
+    report,
+    filters: {
+      ...filters,
+      outletLabel: report.outlet?.name ?? '',
+      cashierLabel: report.cashier?.name ?? '',
+    },
+    generatedAt,
+  });
+
+  const filename = `KASIR_NOVA_Laporan_Transaksi_${report.period.from}_sampai_${report.period.to}.xlsx`;
+  return { buffer, filename };
+};
+
 export default {
   groupedReport,
   summary,
+  transactionReport,
   outletComparison,
   businessComparison,
   exportRows,
   exportXlsx,
   exportOutletComparisonXlsx,
   exportBusinessComparisonXlsx,
+  exportTransactionReportXlsx,
   resolvePeriod,
   resolveFinanceRange,
   financeSummary,

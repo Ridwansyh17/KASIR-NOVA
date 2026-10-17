@@ -501,6 +501,52 @@ if (printMissing === 0) {
   console.log('  tombol cetak, halaman cetak, endpoint, dan CSS cetak lengkap.');
 }
 
+// -------------------------- Ekspor Excel Laporan Transaksi (17 Okt 2026) -----
+// Berkas .xlsx untuk laporan yang SAMA (satu baris per ITEM) — permintaan Owner.
+console.log('\n[ekspor Excel laporan transaksi (17 Okt 2026)]');
+
+const reportXlsx6 = readFileSync(join(root, 'server', 'src', 'modules', 'report', 'xlsx.js'), 'utf8');
+const reportService6 = readFileSync(
+  join(root, 'server', 'src', 'modules', 'report', 'service.js'),
+  'utf8'
+);
+const excelExportChecks = [
+  [ownerHtml6, 'apps/owner/index.html', ['id="rep-transactions-xlsx"']],
+  [
+    ownerJs6,
+    'apps/owner/src/app.js',
+    ['downloadTransactionReportExcel', 'api.reports.transactionsXlsx('],
+  ],
+  [
+    ownerApi6,
+    'apps/owner/src/api.js',
+    ['transactionsXlsx: (businessId, params', '/reports/transactions/export'],
+  ],
+  [
+    reportRoutes6,
+    'server/src/modules/report/routes.js',
+    ["'/transactions/export'", 'transactionReportExport'],
+  ],
+  [
+    reportXlsx6,
+    'server/src/modules/report/xlsx.js',
+    ['buildTransactionReportWorkbook', "addWorksheet('Detail Transaksi'", "addWorksheet('Produk Terlaris'"],
+  ],
+  [reportService6, 'server/src/modules/report/service.js', ['exportTransactionReportXlsx']],
+];
+let excelExportMissing = 0;
+for (const [src, label, needles] of excelExportChecks) {
+  for (const needle of needles) {
+    if (!src.includes(needle)) {
+      fail(`${label} tidak memuat "${needle}" (ekspor Excel laporan transaksi hilang?)`);
+      excelExportMissing++;
+    }
+  }
+}
+if (excelExportMissing === 0) {
+  console.log('  tombol, API, endpoint, dan pembuat berkas Excel (.xlsx) lengkap.');
+}
+
 // -------------------------------------------------- Bundel hosting (opsional)
 const hosting = join(process.cwd(), 'dist', 'hosting');
 let hasHosting = false;

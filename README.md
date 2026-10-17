@@ -193,6 +193,8 @@ roadmap fase.
   `GET /api/owner/businesses/:id/reports/transactions` (**satu baris per item**,
   hanya Owner; kasir `403`) + halaman cetak A4 di panel Owner (`#print-report`,
   disembunyikan di layar) dengan ringkasan, rekap metode, dan produk terlaris.
+  Tersedia juga **Ekspor Excel** (`/reports/transactions/export`, 4 sheet, satu
+  baris per item) lewat tombol *Ekspor Laporan Transaksi (.xlsx)*.
   Kode & tes: `docs/35-laporan-transaksi-cetak.md`.
 - **Sitemap & deploy**: backend di Vercel (`https://kasir-nova.vercel.app`),
   panel di Firebase Hosting (`https://kasir-nova.web.app`) — deploy ulang

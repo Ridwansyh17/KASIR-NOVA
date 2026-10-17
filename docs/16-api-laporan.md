@@ -19,6 +19,7 @@
 | GET | `/api/owner/businesses/:businessId/reports/finance` | owner | **Ringkasan keuangan & laba (V0.3)** |
 | GET | `/api/owner/businesses/:businessId/reports/finance/export` | owner | **Ekspor XLSX keuangan (V0.3)** |
 | GET | `/api/owner/businesses/:businessId/reports/transactions` | owner | **Laporan transaksi siap-cetak (17 Okt 2026)** — baris per item |
+| GET | `/api/owner/businesses/:businessId/reports/transactions/export` | owner | **Ekspor Excel laporan transaksi** (17 Okt 2026) — 4 sheet, baris per item |
 | GET | `/api/cashier/reports/daily` | cashier | **Pendapatan harian outlet kasir (V0.3)** |
 | GET | `/api/platform/businesses/:businessId/reports[...]` | platform_admin | Sama persis, **baca saja** lintas platform |
 
@@ -329,6 +330,33 @@ laporan ini; Kasir tetap `403` (kebijakan akses tidak diubah).
 - `transaction_items` tidak menyimpan `created_at`, sehingga urutan item dalam satu
   transaksi memakai nama produk (deterministik).
 
+### Ekspor Excel — `GET /reports/transactions/export` (17 Okt 2026)
+
+`GET /api/owner/businesses/:businessId/reports/transactions/export`
+
+Berkas `.xlsx` dari **laporan yang sama** (filter & angka identik, satu baris per
+item), sehingga Owner dapat mengolahnya di Excel tanpa mengetik ulang:
+
+| Sheet | Isi |
+|---|---|
+| `Ringkasan` | Informasi laporan (bisnis, zona waktu, periode, filter terpakai), ringkasan (jumlah, omzet, rata-rata, void/refund), rekap metode pembayaran, dan **peringatan** bila data terpotong |
+| `Detail Transaksi` | **Satu baris per item** + baris **TOTAL** (qty & subtotal) |
+| `Rekap Metode Pembayaran` | Metode, jumlah transaksi, omzet, persentase (format persen) |
+| `Produk Terlaris` | 5 produk teratas urut qty, dengan omzet |
+
+- **Query:** sama dengan halaman cetak (`from`, `to`, `outletId`, `cashierId`,
+  `status`, `paymentMethod`, `paymentStatus`, `search`) — `groupBy` diabaikan.
+- **`limit`:** 1…**20000**, bawaan **5000** (lebih besar daripada halaman = 1000)
+  karena berkas dipakai untuk pengolahan lanjutan. Bila masih terpotong,
+  `Ringkasan` memuat baris **PERINGATAN** dan `Detail Transaksi` hanya berisi baris
+  yang terkirim (jangan dikira lengkap).
+- **Nominal dalam RUPIAH** (sen ÷ 100) dan diberi format mata uang; teks diamankan
+  dari *formula injection* (`=` `+` `-` `@` diberi apostrof).
+- **Nama berkas:** `KASIR_NOVA_Laporan_Transaksi_<from>_sampai_<to>.xlsx`.
+- **Keamanan:** sama dengan halaman cetak — owner lain **404**, kasir **403**,
+  `platform_admin` **200** (baca saja), filter outlet/kasir milik bisnis lain →
+  berkas kosong (tidak bocor).
+
 ## Aturan & keamanan
 
 - Seluruh agregat dilarang dihitung klien; server membaca langsung dari
@@ -363,14 +391,22 @@ laporan ini; Kasir tetap `403` (kebijakan akses tidak diubah).
   6. ekspor XLSX lintas-bisnis (2 sheet) + nama bisnis berbahaya disanitasi;
   7. akses & validasi: kasir 403, owner lain 404, format/rentang buruk 422,
      `format=json`.
-- `node --test tests/report-transactions.test.js` — **5 kasus** (17 Okt 2026):
+- `node --test tests/report-transactions.test.js` — **8 kasus** (17 Okt 2026):
   1. baris **per item** (1 penjualan 2 item → 2 baris), ringkasan (jumlah, total,
      rata-rata), void dipisah, rekap metode + persentase (jumlah = 100%), produk
      terlaris urut qty + omzet, format nomor `INV-…`.
   2. filter outlet & kasir; outlet milik bisnis lain → **tidak bocor** (0 baris).
   3. `status=voided` dan pencarian nomor transaksi.
-  4. `limit` + `truncated`; validasi `limit`/`status`/rentang/`outletId` → 422.
-  5. isolasi tenant & peran: owner lain → 404, kasir → 403, admin platform → 200.
+  4. **omzet tunai**: kembalian tidak menambah omzet (metode & per outlet).
+  5. `limit` + `truncated`; validasi `limit`/`status`/rentang/`outletId` → 422.
+  6. isolasi tenant & peran: owner lain → 404, kasir → 403, admin platform → 200.
+  7. **ekspor Excel**: 4 sheet, satu baris per item + baris TOTAL, nominal rupiah,
+     persentase sebagai format persen, urutan qty/omzet produk terlaris (berkas
+     di-*parse balik* dengan ExcelJS, bukan hanya dicek status HTTP).
+  8. **ekspor Excel**: filter (status void, outlet bisnis lain), peringatan
+     **TERPOTONG** saat `limit` kecil, batas `limit` (0 / 20001 → 422), isolasi
+     peran (owner lain 404, kasir 403, admin 200).
 - Total suite server (17 Okt 2026, setelah tes laporan transaksi): **253/253**
-  → setelah tes **struk PDF** & tes **omzet/kembalian** menjadi **266/266**.
-  (`report-transactions.test.js` menambah 5 dari 248).
+  → setelah tes **struk PDF**, **omzet/kembalian**, dan **ekspor Excel laporan
+  transaksi** menjadi **268/268**.
+  (`report-transactions.test.js` menambah 5 dari 248, kini berisi **8 kasus**).

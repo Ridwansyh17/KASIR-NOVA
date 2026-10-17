@@ -13,6 +13,7 @@
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert';
+import ExcelJS from 'exceljs';
 import request from './helpers/request.js';
 import { query } from '../src/config/db.js';
 import { hashPassword } from '../src/utils/hash.js';
@@ -33,6 +34,33 @@ const ownerPost = (token, path, body) => request.post(`/api/owner${path}`, body,
 const ownerPatch = (token, path, body) => request.patch(`/api/owner${path}`, body, auth(token));
 const adminGet = (token, path) => request.get(`/api/platform/businesses${path}`, auth(token));
 const lapTx = (biz, q = '') => ownerPath(biz, `/reports/transactions${q}`);
+const lapTxExport = (biz, q = '') => ownerPath(biz, `/reports/transactions/export${q}`);
+
+/** Ambil nilai kolom B dari baris yang labelnya (kolom A) cocok. */
+const cellByLabel = (ws, label) => {
+  for (let r = 1; r <= ws.rowCount; r += 1) {
+    if (ws.getCell(r, 1).value === label) return ws.getCell(r, 2).value;
+  }
+  return undefined;
+};
+
+/** Unduh + buka berkas .xlsx Laporan Transaksi (header & tipe diperiksa). */
+const loadTrxWorkbook = async (token, path) => {
+  const res = await request.binary(`/api/owner${path}`, auth(token));
+  assert.strictEqual(res.status, 200, `ekspor xlsx laporan transaksi harus 200: ${path}`);
+  assert.ok(res.buffer.length > 1000, 'buffer xlsx tidak boleh kosong');
+  assert.match(
+    res.headers.get('content-type') ?? '',
+    /application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet/
+  );
+  assert.match(
+    res.headers.get('content-disposition') ?? '',
+    /KASIR_NOVA_Laporan_Transaksi_\d{4}-\d{2}-\d{2}_sampai_\d{4}-\d{2}-\d{2}\.xlsx/
+  );
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(res.buffer);
+  return { res, wb };
+};
 
 const todayTz = async () => {
   const { rows } = await query(
@@ -483,4 +511,195 @@ test('Isolasi tenant & peran: bisnis lain 404, kasir 403, admin 200', async () =
   const admin = await adminGet(adminToken, `/${businessA}/reports/transactions`);
   assert.strictEqual(admin.status, 200, 'admin dapat membaca (baca-saja)');
   assert.strictEqual(admin.body.summary.total, (await dbSummary(businessA)).total);
+});
+
+// ---------------------------------------------------------------------------
+// Ekspor Excel Laporan Transaksi (17 Okt 2026 — permintaan Owner).
+// ---------------------------------------------------------------------------
+
+test('Ekspor Excel Laporan Transaksi: 4 sheet, satu baris per item, angka rupiah', async () => {
+  const today = await todayTz();
+  const [y, m, d] = today.split('-');
+  const tglID = `${d}/${m}/${y}`;
+
+  const { wb } = await loadTrxWorkbook(tokenA, lapTxExport(businessA, `?from=${today}&to=${today}`));
+
+  assert.deepStrictEqual(
+    wb.worksheets.map((ws) => ws.name),
+    ['Ringkasan', 'Detail Transaksi', 'Rekap Metode Pembayaran', 'Produk Terlaris']
+  );
+
+  // --- Sheet Ringkasan: informasi + ringkasan (angka RUPIAH, bukan sen) -----
+  const ring = wb.getWorksheet('Ringkasan');
+  assert.strictEqual(ring.getCell('A1').value, 'KASIR NOVA — Laporan Transaksi');
+  assert.strictEqual(cellByLabel(ring, 'Nama Bisnis'), 'Bisnis Transaksi Uji');
+  assert.strictEqual(cellByLabel(ring, 'Zona Waktu'), TZ);
+  assert.strictEqual(cellByLabel(ring, 'Periode'), `${tglID} s.d. ${tglID}`);
+  assert.strictEqual(cellByLabel(ring, 'Filter Outlet'), 'Semua outlet');
+  assert.strictEqual(cellByLabel(ring, 'Filter Kasir'), 'Semua kasir');
+  assert.strictEqual(cellByLabel(ring, 'Filter Status Transaksi'), 'Selesai (bawaan)');
+  assert.strictEqual(cellByLabel(ring, 'Jumlah transaksi'), 3);
+  assert.strictEqual(cellByLabel(ring, 'Total omzet'), 750, '75.000 sen -> Rp 750');
+  assert.strictEqual(cellByLabel(ring, 'Rata-rata per transaksi'), 250);
+  assert.strictEqual(cellByLabel(ring, 'Jumlah item (qty) pada berkas ini'), 5);
+  assert.strictEqual(cellByLabel(ring, 'Jumlah baris item pada berkas ini'), 4);
+  assert.strictEqual(cellByLabel(ring, 'Transaksi dibatalkan (void)'), 1);
+  assert.strictEqual(cellByLabel(ring, 'Nilai transaksi void'), 50);
+  assert.strictEqual(cellByLabel(ring, 'Refund'), undefined, 'tidak ada baris refund');
+  assert.strictEqual(
+    cellByLabel(ring, 'PERINGATAN'),
+    undefined,
+    'tanpa limit -> tidak ada peringatan terpotong'
+  );
+
+  // --- Sheet Detail Transaksi: SATU BARIS PER ITEM + baris TOTAL ------------
+  const det = wb.getWorksheet('Detail Transaksi');
+  assert.strictEqual(det.rowCount, 6, '4 baris item + 1 baris TOTAL + judul');
+  assert.deepStrictEqual(
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((c) => det.getCell(1, c).value),
+    [
+      'No',
+      'Nomor Transaksi',
+      'Tanggal',
+      'Waktu',
+      'Outlet',
+      'Kasir',
+      'Produk',
+      'SKU',
+      'Qty',
+      'Harga Satuan',
+      'Diskon',
+      'Subtotal Baris',
+      'Metode Pembayaran',
+    ]
+  );
+  assert.deepStrictEqual(
+    [2, 3, 4, 5].map((r) => det.getCell(r, 1).value),
+    [1, 2, 3, 4],
+    'nomor baris urut'
+  );
+  // Penjualan nyata pertama (2 item) menjadi 2 baris teratas, urut nama produk.
+  assert.strictEqual(det.getCell(2, 7).value, 'Kopi Susu');
+  assert.strictEqual(det.getCell(2, 9).value, 2);
+  assert.strictEqual(det.getCell(2, 10).value, 150, 'harga satuan 15.000 sen -> Rp 150');
+  assert.strictEqual(det.getCell(2, 12).value, 300, 'subtotal 30.000 sen -> Rp 300');
+  assert.strictEqual(det.getCell(3, 7).value, 'Roti Bakar');
+  assert.strictEqual(det.getCell(2, 3).value, tglID, 'tanggal tampilan Indonesia');
+  assert.match(String(det.getCell(2, 4).value), /^\d{2}:\d{2}$/);
+  assert.strictEqual(det.getCell(2, 5).value, 'Outlet Utama Uji');
+  assert.strictEqual(det.getCell(2, 6).value, 'Kasir Transaksi Uji');
+  assert.match(String(det.getCell(2, 2).value), /^INV-\d{8}-\d{4}$/);
+  assert.strictEqual(det.getCell(2, 13).value, 'Tunai', 'metode dilabeli bahasa Indonesia');
+  assert.strictEqual(det.getCell(5, 2).value, 'UJI-TRX-0003', 'transaksi sisipan ikut');
+  // Baris TOTAL (tebal) menjumlahkan qty & subtotal.
+  const totalRow = det.getRow(6);
+  assert.strictEqual(totalRow.getCell(2).value, 'TOTAL');
+  assert.strictEqual(totalRow.getCell(9).value, 5);
+  assert.strictEqual(totalRow.getCell(12).value, 750);
+  assert.strictEqual(det.getCell(6, 2).font.bold, true, 'baris TOTAL dicetak tebal');
+
+  // --- Sheet Rekap Metode Pembayaran: omzet (+ persentase sebagai persen) ---
+  const met = wb.getWorksheet('Rekap Metode Pembayaran');
+  assert.deepStrictEqual(
+    [2, 3, 4].map((r) => [met.getCell(r, 1).value, met.getCell(r, 3).value]),
+    [
+      ['Tunai', 400],
+      ['Kartu', 200],
+      ['QRIS', 150],
+    ],
+    'urut omzet menurun, dalam rupiah'
+  );
+  assert.ok(Math.abs(met.getCell(2, 4).value - 0.533) < 1e-6, '53,3% tersimpan sebagai 0,533');
+  assert.strictEqual(met.getCell(2, 4).numFmt, '0.0%', 'sel persentase berformat persen');
+  assert.strictEqual(met.getCell(5, 1).value, 'TOTAL');
+  assert.strictEqual(met.getCell(5, 3).value, 750);
+
+  // --- Sheet Produk Terlaris: urut qty --------------------------------------
+  const prod = wb.getWorksheet('Produk Terlaris');
+  assert.strictEqual(prod.getCell(2, 2).value, 'Kopi Susu');
+  assert.strictEqual(prod.getCell(2, 3).value, 3);
+  assert.strictEqual(prod.getCell(2, 4).value, 450, '45.000 sen -> Rp 450');
+  // Qty seri (1 vs 1) diurutkan omzet menurun: sisipan 20.000 di atas roti 10.000.
+  assert.strictEqual(prod.getCell(3, 2).value, 'Menu Sisipan');
+  assert.strictEqual(prod.getCell(3, 4).value, 200);
+  assert.strictEqual(prod.getCell(4, 2).value, 'Roti Bakar');
+  assert.strictEqual(prod.getCell(4, 4).value, 100);
+});
+
+test('Ekspor Excel laporan transaksi: filter, peringatan terpotong, isolasi tenant & peran', async () => {
+  const today = await todayTz();
+
+  // Filter status void: 1 baris item, tanpa pembayaran lunas (placeholder).
+  const { wb: wbVoid } = await loadTrxWorkbook(
+    tokenA,
+    lapTxExport(businessA, `?from=${today}&to=${today}&status=voided`)
+  );
+  const ringV = wbVoid.getWorksheet('Ringkasan');
+  assert.strictEqual(cellByLabel(ringV, 'Filter Status Transaksi'), 'Dibatalkan');
+  assert.strictEqual(cellByLabel(ringV, 'Jumlah transaksi'), 1);
+  assert.strictEqual(cellByLabel(ringV, 'Nilai transaksi void'), 50);
+  const detV = wbVoid.getWorksheet('Detail Transaksi');
+  assert.strictEqual(detV.rowCount, 3, 'judul + 1 baris item + baris TOTAL');
+  assert.strictEqual(detV.getCell(2, 2).value, 'UJI-TRX-0004');
+  assert.strictEqual(detV.getCell(2, 13).value, '—');
+  assert.strictEqual(detV.getCell(3, 2).value, 'TOTAL');
+  const metV = wbVoid.getWorksheet('Rekap Metode Pembayaran');
+  assert.strictEqual(metV.getCell(2, 1).value, '—', 'void tidak punya pembayaran lunas');
+
+  // Filter outlet bisnis lain: berkas tetap dibuat, seluruh angka nol.
+  const { wb: wbForeignOutlet } = await loadTrxWorkbook(
+    tokenA,
+    lapTxExport(businessA, `?from=${today}&to=${today}&outletId=${outletB1}`)
+  );
+  assert.strictEqual(cellByLabel(wbForeignOutlet.getWorksheet('Ringkasan'), 'Total omzet'), 0);
+  assert.strictEqual(
+    wbForeignOutlet.getWorksheet('Detail Transaksi').rowCount,
+    2,
+    'hanya baris TOTAL (tanpa data bisnis lain)'
+  );
+
+  // `limit` kecil: berkas tetap dibuat + PERINGATAN pada sheet Ringkasan.
+  const { wb: wbLim } = await loadTrxWorkbook(
+    tokenA,
+    lapTxExport(businessA, `?from=${today}&to=${today}&limit=2`)
+  );
+  const ringL = wbLim.getWorksheet('Ringkasan');
+  assert.strictEqual(cellByLabel(ringL, 'Jumlah baris item pada berkas ini'), 2);
+  assert.match(String(cellByLabel(ringL, 'PERINGATAN')), /TERPOTONG/);
+  const detL = wbLim.getWorksheet('Detail Transaksi');
+  assert.strictEqual(detL.rowCount, 4, 'judul + 2 baris item + baris TOTAL');
+  assert.strictEqual(detL.getCell(4, 2).value, 'TOTAL');
+
+  // Batas baris ekspor: bawaan 5000, Maksimum 20000.
+  for (const q of ['limit=0', 'limit=20001', 'limit=dua']) {
+    const bad = await ownerGet(tokenA, lapTxExport(businessA, `?${q}`));
+    assert.strictEqual(bad.status, 422, `${q} harus 422 pada ekspor`);
+  }
+  const okMax = await ownerGet(tokenA, lapTxExport(businessA, '?limit=20000'));
+  assert.strictEqual(okMax.status, 200, 'limit 20000 diterima pada ekspor');
+
+  // Isolasi tenant & peran (sama seperti halaman cetak).
+  const foreign = await ownerGet(tokenB, lapTxExport(businessA));
+  assert.strictEqual(foreign.status, 404, 'owner B tidak boleh mengekspor bisnis A');
+  const cashierLogin = await request.post('/api/auth/login', {
+    role: 'cashier',
+    email: 'uji-tr-kasir@nova.test',
+    password: PASSWORD,
+  });
+  const denied = await ownerGet(cashierLogin.body.accessToken, lapTxExport(businessA));
+  assert.strictEqual(denied.status, 403, 'kasir tidak boleh mengekspor laporan Owner');
+
+  const admin = await request.binary(
+    `/api/platform/businesses/${businessA}/reports/transactions/export`,
+    auth(adminToken)
+  );
+  assert.strictEqual(admin.status, 200, 'admin dapat membaca (baca-saja)');
+  assert.ok(admin.buffer.length > 1000, 'berkas admin berupa xlsx valid');
+  const wbAdmin = new ExcelJS.Workbook();
+  await wbAdmin.xlsx.load(admin.buffer);
+  assert.strictEqual(
+    cellByLabel(wbAdmin.getWorksheet('Ringkasan'), 'Total omzet'),
+    750,
+    'angka ekspor admin sama dengan Owner'
+  );
 });

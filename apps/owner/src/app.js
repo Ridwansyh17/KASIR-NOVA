@@ -2016,6 +2016,18 @@ const downloadOutletExcel = () => {
   });
 };
 
+const downloadTransactionReportExcel = () => {
+  const b = activeBusiness();
+  if (!b) return;
+  // CATATAN: `reportQuery()` sengaja TIDAK memuat `limit`, sehingga ekspor
+  // memakai bawaan server (5000 baris) — lebih lengkap daripada halaman (1000).
+  return runXlsxDownload({
+    buttonId: 'rep-transactions-xlsx',
+    loader: () => api.reports.transactionsXlsx(b.id, reportQuery()),
+    successLabel: 'Laporan Transaksi Excel berhasil diunduh',
+  });
+};
+
 $('rep-refresh-btn').addEventListener('click', loadReport);
 $('rep-range').addEventListener('change', applyQuickRange);
 $('rep-group-by').addEventListener('change', loadReport);
@@ -2032,6 +2044,7 @@ $('rep-export-csv').addEventListener('click', () => downloadReport('csv'));
 $('rep-export-json').addEventListener('click', () => downloadReport('json'));
 // 17 Okt 2026: halaman cetak laporan transaksi (baris per item) — Owner saja.
 $('rep-print-btn').addEventListener('click', printTransactionReport);
+$('rep-transactions-xlsx').addEventListener('click', downloadTransactionReportExcel);
 
 // ------------------------------------------------ Lintas-bisnis (Fase 16) -----
 const crossQuery = () => ({

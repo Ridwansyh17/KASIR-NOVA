@@ -24,6 +24,10 @@ Keputusan lain yang sudah berlaku: halaman cetak **tidak** dibuat untuk panel Ka
 (mobile maupun web), dan **tidak ada** perubahan pada aturan langganan, aturan
 1 kasir = 1 outlet, maupun alur pembayaran/struk.
 
+**Tambahan (17 Okt 2026, sesudah halaman cetak selesai):** pemilik memilih
+**Ekspor Excel untuk Laporan Transaksi** dari daftar pekerjaan lanjutan —
+diterapkan pada **§5b** (tombol *Ekspor Laporan Transaksi (.xlsx)*).
+
 ---
 
 ## 2. Cara membaca contoh (agen tidak dapat "melihat" gambar)
@@ -115,26 +119,65 @@ margin: 12mm; }`, header tabel diulang di tiap halaman
 
 ---
 
+## 5b. Ekspor Excel (17 Okt 2026 — permintaan pemilik)
+
+Halaman Laporan Transaksi punya tombol **"Ekspor Laporan Transaksi (.xlsx)"**
+(`#rep-transactions-xlsx`) di samping tombol Cetak. Berkasnya dihasilkan dari
+**endpoint & filter yang sama** dengan halaman cetak (nomor, urutan baris, dan
+angka identik), hanya disajikan sebagai Excel:
+
+| Sheet | Isi |
+|---|---|
+| `Ringkasan` | Informasi laporan + filter terpakai, ringkasan (jumlah transaksi, omzet, rata-rata, void/refund), rekap metode, **PERINGATAN** bila baris terpotong |
+| `Detail Transaksi` | **Satu baris per item** (keputusan A3a) + baris **TOTAL** (qty & subtotal) |
+| `Rekap Metode Pembayaran` | Metode, jumlah transaksi, omzet, **persentase** (format persen) |
+| `Produk Terlaris` | 5 produk teratas urut qty + omzet (seri qty diurutkan omzet menurun) |
+
+Keputusan teknis:
+
+- `limit` ekspor **5000** (maksimum 20000) — lebih lengkap daripada halaman
+  (1000). Bila data masih terpotong, berkas **memberi peringatan sendiri**
+  (`Ringkasan`) supaya tidak disangka lengkap; halaman tetap utuh.
+- Nominal dikonversi ke **rupiah** (sen ÷ 100) dan diberi format mata uang agar
+  bisa langsung di-*SUM* di Excel; teks diamankan dari *formula injection*.
+- Berkas dibuat dengan **ExcelJS** (sudah dipakai Fase 15 untuk rekapan & Fase 16
+  untuk perbandingan) — tanpa dependensi baru.
+- Tidak ada migrasi: hanya membaca `transactions`, `transaction_items`,
+  `payments` seperti halaman cetak.
+
+---
+
 ## 6. Berkas yang dibuat / diubah
 
 **Dibuat**
 
-- `server/tests/report-transactions.test.js` — 5 kasus uji integrasi.
+- `server/tests/report-transactions.test.js` — **8 kasus** uji integrasi (6 inti +
+  2 ekspor Excel).
 - `docs/35-laporan-transaksi-cetak.md` (dokumen ini).
 
 **Diubah**
 
-- `server/src/modules/report/schema.js` — `transactionReportQuerySchema`.
-- `server/src/modules/report/service.js` — `transactionReport()`.
-- `server/src/modules/report/controller.js` — `transactionReport`.
-- `server/src/modules/report/routes.js` — rute `GET /transactions`.
-- `apps/owner/src/api.js` — `reports.transactions(businessId, params)`.
-- `apps/owner/index.html` — tombol `#rep-print-btn` + wadah `#print-report`.
-- `apps/owner/src/app.js` — `renderPrintReport`, `printTransactionReport`, formatter tanggal Indonesia.
+- `server/src/modules/report/schema.js` — `transactionReportQuerySchema` +
+  `transactionReportExportQuerySchema` (ekspor, `limit` 5000/20000).
+- `server/src/modules/report/service.js` — `transactionReport()` +
+  `exportTransactionReportXlsx()`.
+- `server/src/modules/report/controller.js` — `transactionReport` +
+  `transactionReportExport`.
+- `server/src/modules/report/routes.js` — rute `GET /transactions` +
+  `GET /transactions/export`.
+- `server/src/modules/report/xlsx.js` — `buildTransactionReportWorkbook()`
+  (4 sheet; memakai helper & gaya yang sama dengan ekspor Fase 15/16).
+- `apps/owner/src/api.js` — `reports.transactions(businessId, params)` +
+  `reports.transactionsXlsx(businessId, params)`.
+- `apps/owner/index.html` — tombol `#rep-print-btn`, `#rep-transactions-xlsx`,
+  wadah `#print-report`.
+- `apps/owner/src/app.js` — `renderPrintReport`, `printTransactionReport`,
+  `downloadTransactionReportExcel`, formatter tanggal Indonesia.
 - `apps/owner/styles/styles.css` — blok `@media print` (ter-scope ke `#print-report`).
-- `scripts/verify-ui.mjs` — bagian pengunci **"laporan transaksi cetak (17 Okt 2026)"**.
-- `scripts/qa-local.ps1` — label jumlah tes backend (248 → **253**, **265** setelah tes struk PDF, lalu **266** setelah tes omzet/kembalian).
-- `docs/16-api-laporan.md`, `docs/05-roadmap.md` — endpoint + catatan progres.
+- `scripts/verify-ui.mjs` — pengunci **"laporan transaksi cetak (17 Okt 2026)"**
+  dan **"ekspor Excel laporan transaksi (17 Okt 2026)"**.
+- `scripts/qa-local.ps1` — label jumlah tes backend (248 → **253**, **265** setelah tes struk PDF, **266** setelah tes omzet/kembalian, lalu **268** setelah tes ekspor Excel).
+- `docs/16-api-laporan.md`, `docs/05-roadmap.md`, `README.md` — endpoint + catatan progres.
 
 Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
 (`transactions`, `transaction_items`, `payments`).
@@ -155,8 +198,8 @@ Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
 
 | Perintah | Hasil |
 |---|---|
-| `node --test tests/report-transactions.test.js` | **6/6 lulus** (termasuk tes omzet/kembalian) |
-| `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **266/266**) |
+| `node --test tests/report-transactions.test.js` | **8/8 lulus** (termasuk omzet/kembalian + 2 tes ekspor Excel) |
+| `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **268/268**) |
 | `node scripts/verify-ui.mjs` | **SEMUA OK** (termasuk bagian baru + **sintaks semua berkas JS panel**) |
 
 > **Regresi 17 Okt 2026 (dilaporkan pemilik):** blok duplikat di
@@ -180,9 +223,17 @@ Kasus uji `report-transactions.test.js`:
 5. `limit` + `truncated`; validasi `limit` (0 / 99999 / bukan angka), `status`,
    rentang terbalik, `outletId` bukan UUID → **422**.
 6. Isolasi tenant & peran: owner lain → **404**, kasir → **403**, admin platform → **200**.
+7. **Ekspor Excel** (`/transactions/export`): 4 sheet bernama benar, baris per item
+   (+ baris TOTAL), nominal rupiah, persentase format persen, urutan produk
+   terlaris (qty lalu omzet) — berkas di-*parse balik* dengan ExcelJS.
+8. **Ekspor Excel**: filter status void & outlet bisnis lain, `limit=2` memunculkan
+   baris **PERINGATAN "TERPOTONG"**, batas `limit` (0 / 20001 / bukan angka → 422),
+   isolasi peran (owner lain 404, kasir 403, admin 200 dengan angka identik).
 
 Uji pada peramban (dialog cetak, PDF, tata letak A4) **belum** dijalankan —
-memerlukan perangkat/manusia; dicatat sebagai pekerjaan pemilik.
+memerlukan perangkat/manusia; dicatat sebagai pekerjaan pemilik. Berkas Excel
+diverifikasi **otomatis** (dibuka ulang dengan ExcelJS), tetapi pembukaan di
+**Microsoft Excel/Google Sheets** tetap menunggu pemilik.
 
 ---
 
@@ -190,10 +241,15 @@ memerlukan perangkat/manusia; dicatat sebagai pekerjaan pemilik.
 
 - **Uji cetak nyata** (Chrome/Edge → "Simpan sebagai PDF") dan penyesuaian margin
   bila diperlukan.
-- **Varian Excel** dari laporan yang sama (opsional).
+- **Uji buka berkas Excel** di aplikasi Excel/Google Sheets milik pemilik
+  (isi & format sudah diverifikasi otomatis lewat ExcelJS).
 - **Laporan untuk Kasir** (keputusan A5a dicatat, belum diminta).
 - **Nomor halaman multi-halaman** (butuh perhitungan paginasi; saat ini hanya untuk
   laporan ≤ 28 baris).
+
+> **Selesai 17 Okt 2026 (permintaan pemilik):** **Varian Excel** dari laporan ini
+> sudah tersedia — tombol *Ekspor Laporan Transaksi (.xlsx)* di panel Owner
+> (lihat §5b).
 
 ---
 

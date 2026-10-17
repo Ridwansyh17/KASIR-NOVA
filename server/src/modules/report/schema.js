@@ -74,6 +74,26 @@ export const transactionReportQuerySchema = z
   })
   .superRefine(rangeRefine);
 
+/**
+ * Ekspor Excel Laporan Transaksi (17 Okt 2026).
+ *
+ * Batas baris lebih tinggi daripada halaman cetak (bawaan **5000**, maksimum
+ * **20000**) karena berkas Excel dipakai untuk pengolahan lanjutan. Bila hasil
+ * masih terpotong, berkas memberi peringatan pada sheet `Ringkasan`
+ * (`truncated`), dan halaman Owner menyarankan mempersempit rentang.
+ */
+export const transactionReportExportQuerySchema = z
+  .object({
+    limit: z.coerce
+      .number()
+      .int('Jumlah baris harus bilangan bulat')
+      .min(1, 'Jumlah baris minimal 1')
+      .max(20000, 'Jumlah baris maksimal 20000')
+      .default(5000),
+    ...reportFilters,
+  })
+  .superRefine(rangeRefine);
+
 export const exportQuerySchema = z
   .object({
     format: z

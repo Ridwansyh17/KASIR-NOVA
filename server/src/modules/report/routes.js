@@ -15,6 +15,7 @@ import {
   reportQuerySchema,
   summaryQuerySchema,
   transactionReportQuerySchema,
+  transactionReportExportQuerySchema,
   exportQuerySchema,
   outletComparisonQuerySchema,
   outletComparisonExportQuerySchema,
@@ -43,6 +44,14 @@ reportRoutes.get(
   ...validate({ params: reportBusinessParamSchema, query: transactionReportQuerySchema }),
   requireBusinessAccess(),
   controller.transactionReport
+);
+
+// Ekspor Excel laporan yang SAMA (baris per item) — 17 Okt 2026.
+reportRoutes.get(
+  '/transactions/export',
+  ...validate({ params: reportBusinessParamSchema, query: transactionReportExportQuerySchema }),
+  requireBusinessAccess(),
+  controller.transactionReportExport
 );
 
 reportRoutes.get(

@@ -761,6 +761,37 @@ belum terverifikasi (tidak ada printer di lingkungan pengembangan).
 
 **Belum dikerjakan:** logo outlet di dalam PDF (dikecualikan pemilik).
 
+## 17 Okt 2026 - Ekspor Excel Laporan Transaksi (Owner)
+
+Permintaan pemilik (dipilih dari daftar lanjutan): **Ekspor Excel** untuk
+**Laporan Transaksi** — berkas `.xlsx` dari laporan yang sama (satu baris per
+ITEM), agar bisa diolah di Excel tanpa mengetik ulang.
+
+**Dikerjakan:**
+- `server/src/modules/report/xlsx.js` — `buildTransactionReportWorkbook()`:
+  4 sheet (`Ringkasan`, `Detail Transaksi` + baris TOTAL, `Rekap Metode Pembayaran`
+  dengan format persen, `Produk Terlaris`), nominal **rupiah** + format mata uang,
+  sanitasi *formula injection*, peringatan **TERPOTONG** bila baris dipotong.
+- `server/src/modules/report/{service,controller,routes,schema}.js` —
+  `exportTransactionReportXlsx()` + rute `GET /reports/transactions/export`
+  (owner & platform_admin baca-saja; kasir 403; owner lain 404). Skema ekspor:
+  `limit` **5000** bawaan, maksimum **20000** (halaman tetap 1000).
+- `apps/owner/{index.html,src/api.js,src/app.js}` — tombol
+  `#rep-transactions-xlsx` ("Ekspor Laporan Transaksi (.xlsx)") + status sibuk &
+  notifikasi lewat `runXlsxDownload` (pola yang sudah ada).
+
+**Berkas:** `docs/35` (§5b + §6 + §7), `docs/16` (endpoint + 8 kasus uji),
+`server/tests/report-transactions.test.js` (2 kasus baru),
+`scripts/verify-ui.mjs` (bagian **"ekspor Excel laporan transaksi (17 Okt 2026)"**),
+`scripts/qa-local.ps1` (label **268**), `README.md`.
+
+**Pengujian lokal:** berkas `.xlsx` dibuka ulang dengan **ExcelJS** (nama sheet,
+urutan baris, nilai rupiah, `numFmt` persen, baris TOTAL, peringatan terpotong,
+batas `limit` 422, isolasi peran). Server **268/268 lulus**, `verify:ui` **SEMUA OK**.
+
+**Belum dikerjakan:** pembukaan berkas di Excel/Google Sheets versi pemilik;
+tombol ini tidak muncul di APK (panel Owner hanya di web).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —
   tambah provider di tabel `payments.provider`.
