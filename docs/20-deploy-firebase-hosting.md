@@ -183,6 +183,19 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
 - Suite: `qa:local` semua tahap **LULUS** (server 248/248, UI `SEMUA OK`,
   auth 10/10, image 9/9); `e2e:online` **34/34 PASS**.
 
+**17 Okt 2026 (hosting: ekspor Excel + nomor halaman cetak laporan Owner):**
+- Deploy **hosting saja** (backend tidak berubah): `node scripts/build-hosting.mjs
+  https://kasir-nova.vercel.app` lalu `firebase deploy --only hosting --project
+  kasir-nova` → 49 berkas, unggahan baru 3 berkas (modul `report-print.js`,
+  `app.js`, `styles.css`).
+- Verifikasi produksi: `/owner/src/report-print.js` **200** (13.350 byte, memuat
+  `planPrintPages` + `rowsFirstPage: 21`); `/owner/styles/styles.css` **200**
+  (memuat `break-before: page`); `/owner/src/app.js` **200** (impor
+  `./report-print.js`); `/owner/` **200** (tombol `#rep-print-btn` + `#print-report`);
+  JS/CSS `cache-control: no-cache`; Chrome headless `/owner/` menampilkan
+  `#login-view` **tanpa** `hidden` (berarti seluruh modul ES termuat, panel tidak
+  blank). Rincian fitur & pengujian: `docs/35` §5b/§5c/§7.
+
 ## 8. Yang masih menyusul
 
 - **Keputusan 12 Okt 2026: tetap paket Spark — tanpa backend publik.**

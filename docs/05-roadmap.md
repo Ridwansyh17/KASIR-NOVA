@@ -842,6 +842,13 @@ halaman terakhir khusus untuk ringkasan (lebih baik daripada ringkasan terpotong
 dan `print-report-check.mjs` **SEMUA OK** untuk 0…400 baris (jumlah halaman PDF =
 jumlah halaman rencana; tidak ada halaman meluber/kosong).
 
+**Rilis (17 Okt 2026, izin pemilik):** dideploy ke **Hosting Firebase saja**
+(tidak ada perubahan backend) — `build-hosting` + `firebase deploy --only hosting
+--project kasir-nova` (`https://kasir-nova.web.app`). Verifikasi: `/owner/src/report-print.js`
+**200** (memuat `planPrintPages`/`rowsFirstPage: 21`), `styles.css` memuat
+`break-before: page`, `app.js` mengimpor modul baru, `/owner/` tampil normal
+(`#login-view` tanpa `hidden` di Chrome headless), JS/CSS `cache-control: no-cache`.
+
 **Belum dikerjakan:** pencetakan sungguhan oleh pemilik (dialog cetak Chrome/Edge →
 PDF) untuk menilai tampilan; tombol ini juga tidak muncul di APK.
 

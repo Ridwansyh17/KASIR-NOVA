@@ -1,7 +1,9 @@
 # KASIR NOVA — Laporan Transaksi Siap-Cetak (Owner)
 
-> **Status:** dikerjakan & diuji lokal **17 Okt 2026**; **belum dideploy** (menunggu
-> izin pemilik). APK Kasir **tidak disentuh**.
+> **Status:** dikerjakan & diuji lokal **17 Okt 2026**; **sudah live** di hosting
+> (`https://kasir-nova.web.app/owner/`) — termasuk §5b (Ekspor Excel) dan §5c
+> (nomor halaman cetak). §5c hanya mengubah panel Owner (hosting), backend tidak
+> di-deploy ulang. APK Kasir **tidak disentuh**.
 >
 > **Sumber permintaan:** contoh tata letak dari pemilik, `contoh laporan transaksi.png`
 > (1224 × 1285 px). Berkas itu sudah dipindahkan ke
@@ -198,6 +200,20 @@ Pembuktian akhir (17 Okt 2026, Chrome 140):
 node scripts/print-report-check.mjs --counts=0,1,16,17,20,21,46,47,68,120,400
 # SEMUA OK: jumlah halaman PDF = jumlah halaman yang direncanakan
 ```
+
+**Rilis (17 Okt 2026, izin pemilik):** dideploy ke **Hosting Firebase saja**
+(tidak ada perubahan backend) — `node scripts/build-hosting.mjs
+https://kasir-nova.vercel.app` lalu `firebase deploy --only hosting --project
+kasir-nova` (`https://kasir-nova.web.app`). Verifikasi setelah rilis:
+
+| Pemeriksaan | Hasil |
+|---|---|
+| `GET /owner/src/report-print.js` | **200** (13.350 byte; `planPrintPages`, `pageLabel`, `PRINT_LAYOUT`, `rowsFirstPage: 21`) |
+| `GET /owner/styles/styles.css` | **200** (24.639 byte; `.pr-page + .pr-page`, `break-before: page`, `.pr-cont`) |
+| `GET /owner/src/app.js` | **200** (82.365 byte; impor `./report-print.js`, `PRINT_STATUS_LABELS`) |
+| `GET /owner/` | **200** (tombol `#rep-print-btn` + wadah `#print-report` ada) |
+| `cache-control` untuk JS/CSS | `no-cache` (revalidasi ETag, jadi berkas baru langsung terpakai) |
+| Chrome headless `/owner/` | panel tampil — `#login-view` **tanpa** `hidden` (berkas di HTML asli memang `hidden`), jadi seluruh modul ES (termasuk `report-print.js`) termuat tanpa galat |
 
 ---
 
