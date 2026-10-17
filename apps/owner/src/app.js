@@ -1702,10 +1702,6 @@ const loadReport = async () => {
   await loadOutletComparison(b.id);
 };
 
-  renderReport({ rows, sum, top });
-  await loadOutletComparison(b.id);
-};
-
 // ------------------------------- Cetak Laporan Transaksi (17 Okt 2026) ----------
 // Halaman cetak HTML siap-simpan-PDF. Baris = PER ITEM (keputusan A3a) dan
 // hanya panel Owner yang menyediakannya (keputusan A2b). Tata letak mengikuti

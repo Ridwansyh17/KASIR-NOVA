@@ -157,7 +157,14 @@ Tidak ada migrasi baru: laporan hanya membaca skema Fase 7
 |---|---|
 | `node --test tests/report-transactions.test.js` | **6/6 lulus** (termasuk tes omzet/kembalian) |
 | `node --test "tests/**/*.test.js"` (server) | **253/253 lulus** (sebelum tes struk PDF; kini **266/266**) |
-| `node scripts/verify-ui.mjs` | **SEMUA OK** (termasuk bagian baru) |
+| `node scripts/verify-ui.mjs` | **SEMUA OK** (termasuk bagian baru + **sintaks semua berkas JS panel**) |
+
+> **Regresi 17 Okt 2026 (dilaporkan pemilik):** blok duplikat di
+> `apps/owner/src/app.js` membuat **panel Owner blank putih** setelah deploy
+> (galat sintaks → modul gagal dimuat). Sudah diperbaiki & hosting dideploy ulang;
+> `verify-ui` kini menjalankan `node --check` atas seluruh berkas `apps/*/src/*.js`
+> agar galat sintaks tertangkap sebelum deploy. Bukti: `docs/24` bagian
+> "Insiden 17 Okt 2026".
 
 Kasus uji `report-transactions.test.js`:
 

@@ -687,6 +687,14 @@ halaman `/` `/kasir/` `/owner/` `/admin/` **200**, CORS APK & preflight web OK.
 Catatan lengkap: `docs/24` (bagian "Deploy 17 Okt 2026"). Uji cetak nyata di
 peramban tetap pekerjaan pemilik.
 
+**Insiden sesudah deploy (17 Okt 2026):** pemilik melaporkan panel **Owner blank
+putih**. Penyebab: blok duplikat di `apps/owner/src/app.js` → `SyntaxError` →
+modul gagal dimuat (HTML valid, `#login-view` tetap `hidden`). Perbaikan
+diterapkan & hosting dideploy ulang; diverifikasi dengan **Chrome headless**
+(`#login-view` tampil di `/owner/`, `/kasir/`, `/admin/`). Pencegahan: `verify-ui`
+kini menjalankan `node --check` atas seluruh berkas `apps/*/src/*.js` (14 berkas).
+Detail + bukti: `docs/24` bagian "Insiden 17 Okt 2026".
+
 **Temuan omzet tunai — SUDAH DIPERBAIKI (17 Okt 2026, dengan izin pemilik):**
 `incomeByMethod` pada laporan keuangan memakai `payments.amount` (uang **diterima**,
 termasuk kembalian) sehingga pendapatan tunai — dan ikutannya laba kotor/bersih —

@@ -240,3 +240,49 @@ node <firebase-tools>/lib/bin/firebase.js deploy --only hosting --project kasir-
 > (401) + halaman tersaji (200) + suite lokal 266/266. Uji cetak di peramban =
 > pekerjaan pemilik.
 
+### Insiden 17 Okt 2026 — panel Owner **blank putih** (dilaporkan pemilik)
+
+**Gejala:** pemilik melaporkan panel Owner tampil **blank putih** setelah deploy.
+
+**Penyebab (terverifikasi):** `apps/owner/src/app.js` memuat **blok duplikat**
+(3 baris `renderReport(...)` + `loadOutletComparison(...)` + `};` tersalin dua
+kali) sehingga ada **kurung kurawal berlebih** → `SyntaxError: Unexpected token '}'` (baris
+1707) → **seluruh modul gagal dimuat** → `#login-view` tetap ber-class `hidden`
+(HTML-nya sendiri valid, jadi halaman tampak putih polos).
+Pemeriksa statis lama (`verify-ui`) hanya memeriksa rujukan aset/id, sehingga
+**tidak menangkap** galat sintaks seperti ini.
+
+**Bukti diagnosis:** berkas `app.js` yang tersaji di Hosting diunduh lalu
+`node --check` → **GAGAL** (baris 1707), sementara panel Kasir & Admin **OK**.
+DOM nyata diperiksa dengan Chrome headless `--dump-dom`:
+`/kasir/` & `/admin/` → `#login-view` **tanpa** `hidden` (JS jalan);
+`/owner/` → masih `hidden` (JS gagal).
+
+**Perbaikan:** blok duplikat dihapus (modul kembali ukuran wajar), lalu
+`build-hosting` + `firebase deploy --only hosting` diulang.
+
+**Pencegahan (kunci regresi baru):** `scripts/verify-ui.mjs` kini memeriksa
+**sintaks setiap berkas `apps/<panel>/src/*.js`** dengan `node --check` (disalin
+ke `.mjs` agar memakai semantik modul) — 14 berkas. Dibuktikan bekerja: menambah
+`}` liar pada `apps/admin/src/app.js` membuat pemeriksa **GAGAL** menyebut
+`apps/admin/src/app.js` + barisnya, dan kembali `SEMUA OK` setelah dikembalikan.
+`scripts/qa-local.ps1` menjalankan pemeriksa ini pada tahap 3.
+
+**Verifikasi setelah deploy ulang (17 Okt 2026):**
+
+| Uji | Hasil |
+|---|---|
+| Chrome headless `--dump-dom /owner/` (profil baru, tanpa cache) | ✅ `#login-view` **tampil** (JS jalan) |
+| Chrome headless `/kasir/` & `/admin/` | ✅ tampil |
+| `node --check` atas `owner/src/app.js` yang tersaji di Hosting | ✅ OK |
+| `scripts/verify-ui.mjs` (termasuk cek sintaks 14 berkas) | ✅ SEMUA OK |
+| `scripts/qa-local.ps1` | ✅ SEMUA TAHAP LULUS (backend 266/266) |
+
+> **Catatan cache (perlu diketahui pemilik):** Firebase Hosting menyajikan
+> `*.js` dengan `Cache-Control: public, max-age=3600`, sehingga peramban bisa
+> masih memakai berkas lama **sampai ±1 jam** setelah deploy. Untuk melihat versi
+> terbaru: **Ctrl+F5** (hard refresh) atau mode incognito. Bila diinginkan,
+> header bisa diubah menjadi `no-cache` (revalidasi via ETag) di `firebase.json`
+> — **menunggu izin pemilik** karena ini perubahan konfigurasi produksi.
+
+

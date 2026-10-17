@@ -11,10 +11,21 @@
  *  4. Ikon pada apps/kasir/site.webmanifest ada.
  *  5. Bila `dist/hosting` sudah dibangun: smoke HTTP tiap app + aset ikon.
  *     (Bangun dulu: `node scripts/build-hosting.mjs`.)
+ *  6. Sintaks setiap berkas `apps/<panel>/src/*.js` lewat `node --check`
+ *     (kunci regresi "panel blank putih", 17 Okt 2026).
  */
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { readFileSync, existsSync } from 'node:fs';
+import {
+  readFileSync,
+  existsSync,
+  readdirSync,
+  mkdtempSync,
+  writeFileSync,
+  rmSync,
+} from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { resolve, join, extname } from 'node:path';
 
 const root = process.cwd();
@@ -77,6 +88,40 @@ for (const app of APPS) {
     }
     console.log(`  ikon manifest dicek: ${(mf.icons ?? []).length}`);
   }
+}
+
+// ------------------------------- Sintaks modul panel (regresi 17 Okt 2026) ---
+// Kunci regresi: satu kurung kurawal berlebih di `apps/owner/src/app.js` membuat
+// modul GAGAL dimuat -> panel Owner **blank putih** (login-view tetap `hidden`)
+// walau semua rujukan aset & id tetap "OK" secara statis. Karena itu tiap berkas
+// JS di `apps/*/src/` diperiksa dengan `node --check` (disalin ke `.mjs` agar
+// memakai semantik modul seperti `<script type="module">`).
+console.log('\n[sintaks modul panel]');
+{
+  const syntaxDir = mkdtempSync(join(tmpdir(), 'nova-syntax-'));
+  let checked = 0;
+  for (const app of APPS) {
+    const srcDir = join(root, 'apps', app.name, 'src');
+    for (const file of readdirSync(srcDir).filter((n) => n.endsWith('.js')).sort()) {
+      const tmpFile = join(syntaxDir, `${app.name}-${file}.mjs`);
+      writeFileSync(tmpFile, readFileSync(join(srcDir, file), 'utf8'));
+      try {
+        execFileSync(process.execPath, ['--check', tmpFile], { stdio: 'pipe' });
+        checked++;
+      } catch (err) {
+        const rel = `apps/${app.name}/src/${file}`;
+        const detail = String(err.stderr ?? err.message)
+          .split('\n')
+          .map((l) => l.trim().replace(tmpFile, rel))
+          .filter(Boolean)
+          .slice(0, 2)
+          .join(' ');
+        fail(`sintaks ${rel} rusak -> panel bisa blank putih: ${detail}`);
+      }
+    }
+  }
+  console.log(`  ${checked} berkas JS panel lolos node --check`);
+  rmSync(syntaxDir, { recursive: true, force: true });
 }
 
 // ----------------------------------- Regresi Bug 1 (login) & Bug 2 (produk) ---

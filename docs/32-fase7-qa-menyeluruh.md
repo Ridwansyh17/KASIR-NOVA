@@ -11,7 +11,7 @@ Cakupan: auth, produk/stok, transaksi, langganan, laporan, cetak, dan UI statis.
 | --- | --- | --- | --- |
 | 1 | Salinan berkas bersama | `node scripts/sync-shared.mjs --check` | **SEMUA SAMA** |
 | 2 | Uji backend (semua modul) | `node scripts/clean-test-fixtures.mjs` + `node --test "tests/**/*.test.js"` | **246/246 lulus** |
-| 3 | Verifikasi UI statis + smoke hosting | `node scripts/build-hosting.mjs` + `node scripts/verify-ui.mjs` | **SEMUA OK** |
+| 3 | Verifikasi UI statis + smoke hosting | `node scripts/build-hosting.mjs` + `node scripts/verify-ui.mjs` | **SEMUA OK** (termasuk **sintaks 14 berkas JS panel** via `node --check` — kunci regresi "panel blank putih", 17 Okt 2026) |
 | 4 | Sesi & pemulihan login | `node --test scripts/test-auth-restore.mjs` | **10/10 lulus** |
 | 5 | Smart Product Image | `node --test scripts/test-product-image.mjs` | **9/9 lulus** |
 | 6 | Sintaks modul kasir | `node --check app.js` (salinan `.mjs`) | **OK** |
