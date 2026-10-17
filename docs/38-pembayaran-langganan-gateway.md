@@ -388,6 +388,12 @@ sebagai **kode QR**, bukan hanya ditampilkan sebagai teks.
   (`/owner/`): `window.NovaQr.isAvailable() = true`,
   `img` QR **berhasil dimuat** dengan ukuran 390×390 px (65 modul × 6 px,
   termasuk quiet zone 4 modul).
+- **Bukti dengan data gateway nyata (17 Okt 2026):** `qrString` **asli** dari
+  sandbox Duitku (tagihan `SINV-20261017075246-B99D29DB`, kanal `NQ` QRIS Nobu,
+  **294 karakter**, awalan `00020101021226670016COM.NO…`) dirender dengan
+  `NovaQr.encode/toDataUrl` → **v13 (69×69 modul), ECC M, quiet zone 4,
+  gambar 308×308 px** → decode jsQR menghasilkan **string yang identik**
+  (`cocok: YA`). Jadi jalur "gateway → modul QR kami → gambar" sudah utuh.
 - **Uji pindai nyata** dengan aplikasi e-wallet tetap disarankan sekali saat
   uji sandbox (manual, oleh pemilik proyek).
 
