@@ -23,7 +23,7 @@ export const listBusinesses = async (ownerId) => {
   return rows;
 };
 
-/** Buat bisnis baru (dibuat bebas, tanpa langganan otomatis). */
+/** Buat bisnis baru + langganan default Gratis (satu transaksi database). */
 export const createBusiness = async ({
   ownerId,
   name,

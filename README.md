@@ -246,6 +246,9 @@ roadmap fase.
   jalan; mode produksi terkunci kunci pengaman `PAYMENT_ALLOW_PRODUCTION`.
   Lingkup **hanya langganan** — pembayaran penjualan kasir tetap manual.
   Rincian & cara uji sandbox: `docs/38-pembayaran-langganan-gateway.md`.
+  Alur pelanggan baru dari akun sampai langganan aktif (akun Owner dibuat Admin
+  Platform, bisnis baru otomatis dapat paket **Gratis** 30 hari, lalu upgrade
+  self-service): `docs/39-cara-pelanggan-baru-mendaftar-langganan.md`.
 - **Modul tertunda** (butuh keputusan pemilik): kanal gateway untuk **penjualan
   kasir** (kartu/QR/wallet tetap dicatat manual) dan perpanjangan langganan
   otomatis — lihat *Modul Ditangguhkan* di `docs/05-roadmap.md`.
