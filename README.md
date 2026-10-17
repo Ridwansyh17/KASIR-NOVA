@@ -153,7 +153,8 @@ roadmap fase.
   **V0.3** ter-deploy di Firebase Hosting (`kasir-nova.web.app`, API cross-origin
   ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.8`** dibagikan ke penguji
   beta via Firebase App Distribution (grup `kasir-beta`). Deploy ulang 17 Okt 2026
-  membawa **laporan transaksi Owner** + tombol **struk PDF** di panel web.
+  membawa **laporan transaksi Owner**, **laporan transaksi Kasir (A5a)**, dan
+  tombol **struk PDF** di panel web.
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
   `Logo KASIR NOVA.jpeg` (latar navy gelap + aksen cyan). Logo di login & topbar
   ketiga panel (Admin/Kasir/Owner). Detail: `docs/05-roadmap.md`.
@@ -198,7 +199,7 @@ roadmap fase.
   **multi-halaman bernomor** ("Halaman i dari N" di setiap halaman; paginasi +
   kapasitas baris diukur dengan Chrome headless — `scripts/print-report-check.mjs`).
   Kode & tes: `docs/35-laporan-transaksi-cetak.md`.
-- **Laporan Transaksi untuk Kasir (17 Okt 2026)**: tab baru **Laporan
+- **Laporan Transaksi untuk Kasir (17 Okt 2026, sudah live)**: tab baru **Laporan
   Transaksi** di panel Kasir — **satu baris per transaksi** (keputusan pemilik
   B1) pada outlet akun kasir (semua kasir outlet itu, A5a), rentang bawaan
   **hari ini** (B3), filter status & pencarian nomor transaksi, kartu ringkasan

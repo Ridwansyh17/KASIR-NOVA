@@ -899,12 +899,19 @@ cakupan = **semua** transaksi outlet kasir.
 (≈239 detik), `node scripts/verify-ui.mjs` **SEMUA OK**, `node --check` seluruh
 berkas panel yang diubah OK.
 
-**Rilis:** **belum** — menunggu persetujuan pemilik (backend perlu redeploy
-karena ada rute baru; hosting perlu berisi `apps/kasir/src/*` baru). Uji ekspor
-di **APK** juga memerlukan pembangunan ulang APK (beta.9), juga menunggu izin.
+**Rilis (17 Okt 2026, izin pemilik):** dideploy **backend + hosting** — backend
+dari **root repo** (`npx.cmd vercel deploy --prod --yes`) karena ada rute baru,
+lalu `build-hosting` + `firebase deploy --only hosting --project kasir-nova`
+(4 berkas kasir baru). Verifikasi: `/api/health` 200; rute baru **401** (ada)
+sementara jalur tak dikenal **404**; hosting `/kasir/` + `src/{app,api,struk-share}.js`
+memuat bagian baru (`data-pane="laporan"`, `loadReportTransactions`, `saveXlsx`)
+dan bersih dari pola `new root().`; Chrome headless `/kasir/` menampilkan
+`#login-view` tanpa `hidden`. Catatan: perintah root repo membuat PowerShell
+menampilkan *exit code 1* palsu walau CLI melaporkan `ready`.
 
 **Belum dikerjakan (sisi pemilik):** membuka berkas `.xlsx` hasil ekspor kasir di
-Excel/Google Sheets; uji langsung tab baru di perangkat.
+Excel/Google Sheets; uji langsung tab baru di perangkat; **rebuild APK beta.9**
+(pemilik memilih "nanti saja") agar fitur ini ikut di APK.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: setelah penyedia & kebutuhan ditetapkan —

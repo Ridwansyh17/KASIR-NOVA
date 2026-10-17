@@ -212,8 +212,16 @@ Bagian **"laporan transaksi kasir (17 Okt 2026)"** memeriksa:
 
 ## 8. Status
 
-**Kode & pengujian: selesai (lokal).** Belum ada perubahan produksi yang
-dilakukan oleh agent untuk fitur ini.
+**Kode, pengujian, dan rilis: selesai.** Commit `4b91fd3` di branch
+`feat/kasir-nova-v2`; **backend + hosting sudah live** (izin pemilik,
+17 Okt 2026) — rincian perintah & verifikasi di `docs/24` dan `docs/20`.
+
+Bukti produksi: `/api/health` **200**; `/api/cashier/reports/transactions` dan
+`/reports/transactions/export` **401** (ada) sedangkan jalur tak dikenal **404**;
+berkas Hosting `/kasir/` + `src/{app,api,struk-share}.js` memuat seluruh bagian
+baru (`data-pane="laporan"`, `loadReportTransactions`, `saveXlsx`) dan **tidak**
+lagi memuat pola `new root().`; Chrome headless `/kasir/` menampilkan
+`#login-view` tanpa `hidden`.
 
 Yang **masih tertunda di sisi pemilik** (tidak dapat dikerjakan agent):
 
@@ -221,5 +229,4 @@ Yang **masih tertunda di sisi pemilik** (tidak dapat dikerjakan agent):
    **Ekspor Excel** (buka berkas dengan Excel/Google Sheets — 3 sheet).
 2. Uji di **APK**: tombol ekspor memakai plugin `NovaReceipt`. Karena panel
    kasir di APK memuat berkas JS lokal, fitur ini **baru ikut** setelah APK
-   dibangun ulang (beta.9) — **menunggu persetujuan** pemilik.
-3. Penyebaran ke produksi (backend + hosting) — **menunggu persetujuan** pemilik.
+   dibangun ulang (beta.9) — pemilik memilih **"nanti saja"** pada 17 Okt 2026.

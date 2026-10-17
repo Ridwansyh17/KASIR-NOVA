@@ -345,5 +345,58 @@ Perbaikan: deploy ulang **dari root repo** -> `Aliased https://kasir-nova.vercel
 > build baru dari *tree* yang lulus **268/268** tes HTTP nyata (termasuk ekspor
 > Excel yang di-*parse* ulang dengan ExcelJS) + berkas Hosting memuat tombol/API
 > barunya. **Uji klik tombol di panel Owner = pekerjaan pemilik.**
+>
+> **Koreksi 17 Okt 2026 (lihat bagian terakhir):** pernyataan "rute ada maupun
+> tidak selalu 401" **keliru**. Router Express dipasang **sebelum** middleware
+> autentikasi, jadi jalur yang **tidak dikenal** menghasilkan **404**, sedangkan
+> jalur yang dikenal menghasilkan **401**. Keberadaan rute baru kini **dapat**
+> dibuktikan tanpa token.
+
+---
+
+## Deploy 17 Okt 2026 (lanjutan 2) — Laporan Transaksi Kasir (izin pemilik)
+
+Pemilik menyetujui deploy setelah fitur "Laporan untuk Kasir (A5a)" lulus tes
+lokal (`server/tests/cashier-report-transactions.test.js` **10/10**, suite penuh
+**291/291**, `verify:ui` SEMUA OK, `qa-local.ps1` semua tahap LULUS). Rebuild APK
+(beta.9) oleh pemilik **ditunda** ("nanti saja").
+
+### Perintah yang dijalankan (backend dari ROOT repo)
+
+```powershell
+# dari ROOT repo (bukan folder server/) — ada RUTE BARU di backend
+npx.cmd vercel deploy --prod --yes              # -> https://kasir-nova.vercel.app
+node scripts/build-hosting.mjs https://kasir-nova.vercel.app
+node <firebase-tools>/lib/bin/firebase.js deploy --only hosting --project kasir-nova
+```
+
+CLI melaporkan `Deployment kasir-nova-i9m0qnrd5-kasir-nova.vercel.app ready.
+Production URL: https://kasir-nova.vercel.app` (akses root repo ini membuat
+pipeline PowerShell menampilkan *exit code 1* palsu; status sebenarnya sukses).
+Hosting: 49 berkas, unggahan baru **4 berkas** (`apps/kasir/index.html`,
+`src/app.js`, `src/api.js`, `src/struk-share.js`).
+
+### Verifikasi sesudah deploy
+
+| Uji | Hasil |
+|---|---|
+| `GET /api/health` produksi | OK `status: ok`, `services.database: up`, `uptime` ~20 s (build baru) |
+| `GET /api/cashier/reports/transactions` (tanpa token) | **401** → rute **ada** |
+| `GET /api/cashier/reports/transactions/export` (tanpa token) | **401** → rute **ada** |
+| `GET /api/cashier/reports/daily` (rute lama, pembanding) | **401** → ada |
+| `GET /api/cashier/zzz-tidak-ada` (kontrol negatif) | **404** → jalur tak dikenal memang 404 |
+| Hosting `/kasir/` | OK 200 (34.422 byte) memuat `data-pane="laporan"`, `data-tab="laporan"`, `#lap-export-btn`, `#lap-body` |
+| Hosting `/kasir/src/app.js` | OK 200 (81.678 byte) memuat `loadReportTransactions`, `strukShare.saveXlsx(`, `laporan: ['Laporan Transaksi'` |
+| Hosting `/kasir/src/api.js` | OK 200 (12.582 byte) memuat `transactionsReportFile`, `/reports/transactions/export` |
+| Hosting `/kasir/src/struk-share.js` | OK 200 (8.995 byte) memuat `saveXlsx`/`downloadFile`/`XLSX_MIME`; pola rusak `new root().` **sudah tidak ada** |
+| Cache JS/HTML Hosting | OK `cache-control: no-cache` |
+| Chrome headless `--dump-dom /kasir/` (profil baru) | OK `#login-view` tampil (tanpa `hidden`) → seluruh modul ES termuat, panel tidak blank |
+| Suite lokal sebelum deploy | OK backend **291/291**, `verify:ui` SEMUA OK, `qa-local` 1/7–6/7 LULUS |
+
+> **Yang masih pekerjaan pemilik:** klik tab **Laporan Transaksi** (rentang,
+> filter status, pencarian), tekan **Ekspor Excel** lalu buka berkas `.xlsx`
+> (3 sheet), dan — bila ingin di perangkat — setujui rebuild APK beta.9 agar
+> panel kasir memuat JS baru.
+
 
 

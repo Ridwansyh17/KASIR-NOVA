@@ -196,6 +196,27 @@ Lalu restart server. Preflight (`OPTIONS`) harus membalas **204** dengan
   `#login-view` **tanpa** `hidden` (berarti seluruh modul ES termuat, panel tidak
   blank). Rincian fitur & pengujian: `docs/35` §5b/§5c/§7.
 
+**17 Okt 2026 (hosting: Laporan Transaksi untuk Kasir):**
+- Izin pemilik: deploy **backend + hosting**. Backend dari **root repo**
+  (`npx.cmd vercel deploy --prod --yes`) karena ada rute baru; rincian di `docs/24`.
+- Hosting: `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` lalu
+  `firebase deploy --only hosting --project kasir-nova` → 49 berkas, unggahan baru
+  **4 berkas** (`apps/kasir/index.html`, `src/app.js`, `src/api.js`,
+  `src/struk-share.js`).
+- Verifikasi produksi: `/kasir/` **200** (34.422 byte; memuat `data-pane="laporan"`,
+  `data-tab="laporan"`, `#lap-export-btn`, `#lap-body`); `/kasir/src/app.js` **200**
+  (81.678 byte; `loadReportTransactions`, `strukShare.saveXlsx(`,
+  `laporan: ['Laporan Transaksi'`); `/kasir/src/api.js` **200** (12.582 byte;
+  `transactionsReportFile`, path `/reports/transactions/export`); `/kasir/src/struk-share.js`
+  **200** (8.995 byte; `saveXlsx`, `downloadFile`, `XLSX_MIME`, dan pola rusak
+  `new root().` **sudah tidak ada**); semua JS/HTML `cache-control: no-cache`;
+  Chrome headless `/kasir/` menampilkan `#login-view` **tanpa** `hidden`.
+- Backend produksi: `/api/health` **200** (`database: up`); rute baru
+  `/api/cashier/reports/transactions` dan `/reports/transactions/export` → **401**
+  (ada, hanya butuh sesi) sedangkan rute **tidak ada** → **404**
+  (`/api/cashier/zzz-tidak-ada`) — jadi keberadaan rute terbukti walau tanpa token.
+- Rincian fitur & pengujian: `docs/37-laporan-transaksi-kasir.md`.
+
 ## 8. Yang masih menyusul
 
 - **Keputusan 12 Okt 2026: tetap paket Spark — tanpa backend publik.**
