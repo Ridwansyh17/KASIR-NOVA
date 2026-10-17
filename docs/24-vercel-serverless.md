@@ -195,6 +195,7 @@ pemilik). Produksi: https://kasir-nova.vercel.app
 
 ### Cara memperbarui (deploy ulang)
 ```powershell
+# WAJIB dijalankan dari ROOT repo (proyek Vercel `kasir-nova`), bukan dari server/
 npx.cmd vercel deploy --prod --yes --token <VERCEL_TOKEN>
 ```
 (Database Neon tidak berubah; connection string tersimpan sebagai env `DATABASE_URL` di Vercel.)
@@ -291,5 +292,58 @@ ke `.mjs` agar memakai semantik modul) — 14 berkas. Dibuktikan bekerja: menamb
 > sebelumnya. Verifikasi: `GET /owner/src/app.js` & `/owner/styles/styles.css`
 > → `cache-control: no-cache`; Chrome headless profil baru →
 > `/owner/` `/kasir/` `/admin/` tampil.
+
+## Deploy 17 Okt 2026 (lanjutan) — Ekspor Excel Laporan Transaksi (izin pemilik)
+
+Pemilik menyetujui deploy setelah fitur "Ekspor Excel Laporan Transaksi" lulus
+tes lokal (`server/tests/report-transactions.test.js` 8/8, suite penuh 268/268).
+
+### Perintah yang BENAR (backend WAJIB dari ROOT repo)
+
+```powershell
+# dari ROOT repo (JANGAN dari folder server/)
+npx.cmd vercel deploy --prod --yes              # -> https://kasir-nova.vercel.app
+node scripts/build-hosting.mjs https://kasir-nova.vercel.app
+node <firebase-tools>/lib/bin/firebase.js deploy --only hosting --project kasir-nova
+```
+
+Proyek Vercel produksi adalah **`kasir-nova`** (tautan `.vercel/` di **root
+repo**; `vercel.json` root memakai `api/index.mjs`). Folder `server/` **tidak**
+memiliki tautan produksi.
+
+### Insiden 17 Okt 2026 — backend terdeploy ke proyek Vercel yang SALAH
+
+Agen menjalankan `vercel deploy` **dari dalam `server/`** (tanpa tautan di situ),
+sehingga CLI **membuat proyek baru bernama `server`** dan mendeploy ke sana.
+Akibatnya **alias produksi tidak berubah** (masih build lama) walau CLI
+melaporkan `READY`. Terdeteksi dari `vercel inspect kasir-nova.vercel.app`
+(masih menunjuk deployment 56 menit sebelumnya) dan tidak adanya baris
+`Aliased https://kasir-nova.vercel.app` pada keluaran deploy.
+
+Perbaikan: deploy ulang **dari root repo** -> `Aliased https://kasir-nova.vercel.app`,
+`readyState READY`, `target production` (`dpl_5fEYFLLm…`). Tautan salah
+`server/.vercel` (lokal, gitignored) sudah **dihapus** agar tidak terulang.
+**Proyek Vercel `server` yang tidak sengaja terbentuk masih ada** — penghapusan
+(destruktif) menunggu persetujuan pemilik.
+
+### Verifikasi sesudah deploy (17 Okt 2026)
+
+| Uji | Hasil |
+|---|---|
+| `vercel inspect kasir-nova.vercel.app` | OK menunjuk `dpl_5fEYFLLm…` (baru dibuat) |
+| `GET /api/health` produksi | OK `status: ok`, `services.database: up` |
+| Hosting `/owner/index.html` memuat `id="rep-transactions-xlsx"` | OK ada |
+| Hosting `/owner/src/app.js` memuat `downloadTransactionReportExcel` | OK ada |
+| Hosting `/owner/src/api.js` memuat `/reports/transactions/export` | OK ada |
+| Cache `owner/src/{app,api}.js` di Hosting | OK `cache-control: no-cache` |
+| Chrome headless `--dump-dom /owner/` (profil baru) | OK `#login-view` tampil (tanpa `hidden`) + tombol ekspor ada di DOM |
+| Suite lokal sebelum deploy | OK backend **268/268**, `verify:ui` **SEMUA OK** |
+
+> **Batas verifikasi:** seluruh rute Owner dilindungi autentikasi sehingga
+> permintaan **tanpa token selalu 401** (rute ada maupun tidak), dan agen tidak
+> memegang kredensial produksi. Bukti yang tersedia: alias produksi menunjuk
+> build baru dari *tree* yang lulus **268/268** tes HTTP nyata (termasuk ekspor
+> Excel yang di-*parse* ulang dengan ExcelJS) + berkas Hosting memuat tombol/API
+> barunya. **Uji klik tombol di panel Owner = pekerjaan pemilik.**
 
 

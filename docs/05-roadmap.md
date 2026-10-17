@@ -789,6 +789,14 @@ ITEM), agar bisa diolah di Excel tanpa mengetik ulang.
 urutan baris, nilai rupiah, `numFmt` persen, baris TOTAL, peringatan terpotong,
 batas `limit` 422, isolasi peran). Server **268/268 lulus**, `verify:ui` **SEMUA OK**.
 
+**Rilis (17 Okt 2026, izin pemilik):** dideploy ke produksi — backend **root repo**
+`npx.cmd vercel deploy --prod --yes` (proyek Vercel `kasir-nova`, alias
+`https://kasir-nova.vercel.app`) + hosting `build-hosting` & `firebase deploy`
+(`https://kasir-nova.web.app`). Verifikasi: alias menunjuk build baru,
+`/api/health` **200** (`database: up`), tombol & API ekspor ada di berkas Hosting,
+`/owner/` tampil normal via Chrome headless. Catatan lengkap + insiden "deploy ke
+proyek Vercel yang salah": `docs/24` bagian *Deploy 17 Okt 2026 (lanjutan)*.
+
 **Belum dikerjakan:** pembukaan berkas di Excel/Google Sheets versi pemilik;
 tombol ini tidak muncul di APK (panel Owner hanya di web).
 
