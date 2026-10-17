@@ -117,11 +117,11 @@ npm install
 npm run sync              # salin apps/kasir -> www, lalu cap sync android
 npm run android:prepare   # plugin printer, izin Bluetooth, versi, signing
 npm run apk:release       # APK rilis (butuh android/key.properties)
-npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.8.apk
+npm run distribute -- ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.9.apk
 ```
 
 Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`; naikkan
-`versionCode` lewat `$env:NOVA_APP_VERSION_CODE='7'` sebelum
+`versionCode` lewat `$env:NOVA_APP_VERSION_CODE='9'` sebelum
 `npm run android:prepare`. Keystore & kredensial rilis **tidak di-commit**
 (`nova-release.jks`, `key.properties`, `keystore-credentials.txt`). Runbook
 lengkap: `docs/25-apk-android-cetak-bluetooth.md`.
@@ -160,8 +160,10 @@ roadmap fase.
   lintas-bisnis JSON + XLSX).
 - Backend produksi **online** (Vercel + Neon, gratis tanpa kartu); frontend
   **V0.3** ter-deploy di Firebase Hosting (`kasir-nova.web.app`, API cross-origin
-  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.8`** dibagikan ke penguji
-  beta via Firebase App Distribution (grup `kasir-beta`). Deploy ulang 17 Okt 2026
+  ke `kasir-nova.vercel.app`); APK Kasir **`1.0.0-beta.9`** dibangun 17 Okt 2026
+  (memuat **Laporan Transaksi** + **ekspor Excel** di HP) — unggahan ke grup
+  `kasir-beta` tertahan sampai `firebase login --reauth`; versi terdistribusi
+  terakhir **`1.0.0-beta.8`**. Deploy ulang 17 Okt 2026
   membawa **laporan transaksi Owner**, **laporan transaksi Kasir (A5a)**, dan
   tombol **struk PDF** di panel web.
 - **Redesign frontend (Fase 14)**: identitas visual mengikuti logo resmi
@@ -224,7 +226,7 @@ roadmap fase.
   di `docs/24-vercel-serverless.md`.
 - **APK Android panel Kasir (Fase 17, diperbarui 17 Okt 2026)**: panel Kasir
   dikemas sebagai APK Capacitor (`apps/kasir-mobile`, `id.kasirnova.kasir`,
-  `1.0.0-beta.8`) dengan ikon launcher **KASIR NOVA** (adaptive), cetak struk
+  `1.0.0-beta.9`) dengan ikon launcher **KASIR NOVA** (adaptive), cetak struk
   thermal langsung via **Bluetooth Classic (SPP) & BLE** (plugin `NovaPrinter` +
   ESC/POS murni `apps/kasir/src/escpos.js`), serta **struk PDF** — kirim/simpan/
   cetak lewat plugin `NovaReceipt`. APK ditandatangani keystore rilis dan

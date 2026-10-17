@@ -5,7 +5,8 @@
 > **Uji di perangkat: SUKSES** (dilaporkan pemilik, 17 Okt 2026).
 > **APK `1.0.0-beta.8`** (memuat plugin native `NovaReceipt` + **perbaikan PDF
 > kosong**, §6.1) **sudah dibangun & didistribusikan** ke grup `kasir-beta`
-> pada 17 Okt 2026 — lihat §6.
+> pada 17 Okt 2026 — lihat §6. Versi terbaru: **`1.0.0-beta.9`** (menambahkan
+> Laporan Transaksi + ekspor Excel kasir) — lihat `docs/25` §7.
 >
 > **Permintaan pemilik (17 Okt 2026):**
 > *"saya ingin merubah alurnya, saat klik bayar harus tampil struk pdfnya dan dari
@@ -209,7 +210,8 @@ halaman tampil kosong. Kesalahan ada **sejak beta.7** (fitur struk PDF baru).
   beta.7 dan **lulus** setelah perbaikan.
 
 **Dampak:** APK beta.7 (PDF kosong) tidak dipakai lagi; pemilik/penguji diminta
-memasang **beta.8**.
+memasang versi terbaru — **kini `1.0.0-beta.9`** (`docs/25` §7; beta.8 tetap
+memuat perbaikan ini, beta.9 menambahkan Laporan Transaksi + ekspor Excel).
 
 Catatan: fitur struk PDF **tidak memerlukan perubahan backend** — berkas dibentuk
 di perangkat dari data transaksi yang sudah ada. Deploy backend/hosting terpisah

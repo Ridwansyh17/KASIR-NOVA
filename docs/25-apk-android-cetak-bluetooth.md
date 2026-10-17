@@ -19,7 +19,7 @@ struk langsung ke **printer thermal Bluetooth (ESC/POS)**, baik tipe
 | Owner / Admin Platform | tetap **web** (Firebase Hosting) |
 | Application ID | `id.kasirnova.kasir` |
 | Nama aplikasi | **KASIR NOVA** |
-| Versi | `1.0.0-beta.8` (versionCode `8`)
+| Versi | `1.0.0-beta.9` (versionCode `9`)
 | Pembungkus | **Capacitor 7** (`@capacitor/core|cli|android@^7`) |
 | Target | Android **6.0+** (minSdk 23), compile/target SDK 35 |
 | Lebar kertas | **58 mm** (32 kolom) dan **80 mm** (48 kolom) |
@@ -359,6 +359,28 @@ Status (13 Okt 2026, sudah dilakukan):
   (~5,02 MB). **Telah didistribusikan** ke grup `kasir-beta` (17 Okt 2026).
   **Hasil uji perangkat: SUKSES** — pemilik melaporkan "uji struk pdf sukses"
   (17 Okt 2026). Rincian + bukti: `docs/36` §6.1.
+- **V2 (17 Okt 2026):** APK **`1.0.0-beta.9`** (versionCode `9`) — **Laporan
+  Transaksi ikut ke APK**. beta.8 dibangun 08:53, sedangkan pekerjaan kasir
+  terakhir (`4b91fd3`, tab **Laporan Transaksi** + **ekspor Excel** + perbaikan
+  unduh berkas web) masuk 13:23 — jadi berkas panel kasir di dalam beta.8 sudah
+  tertinggal 4 berkas. beta.9 menyusul seluruh perubahan itu.
+
+  Diperiksa dengan **membongkar APK** dan membandingkan hash dengan repo:
+
+  | Berkas panel kasir | beta.8 | beta.9 |
+  |---|---|---|
+  | `src/app.js` | berbeda (75.940 vs 81.678 byte) | **identik** |
+  | `src/api.js` | berbeda (10.403 vs 12.582) | **identik** |
+  | `src/struk-share.js` | berbeda (5.837 vs 8.995) | **identik** |
+  | `index.html` | berbeda (31.422 vs 34.422) | **identik** |
+  | Penanda fitur (Laporan/Ekspor/`saveXlsx`) | 0 kemunculan | 13 / 4 / 3 / 4 |
+
+  Ditandatangani **keystore rilis yang sama** seperti beta.7/beta.8
+  (SHA-256 `5bf78eb1…d055`), jadi dapat dipasang **langsung di atas** beta.8.
+  Berkas: `dist/apk/KASIR-NOVA-1.0.0-beta.9.apk` (5,03 MB, SHA-256
+  `24a1e740…babf`). `aapt dump badging` → `versionCode='9'`
+  `versionName='1.0.0-beta.9'`; **BELUM diunggah** ke grup `kasir-beta` karena
+  kredensial Firebase CLI kedaluwarsa (butuh `firebase login --reauth`).
 
 > **Catatan penting:** desain & fitur baru pada APK hanya terlihat setelah
 > backend produksi memuat versi terbaru. Lihat `docs/24-vercel-serverless.md`.
@@ -420,7 +442,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
    `firebaseappdistribution-noreply@google.com`; buka tautannya, setujui
    undangan, lalu pasang aplikasi. (Disarankan memasang **App Tester**.)
 2. **Lewat berkas APK langsung** (paling cepat) - salin
-   `dist/apk/KASIR-NOVA-1.0.0-beta.8.apk` ke HP (USB/Google Drive), lalu buka
+   `dist/apk/KASIR-NOVA-1.0.0-beta.9.apk` ke HP (USB/Google Drive), lalu buka
    berkas di HP dan izinkan **"Install unknown apps"** untuk aplikasi
    pengelola berkas yang dipakai.
 3. Saat pertama dibuka, izinkan **Nearby devices/Bluetooth** (Android 12+) atau
@@ -430,7 +452,7 @@ cmd /c 'firebase appdistribution:groups:list --project kasir-nova'
 
 ```powershell
 cd apps\kasir-mobile
-node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.8.apk
+node scripts\distribute.mjs ..\..\dist\apk\KASIR-NOVA-1.0.0-beta.9.apk
 # atau pakai APK hasil Gradle:
 node scripts\distribute.mjs android\app\build\outputs\apk\debug\app-debug.apk
 # paling singkat (APK rilis bila ada, jika tidak APK debug):
@@ -497,7 +519,7 @@ cmd /c "npm run apk:release"
 - Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`
   (`version`), dipakai `setup-android.mjs` untuk `versionName`.
 - Naikkan `versionCode` tiap rilis:
-  `$env:NOVA_APP_VERSION_CODE='3'` sebelum `npm run android:prepare`.
+  `$env:NOVA_APP_VERSION_CODE='9'` sebelum `npm run android:prepare`.
 
 ---
 
@@ -563,10 +585,10 @@ maupun emulator). Yang perlu dikonfirmasi pemilik: splash menampilkan latar navy
 | Suite server penuh | `npm run test:server` | ✅ **266 tes, 266 lulus, 0 gagal** |
 | Verifikasi statis UI 3 panel + smoke bundel hosting | `node scripts/verify-ui.mjs` | ✅ rujukan aset/id/`api.*`/ikon manifest OK; 12/12 aset `dist/hosting` `200` |
 | Build APK debug | `gradlew assembleDebug` | ✅ APK (~3,97 MB); package/versi/izin/plugin terverifikasi (`aapt2 dump badging`) |
-| Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (~5,02 MB), v`1.0.0-beta.8`/code 8, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2–beta.7 sebelumnya juga terverifikasi) |
+| Build APK rilis bertanda tangan resmi | `gradlew assembleRelease` | ✅ `app-release.apk` (5,03 MB), v`1.0.0-beta.9`/code 9, sertifikat **KASIR NOVA** (bukan debug), v1+v2 scheme (`apksigner verify`; beta.2–beta.8 sebelumnya juga terverifikasi) |
 | CORS produksi untuk APK | `GET /api/health` + `Origin: https://localhost` | ✅ `200` + `Access-Control-Allow-Origin: https://localhost` |
 | CORS produksi web (regresi) | `GET /api/health` + `Origin: https://kasir-nova.web.app` | ✅ `200` + header sesuai |
-| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026, `1.0.0-beta.7` + **`1.0.0-beta.8`** 17 Okt 2026) |
+| Distribusi beta | `node scripts/distribute.mjs …` | ✅ grup `kasir-beta` (rilis `1.0.0-beta.2`, `1.0.0-beta.3` 13 Okt 2026, `1.0.0-beta.4`–`1.0.0-beta.6` 16 Okt 2026, `1.0.0-beta.7` + **`1.0.0-beta.8`** 17 Okt 2026) · ⏳ **`1.0.0-beta.9`** dibangun & diverifikasi, **belum diunggah** (kredensial Firebase CLI kedaluwarsa → `firebase login --reauth`) |
 | Deploy frontend (Hosting) | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` + `firebase deploy --only hosting` | ✅ rilis live; `config.js` → Vercel; halaman Kasir/Owner/Admin `200`; preflight `204`. **Deploy ulang 17 Okt 2026**: laporan transaksi Owner + tombol struk PDF web live (halaman `200`, berkas `kasir/src/{struk-share,receipt-pdf}.js` `200`) |
 | **Cetak ke printer fisik (SPP)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |
 | **Cetak ke printer fisik (BLE)** | perangkat nyata | ⚠️ **belum diuji** (tidak ada printer) |

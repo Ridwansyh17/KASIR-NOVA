@@ -759,6 +759,18 @@ tanpa menunggu printer thermal tersambung. APK juga dikirim ke penguji
 `arshakacoffe@gmail.com` (grup `kasir-beta`). Cetak ke printer thermal fisik tetap
 belum terverifikasi (tidak ada printer di lingkungan pengembangan).
 
+**Rilis `1.0.0-beta.9` (17 Okt 2026):** APK dibangun ulang (versionCode `9`)
+karena berkas panel kasir di dalam beta.8 (dibangun 08:53) sudah **tertinggal**
+pekerjaan kasir 13:23 — tab **Laporan Transaksi**, **ekspor Excel** `.xlsx`, dan
+perbaikan unduh berkas web. Dibuktikan dengan **membongkar APK**: `src/app.js`,
+`src/api.js`, `src/struk-share.js`, `index.html` kini **identik** dengan repo
+(pada beta.8 keempatnya berbeda). Berkas
+`dist/apk/KASIR-NOVA-1.0.0-beta.9.apk` (5,03 MB, SHA-256 `24a1e740…babf`),
+sertifikat rilis sama seperti beta.8; `aapt dump badging` →
+`versionCode='9'` / `versionName='1.0.0-beta.9'`. **Unggahan ke grup
+`kasir-beta` belum berhasil** — kredensial Firebase CLI kedaluwarsa
+(butuh `firebase login --reauth`). Rincian: `docs/25` §1 & §7.
+
 **Belum dikerjakan:** logo outlet di dalam PDF (dikecualikan pemilik).
 
 ## 17 Okt 2026 - Ekspor Excel Laporan Transaksi (Owner)
