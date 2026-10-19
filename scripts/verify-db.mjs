@@ -81,6 +81,10 @@ try {
   }
 } catch (err) {
   console.error(`[verify] GAGAL koneksi: ${err.message}`);
+  if (hostKind === 'LOKAL') {
+    console.error('[verify] Petunjuk: jalankan `npm run db:status`, lalu `npm run db:start`.');
+    console.error('[verify] Jangan memakai initdb/postgres dari /usr/lib/postgresql/*/bin di dalam proot Termux (bisa hang).');
+  }
   failed = true;
 } finally {
   await pool.end();

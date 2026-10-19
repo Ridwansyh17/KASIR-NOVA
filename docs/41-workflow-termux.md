@@ -53,9 +53,59 @@ git push origin feat/kasir-nova-v2
 | QA menyeluruh | `npm run qa:local` (PowerShell) | `npm run qa:portable` |
 | Backup DB | `npm run db:backup` (PowerShell) | `npm run db:backup:portable` |
 | Verifikasi DB | `npm run verify-db` (ps1) | `npm run db:verify` (Node) |
+| Kelola PostgreSQL lokal | `pg-server.cmd start/stop` | `npm run db:start` / `db:stop` / `db:restart` / `db:status` |
 | E2E | `npm run e2e:local` (ps1) | `npm run e2e:online` (Node) atau `node scripts/qa-local.mjs --with-e2e` |
 
 > Skrip `*.ps1` tidak dijalankan di Android. Gunakan padanan Node di atas.
+
+## PostgreSQL di Termux (WAJIB)
+
+**Jangan pernah** menjalankan `initdb`, `postgres --check`, atau `pg_ctl` dari
+paket Ubuntu (`/usr/lib/postgresql/*/bin`) **di dalam proot-distro**. Proot
+menahan `ptrace` sehingga proses berhenti permanen di `ptrace_stop`; tool bash
+di opencode lalu menunggu selamanya (kejadian 19 Okt 2026, sesi `swift-wolf`).
+
+Aturan:
+
+- Pakai biner **natif Termux**: `/data/data/com.termux/files/usr/bin/{pg_ctl,initdb,postgres}`.
+- Data dir: `/data/data/com.termux/files/usr/var/lib/postgresql` (PG 18).
+- Jalankan sebagai **UID Android aplikasi** (`u0_a211`), bukan root palsu proot.
+  `scripts/pg-local.mjs` sudah menangani ini via `setpriv` + `/proc/self/status`.
+- Kelola siklus hidup hanya lewat npm script:
+
+```bash
+npm run db:status     # cek server + port (read-only)
+npm run db:start      # idempoten: start bila berhenti, bersihkan lock basi
+npm run db:stop       # stop mode fast
+npm run db:restart
+npm run db:verify     # koneksi + status migrasi (read-only)
+```
+
+- Bila server mati mendadak, `db:start` otomatis menghapus `postmaster.pid`
+  dan lock socket yang basi (tidak menghapus data).
+- Inisialisasi cluster baru **hanya dari shell Termux** (bukan proot):
+
+```bash
+initdb -D "$PREFIX/var/lib/postgresql" -U postgres --auth=trust --no-locale -E UTF8
+```
+
+## Bila tool/sesi opencode hang
+
+1. Jangan tunggu. Tekan `Esc` (atau `Ctrl+C`) di sesi tersebut untuk cancel tool.
+2. Dari terminal lain, cari proses yang macet:
+   ```bash
+   ps -eo pid,ppid,stat,etime,cmd | awk '$3 ~ /^[tT]/'
+   ```
+   Status `t` = `ptrace_stop` (tersangka utama proot).
+3. Matikan proses proot induknya (bukan hanya anaknya):
+   ```bash
+   kill -9 <PID_proot> <PID_anak>
+   ```
+4. Riwayat sesi tersimpan di database. Lanjutkan dengan:
+   ```bash
+   opencode -s <session-id>
+   ```
+
 
 ## Cabang & PR
 

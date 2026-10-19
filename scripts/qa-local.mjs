@@ -53,6 +53,18 @@ if (!process.env.DATABASE_URL) {
   const url = new URL(process.env.DATABASE_URL);
   const dbName = decodeURIComponent(url.pathname.replace(/^\//, ''));
   console.log(`[qa] target DB: ${dbName} @ ${url.hostname}:${url.port || 5432}`);
+  const isLocal = url.hostname === '127.0.0.1' || url.hostname === 'localhost';
+  const ready = isLocal
+    ? spawnSync('node', ['scripts/pg-local.mjs', 'status'], { cwd: ROOT, stdio: 'ignore' })
+    : null;
+  if (isLocal && ready?.status !== 0) {
+    console.log('[qa] PostgreSQL lokal belum siap — mencoba `npm run db:start`…');
+    const start = spawnSync('node', ['scripts/pg-local.mjs', 'start'], { cwd: ROOT, stdio: 'inherit' });
+    if (start.status !== 0) {
+      console.error('[qa] PostgreSQL lokal tidak bisa dijalankan. Lihat `npm run db:status`.');
+      process.exit(1);
+    }
+  }
 }
 
 console.log('\n=== 1/8 Salinan berkas bersama ===');

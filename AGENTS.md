@@ -79,6 +79,11 @@ Tujuan akhir adalah menghasilkan KASIR NOVA yang siap diuji secara menyeluruh, b
 - Cegah duplikasi transaksi ketika permintaan dikirim ulang.
 - Simpan histori perubahan penting.
 - Sediakan strategi backup dan pengujian pemulihan.
+- **Termux/proot:** jangan menjalankan `initdb`, `postgres --check`, atau
+  `pg_ctl` dari paket Ubuntu (`/usr/lib/postgresql/*/bin`) di dalam
+  proot-distro — proses akan macet di `ptrace_stop` dan tool bash menggantung.
+  Gunakan biner Termux (`$PREFIX/bin`) dan npm script `db:start`/`db:stop`/
+  `db:status` (lihat `docs/41-workflow-termux.md`).
 
 ## Hak akses
 
