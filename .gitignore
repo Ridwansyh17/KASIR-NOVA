@@ -10,6 +10,10 @@ build/
 .env
 .env.local
 .env.*.local
+# Cadangan/snapshot env (mis. .env.backup-dev, .env.bak-*) — rahasia, jangan di-commit
+.env.*
+!.env.example
+!*.env.example
 *.pem
 *.key
 pgpass.conf

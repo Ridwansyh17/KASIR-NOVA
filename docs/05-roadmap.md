@@ -1041,6 +1041,43 @@ Rp 1.000.000 tanpa pembayaran** → memasang paket **Gratis** → ubah status
 sandi, § 2 catatan akun paten), `docs/09` (akun admin tidak lewat API), `docs/23`
 (perintah `admin:create` untuk produksi), `README.md`.
 
+## 19 Okt 2026 — Setoran Kas (migrasi 0011) + Workflow Pengembangan Termux
+
+**Tujuan.** Menyelesaikan migrasi `0011_cash_deposits.sql` yang sebelumnya
+menggantung (ada di DB & disk tetapi tidak di Git dan tanpa kode) menjadi fitur
+**Setoran Kas** yang berfungsi penuh di backend, sekaligus menyiapkan HP
+(Termux) sebagai lingkungan pengembangan kedua.
+
+**Fitur baru — Setoran Kas (uang tunai kasir → Owner).**
+- Migrasi `0011_cash_deposits.sql` kini resmi (tracked Git). Tabel append-only:
+  koreksi lewat **void**, bukan hapus.
+- Modul `server/src/modules/cash-deposit/` (schema, service, controller, routes):
+  - Owner: `GET/POST /api/owner/businesses/:businessId/cash-deposits`,
+    `POST .../:depositId/void`.
+  - Kasir: `GET/POST /api/cashier/cash-deposits`, `POST .../:depositId/void`
+    (outlet & kasir diturunkan dari akun, bukan body/URL → anti-IDOR).
+- Aturan: nominal sen > 0, metode `cash` (enum migrasi), `deposited_on` di zona
+  waktu bisnis ≤ hari ini, kasir hanya boleh void catatannya sendiri, Owner
+  bebas. Setoran **tidak** memengaruhi laba/rugi (perpindahan kas, bukan
+  pendapatan/beban).
+- Audit log: `cash_deposit.create` / `cash_deposit.void`.
+
+**Perkakas Termux (pengganti PowerShell).**
+- `scripts/verify-db.mjs` (read-only) — koneksi + status migrasi disk vs DB.
+- `scripts/backup-db.mjs` — `pg_dump -Fc` + verifikasi `pg_restore --list`.
+- `scripts/qa-local.mjs` — matriks QA lintas platform.
+- Skrip npm: `db:verify`, `db:backup:portable`, `qa:portable`.
+
+**Keamanan.** `.gitignore` diperketat: `.env.*` diabaikan (dengan pengecualian
+`.env.example`), sehingga cadangan env seperti `server/.env.backup-dev` tidak
+bisa ter-commit.
+
+**Pengujian:** `server/tests/cash-deposits.test.js` **7/7 lulus**
+(scope tenant, IDOR, void append-only, validasi, isolasi peran).
+
+**Dokumen diperbarui:** `docs/40-setoran-kas.md` (baru), `docs/11` (keputusan
+#6 selesai), `docs/41-workflow-termux.md` (baru), `docs/05` (entri ini).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
   **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal

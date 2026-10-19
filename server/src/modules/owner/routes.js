@@ -26,6 +26,7 @@ import { crossReportRoutes } from '../report/comparison-routes.js';
 import { createAuditRouter } from '../audit/routes.js';
 import { ownerSessionRouter } from '../session/routes.js';
 import { expenseRoutes } from '../expense/routes.js';
+import { cashDepositRoutes } from '../cash-deposit/routes.js';
 import { createInventoryRouter } from '../inventory/routes.js';
 import subscriptionInvoiceRoutes from '../subscription-invoice/routes.js';
 import {
@@ -93,6 +94,9 @@ router.use('/businesses/:businessId/transactions', transactionRoutes);
 
 // Pengeluaran outlet (Fase 5): daftar/filter, catat, batalkan (void).
 router.use('/businesses/:businessId/expenses', expenseRoutes);
+
+// Setoran kas (migrasi 0011): uang tunai kasir -> Owner, koreksi via void.
+router.use('/businesses/:businessId/cash-deposits', cashDepositRoutes);
 
 // Histori pergerakan stok (Fase 2) — append-only.
 router.use('/businesses/:businessId/inventory-movements', createInventoryRouter());

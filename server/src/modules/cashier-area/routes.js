@@ -28,6 +28,7 @@ import {
   productListQuerySchema,
 } from '../product/schema.js';
 import { cashierExpenseRoutes } from '../expense/routes.js';
+import { cashierCashDepositRoutes } from '../cash-deposit/routes.js';
 import { financeQuerySchema, cashierTransactionReportQuerySchema, cashierTransactionReportExportQuerySchema } from '../report/schema.js';
 import { createInventoryRouter } from '../inventory/routes.js';
 
@@ -119,6 +120,10 @@ router.get(
 // Didelegasikan ke modul expense (satu implementasi untuk Owner & Kasir);
 // outlet tetap diturunkan dari `req.cashierScope`.
 router.use('/expenses', ...cashierOnly, cashierExpenseRoutes);
+
+// --------------------------------------------------- Setoran kas (0011) ---
+// Uang tunai kasir -> Owner; outlet & kasir diturunkan dari `req.cashierScope`.
+router.use('/cash-deposits', ...cashierOnly, cashierCashDepositRoutes);
 
 // ------------------------------------------------- Laporan harian (Fase 4) -
 router.get(

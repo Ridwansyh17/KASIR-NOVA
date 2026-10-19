@@ -129,6 +129,21 @@ mengganti sandi akun Admin-nya sendiri dari aplikasi (harus lewat CLI).
 
 ---
 
+## KEPUTUSAN MENUNGGU #6 — Migrasi 0011 "Setoran Kas" yang menggantung
+
+**✅ DIPUTUSKAN 19 Okt 2026** — dijadikan **fitur nyata** dan diimplementasikan.
+
+**Konteks.** `0011_cash_deposits.sql` ditemukan sudah diterapkan di DB dev dan
+ada di disk, tetapi **tidak di-track Git** dan **tanpa kode/doc** — sumber
+ketidaksesuaian database vs source.
+
+**Keputusan.** Diimplementasikan sebagai modul **Setoran Kas** (uang tunai
+kasir → Owner), append-only (koreksi via void), tidak memengaruhi laba/rugi.
+Lihat **`docs/40-setoran-kas.md`**. Sisa lingkup (UI frontend, metode non-tunai,
+integrasi laporan) menyusul sebagai pekerjaan terpisah.
+
+---
+
 ## Cara melanjutkan
 
 Bila pemilik proyek menjawab Keputusan #1 (mis. "pilih A"), Fase 4 dapat
