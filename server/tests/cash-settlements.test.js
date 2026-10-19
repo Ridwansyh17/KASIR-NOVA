@@ -31,9 +31,11 @@ let adminToken;
 let biz;
 let biz2;
 let biz3;
+let biz4;
 let outletA;
 let outletB;
 let outletC;
+let outletD;
 let cashierId;
 let cashierToken;
 
@@ -50,18 +52,26 @@ const cashierPatch = (path, data) =>
 const bp = (b, s) => `/businesses/${b}${s}`;
 
 let invoiceSeq = 0;
-const addTx = async ({ businessId = biz, outletId, method, amount, cashier = cashierId }) => {
+const addTx = async ({
+  businessId = biz,
+  outletId,
+  method,
+  amount,
+  paid = amount,
+  change = paid - amount,
+  cashier = cashierId,
+}) => {
   invoiceSeq += 1;
   const t = await query(
     `INSERT INTO transactions
-       (business_id, outlet_id, cashier_id, invoice_no, status, total, paid_amount)
-     VALUES ($1,$2,$3,$4,'completed',$5,$5) RETURNING id`,
-    [businessId, outletId, cashier, `SETTLE-${Date.now()}-${invoiceSeq}`, amount]
+       (business_id, outlet_id, cashier_id, invoice_no, status, total, paid_amount, change_amount)
+     VALUES ($1,$2,$3,$4,'completed',$5,$6,$7) RETURNING id`,
+    [businessId, outletId, cashier, `SETTLE-${Date.now()}-${invoiceSeq}`, amount, paid, change]
   );
   await query(
     `INSERT INTO payments (transaction_id, method, amount, status)
      VALUES ($1,$2,$3,'paid')`,
-    [t.rows[0].id, method, amount]
+    [t.rows[0].id, method, paid]
   );
   return t.rows[0].id;
 };
@@ -166,6 +176,9 @@ before(async () => {
   // terpisah.
   biz3 = (await ownerPost('/businesses', { name: 'Bisnis Settle 3' })).body.business.id;
   outletC = (await ownerPost(bp(biz3, '/outlets'), { name: 'Outlet Settle C' })).body.outlet.id;
+  // Bisnis khusus uji omzet tunai dengan kembalian.
+  biz4 = (await ownerPost('/businesses', { name: 'Bisnis Settle 4' })).body.business.id;
+  outletD = (await ownerPost(bp(biz4, '/outlets'), { name: 'Outlet Settle D' })).body.outlet.id;
 
   const ca = await ownerPost(bp(biz, '/cashiers'), {
     fullName: 'Kasir Settle',
@@ -185,7 +198,7 @@ before(async () => {
 
 after(async () => {
   const ownerIds = [ownerId, owner2Id];
-  const bizIds = [biz, biz2, biz3].filter(Boolean);
+  const bizIds = [biz, biz2, biz3, biz4].filter(Boolean);
   await cleanupBusinesses(bizIds);
   await query(`DELETE FROM refresh_tokens WHERE user_id = ANY($1::uuid[])`, [ownerIds]);
   await query(`DELETE FROM audit_logs WHERE actor_id = ANY($1::uuid[])`, [ownerIds]);
@@ -323,6 +336,40 @@ test('Setoran: tanpa transaksi sama sekali -> semua nol, aktual 0 sah', async ()
   assert.strictEqual(Number(dep.total_revenue), 0);
   assert.strictEqual(Number(dep.required_cash), 0);
   assert.strictEqual(Number(dep.difference), 0);
+});
+
+test('Setoran: omzet tunai memakai total bersih, bukan uang diterima (kembalian)', async () => {
+  const day = await today();
+  // Total Rp40.000 (4.000.000 sen) dibayar Rp100.000 (10.000.000 sen):
+  // kas wajib harus Rp40.000, BUKAN Rp100.000.
+  await addTx({
+    businessId: biz4,
+    outletId: outletD,
+    method: 'cash',
+    amount: 4_000_000,
+    paid: 10_000_000,
+    cashier: null,
+  });
+
+  const preview = await request.get(
+    `/api/owner${bp(biz4, `/cash-deposits/settlement/preview?outletId=${outletD}&date=${day}&shift=full`)}`,
+    { headers: auth(ownerToken) }
+  );
+  assert.strictEqual(preview.status, 200);
+  assert.strictEqual(preview.body.totals.cash_revenue, 4_000_000);
+  assert.strictEqual(preview.body.totals.total_revenue, 4_000_000);
+  assert.strictEqual(preview.body.totals.required_cash, 4_000_000);
+
+  const created = await ownerPost(bp(biz4, '/cash-deposits/settlement'), {
+    outletId: outletD,
+    date: day,
+    shift: 'full',
+    actualCash: 4_000_000,
+    note: 'Sesuai omzet bersih',
+  });
+  assert.strictEqual(created.status, 201);
+  assert.strictEqual(Number(created.body.deposit.cash_revenue), 4_000_000);
+  assert.strictEqual(Number(created.body.deposit.required_cash), 4_000_000);
 });
 
 test('Setoran: draft lalu diselesaikan', async () => {

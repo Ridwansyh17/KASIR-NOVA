@@ -107,11 +107,16 @@ export const resolvePeriod = async (db, { date, shift = 'full', timezone }) => {
  * Semua nilai dalam sen.
  */
 export const computeSettlement = async (db, { businessId, outletId, period }) => {
+  // Omzet per metode HARUS memakai `t.total` (nilai bersih), BUKAN
+  // `p.amount`. `payments.amount` menyimpan uang DITERIMA sehingga untuk tunai
+  // termasuk kembalian (mis. total Rp40.000 dibayar Rp100.000 -> amount
+  // Rp100.000) dan akan MELEBIHKAN kas wajib. Definisi ini sama dengan
+  // `paymentMethodRecap` di laporan agar angka setoran tidak pernah berbeda.
   const tx = await db.query(
     `SELECT t.id, t.invoice_no, t.created_at,
-            COALESCE(SUM(p.amount) FILTER (WHERE p.method = 'cash'), 0)::bigint AS cash_amount,
-            COALESCE(SUM(p.amount) FILTER (WHERE p.method = 'qr'), 0)::bigint AS qris_amount,
-            COALESCE(SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','qr')), 0)::bigint AS other_amount
+            COALESCE(SUM(t.total) FILTER (WHERE p.method = 'cash'), 0)::bigint AS cash_amount,
+            COALESCE(SUM(t.total) FILTER (WHERE p.method = 'qr'), 0)::bigint AS qris_amount,
+            COALESCE(SUM(t.total) FILTER (WHERE p.method NOT IN ('cash','qr')), 0)::bigint AS other_amount
        FROM transactions t
        JOIN payments p ON p.transaction_id = t.id
       WHERE t.business_id = $1
