@@ -566,6 +566,25 @@ export const api = {
       }),
   },
 
+  /**
+   * Setoran kas (uang tunai kasir -> Owner). Bukan pendapatan/beban.
+   * Koreksi memakai void + alasan (append-only). Nominal SEN di body.
+   */
+  cashDeposits: {
+    list: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits${queryString(params)}`),
+    create: (businessId, data) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    void: (businessId, depositId, reason) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits/${depositId}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+  },
+
   /** Histori pergerakan stok (Fase 2, append-only). */
   inventoryMovements: {
     list: (businessId, params = {}) =>

@@ -347,6 +347,17 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
 
+  // -------------------------------------------------------- Setoran kas ----
+  /** Setoran kas (tunai) ke Owner. Outlet SELALU dari akun kasir (tanpa id). */
+  cashDeposits: (params = {}) => request(`/api/cashier/cash-deposits${qs(params)}`),
+  createCashDeposit: (data) =>
+    request('/api/cashier/cash-deposits', { method: 'POST', body: JSON.stringify(data) }),
+  voidCashDeposit: (depositId, reason) =>
+    request(`/api/cashier/cash-deposits/${depositId}/void`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
   // ------------------------------------------------------------- Laporan ---
   /** Laporan harian outlet (Fase 4). `params`: { date | period | from, to }. */
   daily: (params = {}) => request(`/api/cashier/reports/daily${qs(params)}`),

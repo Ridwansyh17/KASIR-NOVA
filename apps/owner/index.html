@@ -626,6 +626,51 @@
           </div>
         </section>
 
+        <!-- Setoran kas (19 Okt 2026) — uang tunai kasir -> Owner, bukan laba/rugi -->
+        <section id="deposit-section" class="detail card hidden">
+          <div class="detail-head">
+            <div>
+              <h3>Setoran Kas</h3>
+              <p class="muted">
+                Uang tunai kasir &rarr; Owner (perpindahan kas, bukan pendapatan/beban; koreksi void ber-alasan)
+              </p>
+            </div>
+            <div class="detail-actions">
+              <input id="dep-date-from" type="date" title="Dari tanggal" />
+              <input id="dep-date-to" type="date" title="Sampai tanggal" />
+              <select id="dep-outlet-filter">
+                <option value="">Semua outlet</option>
+              </select>
+              <select id="dep-status-filter">
+                <option value="recorded" selected>Aktif</option>
+                <option value="voided">Dibatalkan</option>
+              </select>
+              <button id="dep-refresh-btn" class="btn">Muat ulang</button>
+              <button id="dep-new-btn" class="btn primary">+ Setoran</button>
+            </div>
+          </div>
+
+          <div class="cards" id="dep-summary"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Outlet</th>
+                  <th>Metode</th>
+                  <th class="right">Nominal</th>
+                  <th>Petugas</th>
+                  <th>Catatan</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="dep-body"></tbody>
+            </table>
+            <p id="dep-empty" class="empty hidden">Belum ada setoran kas pada filter ini.</p>
+          </div>
+        </section>
+
         <!-- Riwayat pergerakan stok (Fase 2) -->
         <section id="inventory-section" class="detail card hidden">
           <div class="detail-head">
@@ -1105,6 +1150,59 @@
           <p id="void-error" class="error hidden"></p>
           <div class="modal-actions">
             <button type="button" id="void-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn danger">Batalkan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL SETORAN KAS ================= -->
+    <div id="dep-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Setoran Kas Baru</h3>
+        <form id="dep-form" novalidate>
+          <label class="field">
+            <span>Outlet</span>
+            <select id="dep-outlet" required></select>
+          </label>
+          <label class="field">
+            <span>Nominal (Rp)</span>
+            <input id="dep-amount" type="number" min="1" step="1" required />
+          </label>
+          <label class="field">
+            <span>Tanggal</span>
+            <input id="dep-date" type="date" required />
+          </label>
+          <label class="field">
+            <span>Catatan (opsional)</span>
+            <input id="dep-note" type="text" maxlength="300" />
+          </label>
+          <label class="field">
+            <span>Bukti foto (opsional)</span>
+            <input id="dep-receipt" type="file" accept="image/*" />
+          </label>
+          <p id="dep-form-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="dep-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL VOID SETORAN KAS ================= -->
+    <div id="dep-void-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Batalkan Setoran Kas</h3>
+        <p id="dep-void-info" class="muted"></p>
+        <form id="dep-void-form" novalidate>
+          <label class="field">
+            <span>Alasan pembatalan (min. 3 karakter)</span>
+            <input id="dep-void-reason" type="text" maxlength="200" required />
+          </label>
+          <p id="dep-void-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="dep-void-cancel" class="btn">Batal</button>
             <button type="submit" class="btn danger">Batalkan</button>
           </div>
         </form>

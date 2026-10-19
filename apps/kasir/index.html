@@ -120,6 +120,7 @@
           <button type="button" class="tab" data-tab="pendapatan" role="tab">Pendapatan</button>
           <button type="button" class="tab" data-tab="laporan" role="tab">Laporan Transaksi</button>
           <button type="button" class="tab" data-tab="pengeluaran" role="tab">Pengeluaran</button>
+          <button type="button" class="tab" data-tab="setoran" role="tab">Setoran Kas</button>
           <button type="button" class="tab" data-tab="stok" role="tab">Riwayat Stok</button>
           <button type="button" class="tab" data-tab="lainnya" role="tab">Lainnya</button>
         </nav>
@@ -449,6 +450,45 @@
           </div>
         </section>
 
+        <!-- ================= SETORAN KAS (19 Okt 2026) ================= -->
+        <section class="detail card pane hidden" data-pane="setoran">
+          <div class="detail-head">
+            <div>
+              <h3>Setoran Kas</h3>
+              <p class="muted">Setorkan uang tunai outlet ke Owner (tidak dihapus, hanya dibatalkan)</p>
+            </div>
+            <button id="dep-new-btn" class="btn primary">+ Setoran</button>
+          </div>
+
+          <div class="filter-bar">
+            <select id="dep-status-filter">
+              <option value="recorded" selected>Tercatat</option>
+              <option value="voided">Dibatalkan</option>
+            </select>
+            <input id="dep-date-from" type="date" title="Dari tanggal" />
+            <input id="dep-date-to" type="date" title="Sampai tanggal" />
+            <button id="dep-refresh-btn" class="btn">Muat ulang</button>
+          </div>
+
+          <div class="cards" id="dep-summary"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Metode</th>
+                  <th class="right">Nominal</th>
+                  <th>Catatan</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="dep-body"></tbody>
+            </table>
+            <p id="dep-empty" class="empty hidden">Belum ada setoran kas pada filter ini.</p>
+          </div>
+        </section>
+
         <!-- ================= RIWAYAT PERGERAKAN STOK (Fase 2) ================= -->
         <section class="detail card pane hidden" data-pane="stok">
           <div class="detail-head">
@@ -487,6 +527,10 @@
             <button type="button" class="menu-item" data-tab="pengeluaran">
               <span class="menu-label">Pengeluaran</span>
               <span class="muted small">Catat &amp; lihat pengeluaran outlet</span>
+            </button>
+            <button type="button" class="menu-item" data-tab="setoran">
+              <span class="menu-label">Setoran Kas</span>
+              <span class="muted small">Setorkan uang tunai outlet ke Owner</span>
             </button>
             <button type="button" class="menu-item" data-tab="stok">
               <span class="menu-label">Riwayat Stok</span>
@@ -772,6 +816,56 @@
           <p id="void-error" class="error hidden"></p>
           <div class="modal-actions">
             <button type="button" id="void-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn danger">Batalkan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL SETORAN KAS ================= -->
+    <div id="dep-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Setoran Kas Baru</h3>
+        <p class="muted small">Uang tunai outlet yang disetorkan ke Owner (bukan penjualan).</p>
+        <form id="dep-form" novalidate>
+          <label class="field">
+            <span>Nominal (Rp)</span>
+            <input id="dep-amount" type="number" min="1" step="1" required />
+          </label>
+          <label class="field">
+            <span>Tanggal</span>
+            <input id="dep-date" type="date" required />
+          </label>
+          <label class="field">
+            <span>Catatan (opsional)</span>
+            <input id="dep-note" type="text" maxlength="300" />
+          </label>
+          <label class="field">
+            <span>Bukti foto (opsional)</span>
+            <input id="dep-receipt" type="file" accept="image/*" />
+          </label>
+          <p id="dep-form-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="dep-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL VOID SETORAN KAS ================= -->
+    <div id="dep-void-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Batalkan Setoran Kas</h3>
+        <p id="dep-void-info" class="muted"></p>
+        <form id="dep-void-form" novalidate>
+          <label class="field">
+            <span>Alasan pembatalan (min. 3 karakter)</span>
+            <input id="dep-void-reason" type="text" maxlength="200" required />
+          </label>
+          <p id="dep-void-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="dep-void-cancel" class="btn">Batal</button>
             <button type="submit" class="btn danger">Batalkan</button>
           </div>
         </form>
