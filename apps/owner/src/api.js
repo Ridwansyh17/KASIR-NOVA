@@ -571,13 +571,69 @@ export const api = {
    * Koreksi memakai void + alasan (append-only). Nominal SEN di body.
    */
   cashDeposits: {
+    /**
+     * Daftar setoran (paginasi).
+     * @param {{outletId?,cashierId?,status?,from?,to?,page?,limit?}} params
+     */
     list: (businessId, params = {}) =>
       request(`/api/owner/businesses/${businessId}/cash-deposits${queryString(params)}`),
+
+    /** Detail setoran + snapshot transaksi & pengeluaran. */
+    detail: (businessId, depositId) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits/${depositId}`),
+
+    /**
+     * Rekap setoran per hari/minggu/bulan (hanya status SELESAI).
+     * @param {{outletId?,cashierId?,from?,to?,group?:'day'|'week'|'month'}} params
+     */
+    report: (businessId, params = {}) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits/report${queryString(params)}`),
+
+    /**
+     * Unduh laporan setoran .xlsx sesuai filter (tanpa paginasi).
+     * @returns {Promise<{blob: Blob, filename: string}>}
+     */
+    exportXlsx: (businessId, params = {}) =>
+      downloadXlsx(
+        `/api/owner/businesses/${businessId}/cash-deposits/export`,
+        params,
+        'KASIR_NOVA_Laporan_Setoran.xlsx'
+      ),
+
+    /** Pratinjau perhitungan setoran (read-only; outlet WAJIB untuk Owner). */
+    preview: (businessId, params = {}) =>
+      request(
+        `/api/owner/businesses/${businessId}/cash-deposits/settlement/preview${queryString(params)}`
+      ),
+
+    /** Buat setoran baru (langsung selesai atau simpan sebagai draft). */
+    createSettlement: (businessId, data) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits/settlement`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    /** Selesaikan setoran DRAFT dengan uang tunai aktual. */
+    complete: (businessId, depositId, data) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits/${depositId}/complete`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+
+    /** Hapus setoran DRAFT (belum menjadi bukti setoran). */
+    deleteDraft: (businessId, depositId) =>
+      request(`/api/owner/businesses/${businessId}/cash-deposits/${depositId}`, {
+        method: 'DELETE',
+      }),
+
+    /** Catat setoran legacy (nominal saja) — dipertahankan untuk kompatibilitas. */
     create: (businessId, data) =>
       request(`/api/owner/businesses/${businessId}/cash-deposits`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+
+    /** Batalkan setoran (append-only; wajib alasan). */
     void: (businessId, depositId, reason) =>
       request(`/api/owner/businesses/${businessId}/cash-deposits/${depositId}/void`, {
         method: 'POST',

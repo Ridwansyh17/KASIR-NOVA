@@ -1650,3 +1650,189 @@ body {
     padding-bottom: 104px;
   }
 }
+
+/* ---------- Setoran Kas: pratinjau, total, & bukti struk ---------- */
+.dep-preview-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  background: var(--card-2);
+}
+
+.dep-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dep-preview-filter {
+  margin: 0;
+}
+
+.dep-history-head {
+  margin-top: 8px;
+}
+
+.dep-overlap {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.setoran-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 18px;
+  margin: 10px 0;
+}
+
+.setoran-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  border-bottom: 1px dashed var(--border);
+  padding: 3px 0;
+}
+
+.setoran-total-row strong {
+  white-space: nowrap;
+}
+
+.setoran-total-row.is-total {
+  font-weight: 700;
+}
+
+.setoran-total-row.is-warning strong {
+  color: var(--danger);
+}
+
+.dep-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.dep-amount-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dep-amount-row input {
+  flex: 1;
+}
+
+.dep-detail-card {
+  max-width: 620px;
+}
+
+.dep-detail-card h4 {
+  margin: 16px 0 6px;
+}
+
+.dep-complete-form {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 10px;
+}
+
+.dep-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dep-detail-table th,
+.dep-detail-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.dep-detail-table td.right,
+.dep-detail-table th.right {
+  text-align: right;
+}
+
+.dep-receipt-card {
+  max-width: 560px;
+}
+
+.dep-receipt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dep-receipt-preview {
+  margin: 12px 0;
+  overflow-x: auto;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.setoran-receipt {
+  font-family: ui-monospace, "Cascadia Mono", "Courier New", Consolas, monospace;
+  color: #111;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.setoran-receipt .setoran-line {
+  white-space: pre;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.setoran-receipt .setoran-line.bold {
+  font-weight: 700;
+}
+
+.setoran-receipt .setoran-line.center {
+  text-align: center;
+}
+
+.dep-receipt-actions {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 560px) {
+  .dep-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Cetak bukti setoran: baris monospace ikut aturan cetak struk #print-struk. */
+@media print {
+  #print-struk .setoran-receipt {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #print-struk .setoran-line {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  #print-struk .setoran-line.bold {
+    font-weight: 700;
+  }
+
+  #print-struk .setoran-line.center {
+    text-align: center;
+  }
+}

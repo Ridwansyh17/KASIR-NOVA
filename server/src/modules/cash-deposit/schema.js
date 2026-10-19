@@ -11,7 +11,13 @@
 import { z } from 'zod';
 
 export const CASH_DEPOSIT_METHODS = ['cash'];
-export const CASH_DEPOSIT_STATUSES = ['recorded', 'voided'];
+export const CASH_DEPOSIT_STATUSES = ['draft', 'completed', 'recorded', 'voided'];
+
+/** Kunci shift yang didukung server (batas waktu dihitung di zona bisnis). */
+export const CASH_DEPOSIT_SHIFTS = ['full', 'pagi', 'sore', 'malam'];
+
+/** Status yang dianggap SELESAI pada laporan. */
+export const CASH_DEPOSIT_DONE_STATUSES = ['completed', 'recorded'];
 
 const PHOTO_PREFIXES = [
   'data:image/png;base64,',
@@ -67,7 +73,77 @@ export const voidCashDepositSchema = z.object({
 export const cashDepositListQuerySchema = z.object({
   outletId: z.string().uuid('ID outlet tidak valid').optional(),
   cashierId: z.string().uuid('ID kasir tidak valid').optional(),
-  status: z.enum(CASH_DEPOSIT_STATUSES).default('recorded'),
+  status: z
+    .enum([...CASH_DEPOSIT_STATUSES, 'all'])
+    .default('all'),
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const cashierSettlementSchema = z.object({
+  date: dateStr.optional(),
+  shift: z
+    .enum(CASH_DEPOSIT_SHIFTS, {
+      errorMap: () => ({ message: 'Shift harus full, pagi, sore, atau malam' }),
+    })
+    .default('full'),
+  actualCash: z
+    .number('Uang tunai aktual harus angka')
+    .int('Uang tunai aktual harus bilangan bulat (sen)')
+    .min(0, 'Uang tunai aktual tidak boleh negatif')
+    .max(100_000_000_000, 'Nominal terlalu besar')
+    .optional(),
+  note: z.string().trim().max(500, 'Catatan maksimal 500 karakter').optional().nullable(),
+  recipientName: z
+    .string()
+    .trim()
+    .max(120, 'Nama penerima maksimal 120 karakter')
+    .optional()
+    .nullable(),
+  saveAs: z.enum(['draft', 'completed']).default('completed'),
+});
+
+/** Owner dapat membuat setoran atas nama outlet tertentu (wajib outletId). */
+export const ownerSettlementSchema = cashierSettlementSchema.extend({
+  outletId: z.string().uuid('ID outlet tidak valid'),
+});
+
+export const completeSettlementSchema = z.object({
+  actualCash: z
+    .number('Uang tunai aktual harus angka')
+    .int('Uang tunai aktual harus bilangan bulat (sen)')
+    .min(0, 'Uang tunai aktual tidak boleh negatif')
+    .max(100_000_000_000, 'Nominal terlalu besar'),
+  note: z.string().trim().max(500, 'Catatan maksimal 500 karakter').optional().nullable(),
+  recipientName: z
+    .string()
+    .trim()
+    .max(120, 'Nama penerima maksimal 120 karakter')
+    .optional()
+    .nullable(),
+});
+
+export const settlementPreviewQuerySchema = z.object({
+  date: dateStr.optional(),
+  shift: z.enum(CASH_DEPOSIT_SHIFTS).default('full'),
+  outletId: z.string().uuid('ID outlet tidak valid').optional(),
+});
+
+export const cashDepositReportQuerySchema = z.object({
+  outletId: z.string().uuid('ID outlet tidak valid').optional(),
+  cashierId: z.string().uuid('ID kasir tidak valid').optional(),
+  from: dateStr.optional(),
+  to: dateStr.optional(),
+  group: z.enum(['day', 'week', 'month']).default('day'),
+});
+
+export const platformCashDepositQuerySchema = z.object({
+  businessId: z.string().uuid('ID bisnis tidak valid').optional(),
+  outletId: z.string().uuid('ID outlet tidak valid').optional(),
+  cashierId: z.string().uuid('ID kasir tidak valid').optional(),
+  status: z.enum([...CASH_DEPOSIT_STATUSES, 'all']).default('all'),
   from: dateStr.optional(),
   to: dateStr.optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -86,10 +162,18 @@ export const cashierCashDepositParamSchema = z.object({
 export default {
   CASH_DEPOSIT_METHODS,
   CASH_DEPOSIT_STATUSES,
+  CASH_DEPOSIT_SHIFTS,
+  CASH_DEPOSIT_DONE_STATUSES,
   createCashDepositSchema,
   createCashDepositOwnerSchema,
   voidCashDepositSchema,
   cashDepositListQuerySchema,
+  cashierSettlementSchema,
+  ownerSettlementSchema,
+  completeSettlementSchema,
+  settlementPreviewQuerySchema,
+  cashDepositReportQuerySchema,
+  platformCashDepositQuerySchema,
   cashDepositParamSchema,
   cashierCashDepositParamSchema,
 };

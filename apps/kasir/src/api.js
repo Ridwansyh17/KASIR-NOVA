@@ -348,10 +348,41 @@ export const api = {
     }),
 
   // -------------------------------------------------------- Setoran kas ----
-  /** Setoran kas (tunai) ke Owner. Outlet SELALU dari akun kasir (tanpa id). */
+  /**
+   * Daftar setoran kas. `params`: { status, from, to, page, limit }.
+   * Outlet SELALU dari akun kasir (jangan kirim outletId).
+   */
   cashDeposits: (params = {}) => request(`/api/cashier/cash-deposits${qs(params)}`),
+
+  /** Detail setoran + snapshot transaksi/pengeluaran (untuk detail & cetak ulang). */
+  cashDeposit: (depositId) => request(`/api/cashier/cash-deposits/${depositId}`),
+
+  /** Pratinjau perhitungan setoran. `params`: { date, shift }. */
+  settlementPreview: (params = {}) =>
+    request(`/api/cashier/cash-deposits/settlement/preview${qs(params)}`),
+
+  /** Buat setoran settlement: `saveAs` 'completed' | 'draft'. */
+  createSettlement: (data) =>
+    request('/api/cashier/cash-deposits/settlement', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  /** Selesaikan setoran DRAFT dengan uang tunai aktual. */
+  completeCashDeposit: (depositId, data) =>
+    request(`/api/cashier/cash-deposits/${depositId}/complete`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  /** Hapus DRAFT (hanya status draft). */
+  deleteCashDeposit: (depositId) =>
+    request(`/api/cashier/cash-deposits/${depositId}`, { method: 'DELETE' }),
+
+  /** Endpoint legacy: catat setoran manual (nominal bebas). */
   createCashDeposit: (data) =>
     request('/api/cashier/cash-deposits', { method: 'POST', body: JSON.stringify(data) }),
+
   voidCashDeposit: (depositId, reason) =>
     request(`/api/cashier/cash-deposits/${depositId}/void`, {
       method: 'POST',

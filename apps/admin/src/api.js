@@ -330,4 +330,29 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({}),
     }),
+
+  // Monitoring setoran kasir lintas bisnis (baca saja).
+  /**
+   * Daftar setoran kasir lintas bisnis untuk Platform Admin.
+   *
+   * @param {object} [params]
+   * @param {string} [params.businessId] UUID bisnis.
+   * @param {string} [params.outletId] UUID outlet.
+   * @param {string} [params.cashierId] UUID kasir.
+   * @param {string} [params.status] `all` | `draft` | `completed` | `voided` | `recorded`.
+   * @param {string} [params.from] Tanggal awal `YYYY-MM-DD`.
+   * @param {string} [params.to] Tanggal akhir `YYYY-MM-DD`.
+   * @param {number} [params.page=1]
+   * @param {number} [params.limit=20]
+   * @returns {Promise<{items: object[], total: number, totals?: object}>}
+   */
+  listCashSettlements(params = {}) {
+    const q = new URLSearchParams();
+    for (const key of ['businessId', 'outletId', 'cashierId', 'status', 'from', 'to']) {
+      if (params[key]) q.set(key, params[key]);
+    }
+    if (params.page) q.set('page', String(params.page));
+    if (params.limit) q.set('limit', String(params.limit));
+    return request(`/api/platform/cash-settlements?${q.toString()}`);
+  },
 };

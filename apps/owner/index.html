@@ -626,48 +626,104 @@
           </div>
         </section>
 
-        <!-- Setoran kas (19 Okt 2026) — uang tunai kasir -> Owner, bukan laba/rugi -->
+        <!-- Laporan Setoran (migrasi 0012) — uang tunai kasir -> Owner, bukan laba/rugi -->
         <section id="deposit-section" class="detail card hidden">
           <div class="detail-head">
             <div>
-              <h3>Setoran Kas</h3>
+              <h3>Laporan Setoran</h3>
               <p class="muted">
-                Uang tunai kasir &rarr; Owner (perpindahan kas, bukan pendapatan/beban; koreksi void ber-alasan)
+                Monitoring setoran kasir &rarr; Owner (perpindahan kas, bukan pendapatan/beban; koreksi void ber-alasan)
               </p>
             </div>
             <div class="detail-actions">
-              <input id="dep-date-from" type="date" title="Dari tanggal" />
-              <input id="dep-date-to" type="date" title="Sampai tanggal" />
-              <select id="dep-outlet-filter">
+              <select id="dep-outlet-filter" title="Filter outlet">
                 <option value="">Semua outlet</option>
               </select>
-              <select id="dep-status-filter">
-                <option value="recorded" selected>Aktif</option>
+              <select id="dep-cashier-filter" title="Filter kasir">
+                <option value="">Semua kasir</option>
+              </select>
+              <input id="dep-date-from" type="date" title="Dari tanggal" />
+              <input id="dep-date-to" type="date" title="Sampai tanggal" />
+              <select id="dep-status-filter" title="Filter status">
+                <option value="all" selected>Semua status</option>
+                <option value="completed">Selesai</option>
+                <option value="draft">Draft</option>
                 <option value="voided">Dibatalkan</option>
+                <option value="recorded">Selesai (lama)</option>
+              </select>
+              <select id="dep-group" title="Pengelompokan rekap">
+                <option value="day" selected>Rekap harian</option>
+                <option value="week">Rekap mingguan</option>
+                <option value="month">Rekap bulanan</option>
               </select>
               <button id="dep-refresh-btn" class="btn">Muat ulang</button>
+              <button
+                id="dep-export-xlsx"
+                class="btn small xlsx"
+                title="Ekspor laporan setoran ke Microsoft Excel"
+              >
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#107C41" d="M19 3H7a2 2 0 0 0-2 2v3h-1a1 1 0 0 0 0 2h1v3h-1a1 1 0 0 0 0 2h1v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-6.7 13-2-3-2 3H6.2l3.1-4-3.1-4h2.1l2 3 2-3h2.1l-3.1 4 3.1 4h-2.1Zm4.7 1a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0-4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"/>
+                </svg>
+                Ekspor Excel (.xlsx)
+              </button>
               <button id="dep-new-btn" class="btn primary">+ Setoran</button>
             </div>
           </div>
 
           <div class="cards" id="dep-summary"></div>
 
+          <h4>Rekap Setoran</h4>
+          <p id="dep-recap-note" class="muted small"></p>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Periode</th>
+                  <th class="right">Setoran</th>
+                  <th class="right">Pendapatan</th>
+                  <th class="right">Peng. Kas</th>
+                  <th class="right">Peng. Non-tunai</th>
+                  <th class="right">Wajib Setor</th>
+                  <th class="right">Tunai Aktual</th>
+                  <th class="right">Selisih</th>
+                  <th class="right">Kekurangan</th>
+                  <th class="right">Disetor</th>
+                </tr>
+              </thead>
+              <tbody id="dep-recap-body"></tbody>
+            </table>
+            <p id="dep-recap-empty" class="empty hidden">
+              Belum ada setoran SELESAI pada rekap ini.
+            </p>
+          </div>
+
+          <h4>Detail Setoran</h4>
           <div class="table-wrap">
             <table class="table">
               <thead>
                 <tr>
                   <th>Tanggal</th>
+                  <th>No. Setoran</th>
                   <th>Outlet</th>
-                  <th>Metode</th>
-                  <th class="right">Nominal</th>
-                  <th>Petugas</th>
-                  <th>Catatan</th>
+                  <th>Shift</th>
+                  <th>Status</th>
+                  <th class="right">Wajib</th>
+                  <th class="right">Aktual</th>
+                  <th class="right">Selisih</th>
+                  <th class="right">Kekurangan</th>
                   <th class="right">Aksi</th>
                 </tr>
               </thead>
               <tbody id="dep-body"></tbody>
             </table>
             <p id="dep-empty" class="empty hidden">Belum ada setoran kas pada filter ini.</p>
+          </div>
+
+          <div class="pager">
+            <button id="dep-prev-btn" class="btn">‹ Sebelumnya</button>
+            <span id="dep-page-info" class="muted"></span>
+            <button id="dep-next-btn" class="btn">Berikutnya ›</button>
           </div>
         </section>
 
@@ -1156,37 +1212,152 @@
       </div>
     </div>
 
-    <!-- ================= MODAL SETORAN KAS ================= -->
+    <!-- ================= MODAL SETORAN KAS BARU ================= -->
     <div id="dep-modal" class="modal hidden">
       <div class="modal-card card">
         <h3>Setoran Kas Baru</h3>
         <form id="dep-form" novalidate>
+          <div class="grid-2">
+            <label class="field">
+              <span>Outlet (wajib)</span>
+              <select id="dep-outlet" required></select>
+            </label>
+            <label class="field">
+              <span>Tanggal</span>
+              <input id="dep-date" type="date" required />
+            </label>
+            <label class="field">
+              <span>Shift</span>
+              <select id="dep-shift">
+                <option value="full" selected>Sehari (00:00 - 24:00)</option>
+                <option value="pagi">Pagi (08:00 - 15:00)</option>
+                <option value="sore">Sore (15:00 - 21:00)</option>
+                <option value="malam">Malam (21:00 - 08:00)</option>
+              </select>
+            </label>
+            <div class="field">
+              <span>&nbsp;</span>
+              <button type="button" id="dep-preview-btn" class="btn">Hitung Pratinjau</button>
+            </div>
+          </div>
+
+          <div id="dep-preview" class="dep-preview hidden">
+            <p id="dep-preview-period" class="muted small"></p>
+            <div class="cards" id="dep-preview-summary"></div>
+            <p id="dep-preview-overlap" class="error hidden"></p>
+            <p id="dep-preview-empty" class="empty hidden">
+              Tidak ada transaksi/pengeluaran yang belum disetor pada periode ini.
+            </p>
+          </div>
+
           <label class="field">
-            <span>Outlet</span>
-            <select id="dep-outlet" required></select>
+            <span>Uang tunai aktual (Rp)</span>
+            <input id="dep-amount" type="number" min="0" step="1" />
           </label>
           <label class="field">
-            <span>Nominal (Rp)</span>
-            <input id="dep-amount" type="number" min="1" step="1" required />
+            <span>Catatan / alasan selisih (opsional)</span>
+            <input id="dep-note" type="text" maxlength="500" />
           </label>
           <label class="field">
-            <span>Tanggal</span>
-            <input id="dep-date" type="date" required />
+            <span>Nama penerima (opsional)</span>
+            <input id="dep-recipient" type="text" maxlength="120" />
           </label>
           <label class="field">
-            <span>Catatan (opsional)</span>
-            <input id="dep-note" type="text" maxlength="300" />
-          </label>
-          <label class="field">
-            <span>Bukti foto (opsional)</span>
-            <input id="dep-receipt" type="file" accept="image/*" />
+            <span>Simpan sebagai</span>
+            <select id="dep-save-as">
+              <option value="completed" selected>Selesai (setoran diterima)</option>
+              <option value="draft">Draft (belum diserahkan)</option>
+            </select>
           </label>
           <p id="dep-form-error" class="error hidden"></p>
           <div class="modal-actions">
             <button type="button" id="dep-cancel" class="btn">Batal</button>
-            <button type="submit" class="btn primary">Simpan</button>
+            <button type="submit" class="btn primary">Simpan Setoran</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL SELESAIKAN DRAFT ================= -->
+    <div id="dep-complete-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Selesaikan Setoran Draft</h3>
+        <p id="dep-complete-info" class="muted"></p>
+        <form id="dep-complete-form" novalidate>
+          <label class="field">
+            <span>Uang tunai aktual (Rp)</span>
+            <input id="dep-complete-amount" type="number" min="0" step="1" required />
+          </label>
+          <label class="field">
+            <span>Catatan / alasan selisih (opsional)</span>
+            <input id="dep-complete-note" type="text" maxlength="500" />
+          </label>
+          <label class="field">
+            <span>Nama penerima (opsional)</span>
+            <input id="dep-complete-recipient" type="text" maxlength="120" />
+          </label>
+          <p id="dep-complete-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="dep-complete-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Selesaikan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= MODAL DETAIL SETORAN ================= -->
+    <div id="dep-detail-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="dep-detail-title">Detail Setoran</h3>
+        <dl class="meta">
+          <div><dt>Outlet</dt><dd id="dep-detail-outlet">—</dd></div>
+          <div><dt>Periode</dt><dd id="dep-detail-period">—</dd></div>
+          <div><dt>Shift</dt><dd id="dep-detail-shift">—</dd></div>
+          <div><dt>Status</dt><dd id="dep-detail-status">—</dd></div>
+          <div><dt>Petugas</dt><dd id="dep-detail-officer">—</dd></div>
+          <div><dt>Disetor pada</dt><dd id="dep-detail-deposited">—</dd></div>
+          <div><dt>Catatan</dt><dd id="dep-detail-note">—</dd></div>
+          <div><dt>Alasan void</dt><dd id="dep-detail-void">—</dd></div>
+        </dl>
+
+        <div class="cards" id="dep-detail-summary"></div>
+
+        <h4>Transaksi dalam setoran</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Waktu</th>
+                <th>Invoice</th>
+                <th>Metode</th>
+                <th class="right">Nominal</th>
+              </tr>
+            </thead>
+            <tbody id="dep-detail-tx-body"></tbody>
+          </table>
+          <p id="dep-detail-tx-empty" class="empty hidden">Tidak ada transaksi.</p>
+        </div>
+
+        <h4>Pengeluaran dalam setoran</h4>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Tanggal</th>
+                <th>Kategori</th>
+                <th>Metode</th>
+                <th>Catatan</th>
+                <th class="right">Nominal</th>
+              </tr>
+            </thead>
+            <tbody id="dep-detail-exp-body"></tbody>
+          </table>
+          <p id="dep-detail-exp-empty" class="empty hidden">Tidak ada pengeluaran.</p>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" id="dep-detail-close" class="btn">Tutup</button>
+        </div>
       </div>
     </div>
 

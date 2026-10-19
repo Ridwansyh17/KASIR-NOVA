@@ -315,13 +315,17 @@ const latin1Bytes = (text) => {
 };
 
 /**
- * Bangun berkas STRUK PDF dari transaksi.
+ * Bangun berkas PDF dari DOKUMEN BARIS GENERIK.
  *
- * @param {object} p sama dengan `buildStrukDoc`.
+ * Dipakai struk penjualan (`buildStrukDoc`) maupun bukti setoran kas
+ * (`setoran-receipt.js`) agar penulis PDF tetap satu implementasi.
+ *
+ * @param {object} p
+ * @param {Array<{text: string, bold?: boolean, center?: boolean}>} p.doc baris dokumen.
+ * @param {'58'|'80'|number} [p.width] lebar kertas (mm).
  * @returns {Uint8Array} berkas PDF siap diunduh/dibagikan/dicetak.
  */
-export const buildStrukPdf = ({ width = '58', ...rest } = {}) => {
-  const doc = buildStrukDoc({ width, ...rest });
+export const buildPdfFromDoc = ({ doc = [], width = '58' } = {}) => {
   const pageWidth = pageWidthPt(width);
   const maxLines = Math.max(1, Math.floor((MAX_PAGE_HEIGHT - 2 * MARGIN - FONT_SIZE) / LEADING));
 
@@ -338,6 +342,15 @@ export const buildStrukPdf = ({ width = '58', ...rest } = {}) => {
   }));
   return assemblePdf({ pages, width: pageWidth });
 };
+
+/**
+ * Bangun berkas STRUK PDF dari transaksi.
+ *
+ * @param {object} p sama dengan `buildStrukDoc`.
+ * @returns {Uint8Array} berkas PDF siap diunduh/dibagikan/dicetak.
+ */
+export const buildStrukPdf = ({ width = '58', ...rest } = {}) =>
+  buildPdfFromDoc({ doc: buildStrukDoc({ width, ...rest }), width });
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
@@ -382,6 +395,7 @@ export default {
   twoColumn,
   buildStrukDoc,
   buildStrukLines,
+  buildPdfFromDoc,
   buildStrukPdf,
   bytesToBase64,
   strukPdfFileName,

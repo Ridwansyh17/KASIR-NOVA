@@ -33,6 +33,8 @@ import plansRouter from '../plans/routes.js';
 import businessRouter from './business-routes.js';
 import { createAuditRouter } from '../audit/routes.js';
 import { adminSessionRouter } from '../session/routes.js';
+import * as cashDepositController from '../cash-deposit/controller.js';
+import { platformCashDepositQuerySchema } from '../cash-deposit/schema.js';
 
 const router = Router();
 
@@ -43,6 +45,13 @@ router.use('/plans', plansRouter);
 router.use('/businesses', businessRouter);
 router.use('/audit-logs', createAuditRouter());
 router.use('/sessions', adminSessionRouter);
+
+// Monitoring setoran kasir lintas bisnis (read-only; kewenangan Platform Admin).
+router.get(
+  '/cash-settlements',
+  ...validate({ query: platformCashDepositQuerySchema }),
+  cashDepositController.platformList
+);
 
 router.get('/owners', ...validate({ query: listOwnersQuerySchema }), controller.listOwners);
 router.post('/owners', ...validate({ body: createOwnerSchema }), controller.createOwner);

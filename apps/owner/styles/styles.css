@@ -1012,6 +1012,21 @@ body {
   display: none;
 }
 
+/* ---------- Laporan Setoran (migrasi 0012) ---------- */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.dep-preview {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+}
+
 @media print {
   /* Layar aplikasi tidak ikut tercetak. */
   body > *:not(#print-report) {

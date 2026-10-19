@@ -1,9 +1,10 @@
 /**
  * Logika UI panel Admin Platform (Vanilla JS modular).
  *
- * Tab Owner  : kelola akun owner (buat/ubah/status/reset/hapus).
- * Tab Paket  : kelola paket langganan (kuota outlet/kasir, harga, default).
- * Tab Bisnis : lihat semua bisnis + kelola langganannya (pasang paket/status).
+ * Tab Owner      : kelola akun owner (buat/ubah/status/reset/hapus).
+ * Tab Paket      : kelola paket langganan (kuota outlet/kasir, harga, default).
+ * Tab Bisnis     : lihat semua bisnis + kelola langganannya (pasang paket/status).
+ * Tab Setoran    : monitoring setoran kasir lintas bisnis (baca saja).
  *
  * Semua otorisasi tetap ditegakkan server; UI ini hanya alat bantu.
  */
@@ -22,6 +23,8 @@ const state = {
   auditPage: 1, auditLimit: 20, auditTotal: 0, audits: [],
   // sessions
   cashierSessions: [],
+  // settlements (monitoring Platform Admin)
+  settlePage: 1, settleLimit: 20, settleTotal: 0, settlements: [],
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -83,6 +86,7 @@ document.querySelectorAll('.tab').forEach((tab) => {
     if (tab.dataset.tab === 'businesses') loadBusinesses();
     if (tab.dataset.tab === 'audit') loadAuditLogs();
     if (tab.dataset.tab === 'sessions') loadCashierSessions();
+    if (tab.dataset.tab === 'settlements') loadSettlements();
   });
 });
 
@@ -836,6 +840,169 @@ $('sessions-body').addEventListener('click', async (event) => {
     alertBox('alert-sessions', describeError(err), 'error');
   }
   await loadCashierSessions();
+});
+
+// ================================================== TAB SETORAN KASIR ========
+/** Label status setoran; `recorded` adalah data legacy yang dianggap selesai. */
+const SETTLEMENT_STATUS_LABELS = {
+  draft: 'DRAFT',
+  completed: 'SELESAI',
+  voided: 'DIBATALKAN',
+  recorded: 'SELESAI',
+};
+
+const settlementStatusLabel = (status) =>
+  SETTLEMENT_STATUS_LABELS[status] ?? String(status ?? '—').toUpperCase();
+
+const settlementStatusBadge = (status) => {
+  const cls = status === 'completed' || status === 'recorded' ? 'ok' : 'off';
+  return `<span class="badge ${cls}">${escapeHtml(settlementStatusLabel(status))}</span>`;
+};
+
+/** Filter tabel setoran; nilai kosong tidak dikirim ke API. */
+const settlementFilters = () => ({
+  status: $('settle-status-filter').value || 'all',
+  from: $('settle-from').value || undefined,
+  to: $('settle-to').value || undefined,
+  businessId: $('settle-business-filter').value.trim() || undefined,
+  outletId: $('settle-outlet-filter').value.trim() || undefined,
+});
+
+const sumSettlementField = (items, key) =>
+  items.reduce((sum, item) => sum + (Number(item[key]) || 0), 0);
+
+/**
+ * Ringkasan filter setoran.
+ *
+ * Memakai `totals` dari server bila tersedia (menjumlah seluruh hasil filter,
+ * bukan hanya halaman aktif). Bila respons belum menyertakan `totals`, nilai
+ * dihitung dari baris halaman ini agar strip tetap informatif.
+ */
+const settlementTotals = (items, returnedTotals) => {
+  const pageTotals = {
+    total_revenue: sumSettlementField(items, 'total_revenue'),
+    total_expense: sumSettlementField(items, 'total_expense'),
+    required_cash: sumSettlementField(items, 'required_cash'),
+    actual_cash: sumSettlementField(items, 'actual_cash'),
+    difference: sumSettlementField(items, 'difference'),
+    shortfall: sumSettlementField(items, 'shortfall'),
+  };
+  return returnedTotals ? { ...pageTotals, ...returnedTotals } : pageTotals;
+};
+
+const renderSettlementSummary = (totals, exact) => {
+  const cards = [
+    { label: 'Total pendapatan', value: totals.total_revenue },
+    { label: 'Pengeluaran', value: totals.total_expense },
+    { label: 'Setoran wajib', value: totals.required_cash },
+    { label: 'Tunai aktual', value: totals.actual_cash },
+    { label: 'Selisih', value: totals.difference },
+    { label: 'Kekurangan', value: totals.shortfall },
+  ];
+  $('settlements-summary').innerHTML = cards
+    .map(
+      (c) => `
+      <div class="card stat">
+        <span class="stat-label">${escapeHtml(c.label)}</span>
+        <strong class="stat-value">${escapeHtml(fmtIDR(c.value))}</strong>
+        <span class="muted small">${exact ? 'Total filter aktif' : 'Dari baris halaman ini'}</span>
+      </div>`
+    )
+    .join('');
+};
+
+const renderSettlements = (items) => {
+  const tbody = $('settlements-body');
+  tbody.innerHTML = '';
+  hide($('settlements-empty'));
+  if (!items.length) {
+    show($('settlements-empty'));
+    return;
+  }
+
+  for (const d of items) {
+    const hasActual = d.actual_cash !== null && d.actual_cash !== undefined;
+    const hasDifference = d.difference !== null && d.difference !== undefined;
+    const hasShortfall = d.shortfall !== null && d.shortfall !== undefined;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(fmtDate(d.deposited_on))}</td>
+      <td class="mono">${escapeHtml(d.settlement_no || '—')}</td>
+      <td>
+        <strong>${escapeHtml(d.business_name || '—')}</strong>
+        ${d.business_id ? `<div class="muted small mono">${escapeHtml(d.business_id.slice(0, 8))}</div>` : ''}
+      </td>
+      <td>${escapeHtml(d.outlet_name || '—')}</td>
+      <td>${escapeHtml(d.officer_name || '—')}</td>
+      <td>${escapeHtml(d.shift_label || '—')}</td>
+      <td class="right">${escapeHtml(fmtIDR(d.total_revenue))}</td>
+      <td class="right">${escapeHtml(fmtIDR(d.total_expense))}</td>
+      <td class="right">${escapeHtml(fmtIDR(d.required_cash))}</td>
+      <td class="right">${hasActual ? escapeHtml(fmtIDR(d.actual_cash)) : '—'}</td>
+      <td class="right${hasDifference && Number(d.difference) < 0 ? ' strong' : ''}">${hasDifference ? escapeHtml(fmtIDR(d.difference)) : '—'}</td>
+      <td class="right">${hasShortfall ? escapeHtml(fmtIDR(d.shortfall)) : '—'}</td>
+      <td>${settlementStatusBadge(d.status)}</td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadSettlements = async () => {
+  try {
+    const body = await guard(() =>
+      api.listCashSettlements({
+        ...settlementFilters(),
+        page: state.settlePage,
+        limit: state.settleLimit,
+      })
+    );
+    if (!body) return;
+
+    const items = body.items ?? [];
+    state.settlements = items;
+    state.settleTotal = body.total ?? items.length;
+    renderSettlements(items);
+    renderSettlementSummary(settlementTotals(items, body.totals), Boolean(body.totals));
+
+    const pages = Math.max(1, Math.ceil(state.settleTotal / state.settleLimit));
+    if (state.settlePage > pages) {
+      state.settlePage = pages;
+      return loadSettlements();
+    }
+    $('settle-page-info').textContent = `Halaman ${state.settlePage} / ${pages} • ${state.settleTotal} setoran`;
+    $('settle-prev-btn').disabled = state.settlePage <= 1;
+    $('settle-next-btn').disabled = state.settlePage >= pages;
+  } catch (err) {
+    alertBox('alert-settlements', describeError(err), 'error');
+  }
+};
+
+const resetSettlementsAndLoad = () => {
+  state.settlePage = 1;
+  loadSettlements();
+};
+
+$('refresh-settlements-btn').addEventListener('click', resetSettlementsAndLoad);
+$('settle-status-filter').addEventListener('change', resetSettlementsAndLoad);
+$('settle-from').addEventListener('change', resetSettlementsAndLoad);
+$('settle-to').addEventListener('change', resetSettlementsAndLoad);
+
+let settlementTimer = null;
+for (const id of ['settle-business-filter', 'settle-outlet-filter']) {
+  $(id).addEventListener('input', () => {
+    clearTimeout(settlementTimer);
+    settlementTimer = setTimeout(resetSettlementsAndLoad, 400);
+  });
+}
+
+$('settle-prev-btn').addEventListener('click', () => {
+  if (state.settlePage > 1) {
+    state.settlePage -= 1;
+    loadSettlements();
+  }
+});
+$('settle-next-btn').addEventListener('click', () => {
+  state.settlePage += 1;
+  loadSettlements();
 });
 
 // ------------------------------------------------------------- Bootstrap -----

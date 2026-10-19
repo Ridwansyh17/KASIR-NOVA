@@ -42,8 +42,8 @@ export const createExpenseSchema = z.object({
     .positive('Nominal harus lebih dari 0')
     .max(100_000_000_000, 'Nominal terlalu besar'),
   method: z
-    .enum(['cash', 'transfer', 'qr'], {
-      errorMap: () => ({ message: "Metode harus 'cash', 'transfer', atau 'qr'" }),
+    .enum(['cash', 'transfer', 'qr', 'other'], {
+      errorMap: () => ({ message: "Metode harus 'cash', 'transfer', 'qr', atau 'other'" }),
     })
     .default('cash'),
   note: z.string().trim().max(300, 'Keterangan maksimal 300 karakter').optional().nullable(),

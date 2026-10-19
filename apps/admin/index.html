@@ -62,6 +62,7 @@
         <button class="tab" data-tab="businesses">Bisnis &amp; Langganan</button>
         <button class="tab" data-tab="audit">Audit Log</button>
         <button class="tab" data-tab="sessions">Sesi Kasir</button>
+        <button class="tab" data-tab="settlements">Setoran Kasir</button>
       </nav>
 
       <main class="container">
@@ -252,6 +253,72 @@
               <tbody id="sessions-body"></tbody>
             </table>
             <p id="sessions-empty" class="empty hidden">Belum ada kasir.</p>
+          </div>
+        </section>
+
+        <!-- ================= TAB SETORAN KASIR ================= -->
+        <section id="view-settlements" class="tab-view hidden">
+          <div class="toolbar">
+            <h2>Setoran Kasir (read-only)</h2>
+            <div class="toolbar-actions">
+              <select id="settle-status-filter">
+                <option value="all">Semua status</option>
+                <option value="draft">Draft</option>
+                <option value="completed">Selesai</option>
+                <option value="voided">Dibatalkan</option>
+                <option value="recorded">Selesai (lama)</option>
+              </select>
+              <label class="field inline">
+                <span>Dari</span>
+                <input id="settle-from" type="date" />
+              </label>
+              <label class="field inline">
+                <span>Sampai</span>
+                <input id="settle-to" type="date" />
+              </label>
+              <input id="settle-business-filter" type="search" placeholder="ID bisnis (UUID)…" />
+              <input id="settle-outlet-filter" type="search" placeholder="ID outlet (UUID)…" />
+              <button id="refresh-settlements-btn" class="btn">Terapkan</button>
+            </div>
+          </div>
+
+          <p class="muted small">
+            Monitoring lintas bisnis. Tampilan hanya membaca data; koreksi setoran
+            dilakukan dari panel Owner/Kasir.
+          </p>
+
+          <div id="alert-settlements" class="alert hidden"></div>
+
+          <div id="settlements-summary" class="cards"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>No. Setoran</th>
+                  <th>Bisnis</th>
+                  <th>Outlet</th>
+                  <th>Kasir / Officer</th>
+                  <th>Shift</th>
+                  <th class="right">Total Pendapatan</th>
+                  <th class="right">Pengeluaran</th>
+                  <th class="right">Setoran Wajib</th>
+                  <th class="right">Tunai Aktual</th>
+                  <th class="right">Selisih</th>
+                  <th class="right">Kekurangan</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="settlements-body"></tbody>
+            </table>
+            <p id="settlements-empty" class="empty hidden">Belum ada setoran pada filter ini.</p>
+          </div>
+
+          <div class="pager">
+            <button id="settle-prev-btn" class="btn">‹ Sebelumnya</button>
+            <span id="settle-page-info" class="muted"></span>
+            <button id="settle-next-btn" class="btn">Berikutnya ›</button>
           </div>
         </section>
       </main>

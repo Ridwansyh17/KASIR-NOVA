@@ -22,11 +22,11 @@ Owner. Ini **perpindahan kas**, **bukan** pendapatan maupun beban, sehingga
 | `id` | UUID | PK |
 | `business_id` | UUID | tenant (OWN CASCADE) |
 | `outlet_id` | UUID | outlet asal (ON CASCADE) |
-| `amount` | BIGINT | sen, `CHECK (amount > 0)` |
+| `amount` | BIGINT | sen, `CHECK (amount >= 0)` (0 bila tidak ada setoran tunai) |
 | `method` | `cash_deposit_method` | untuk sekarang `cash` saja |
 | `note` | TEXT | opsional, maks 300 |
 | `receipt_url` | TEXT | URL http(s) atau data URL gambar |
-| `status` | `cash_deposit_status` | `recorded` \| `voided` |
+| `status` | `cash_deposit_status` | `draft` \| `completed` \| `recorded` (legacy) \| `voided` |
 | `deposited_on` | DATE | tanggal di zona waktu bisnis |
 | `cashier_id` | UUID | terisi bila dicatat kasir |
 | `created_by_role` / `created_by_id` | `user_role` / UUID | pelaku |
@@ -96,12 +96,57 @@ Respons daftar:
 - **Kasir hanya boleh void catatannya sendiri** (403); Owner boleh semua.
 - Audit: `cash_deposit.create`, `cash_deposit.void`.
 
+## Setoran berbasis periode (migrasi `0012_cashier_settlements.sql`)
+
+Sejak 19 Okt 2026 setoran tidak lagi nominal manual: sistem **menghitung
+otomatis** uang yang harus disetor dari transaksi periode tertentu.
+
+- Kolom baru `cash_deposits`: `settlement_no` (`STR-YYYYMMDD-NNN`, unik per
+  bisnis), `period_start`/`period_end`, `shift_label`, `cash_revenue`,
+  `qris_revenue`, `total_revenue`, `total_expense`, `cash_expense`,
+  `noncash_expense`, `required_cash`, `actual_cash`, `difference`, `shortfall`,
+  `cashier_note`, `recipient_name`, `snapshot` (JSONB), `completed_at`.
+- Enum status bertambah `draft` & `completed`; `recorded` (legacy) diperlakukan
+  sebagai **SELESAI**, `voided` untuk koreksi append-only.
+- Tabel relasi `cash_deposit_transactions` & `cash_deposit_expenses` (index unik
+  parsial `WHERE is_active`) mencegah satu transaksi/pengeluaran dihitung dua
+  kali. Void menonaktifkan relasi agar bisa disetor ulang pada setoran koreksi.
+- Shift: `full` (00:00–24:00), `pagi` (08:00–15:00), `sore` (15:00–21:00),
+  `malam` (21:00–08:00) dihitung pada zona waktu bisnis.
+- Perhitungan: `total_revenue = tunai + QRIS`; **QRIS tidak dihitung fisik**;
+  `required_cash = max(0, tunai - pengeluaran_kas)`; `shortfall =
+  max(0, pengeluaran_kas - tunai)`; `difference = actual_cash - required_cash`.
+  Selisih ≠ 0 wajib beralasan (≥ 3 karakter).
+- Anti-duplikat: advisory lock per `bisnis:outlet:tanggal` + deteksi periode
+  tumpang tindih (409).
+
+### API tambahan
+
+| Method | Path | Keterangan |
+|---|---|---|
+| GET | `.../cash-deposits/settlement/preview?date&shift[&outletId]` | pratinjau (read-only, tanpa simpan) |
+| POST | `.../cash-deposits/settlement` | simpan `draft`/`completed` |
+| GET | `.../cash-deposits/report?group=day\|week\|month` | rekap Owner |
+| GET | `.../cash-deposits/export` | berkas `.xlsx` (Owner) |
+| GET | `.../cash-deposits/:depositId` | detail + snapshot |
+| PATCH | `.../cash-deposits/:depositId/complete` | selesaikan draft |
+| DELETE | `.../cash-deposits/:depositId` | hapus draft |
+| GET | `/api/platform/cash-settlements` | monitoring lintas bisnis (Admin) |
+
+### Frontend & struk
+
+- Panel Kasir: buat setoran (pratinjau live, pilih shift, draft/selesai),
+  riwayat + filter, detail, void, hapus draft, dan **cetak struk**.
+- Struk mengikuti `assets/references/Contoh_Struk_Setoran_KASIR_NOVA.png`
+  (58mm/80mm, PDF, ESC/POS, pratinjau, cetak ulang, penanda DIBATALKAN).
+- Panel Owner: **Laporan Setoran** (filter outlet/kasir/tanggal/status, rekap
+  harian/mingguan/bulanan, ekspor Excel).
+- Panel Admin Platform: monitoring setoran lintas bisnis (read-only).
+
 ## Batas lingkup (belum dikerjakan)
 
-- **UI frontend** (panel Owner/Kasir) belum dibuat — backend saja pada tahap ini.
-- Metode selain `cash` (transfer/QR) menunggu migrasi enum baru.
-- Integrasi ke laporan keuangan (mis. ringkasan setoran per periode) belum
-  ditambahkan karena setoran bukan pos laba/rugi.
+- Integrasi ke laporan laba/rugi tidak dilakukan karena setoran bukan pos
+  laba/rugi (hanya perpindahan kas).
 
 ## Pengujian
 
@@ -109,3 +154,10 @@ Respons daftar:
 validasi Owner wajib outlet, daftar + total per bisnis, isolasi outlet kasir,
 validasi nominal/metode/tanggal, void append-only + wewenang, isolasi tenant &
 peran.
+
+`server/tests/cash-settlements.test.js` (12 kasus): perhitungan tunai/QRIS/
+pengeluaran kas & non-tunai, setoran sesuai (selisih 0) + nomor unik, penolakan
+periode tumpang tindih/duplikat, kewajiban alasan selisih, snapshot setelah
+void (reprint), kekurangan kas (wajib 0), periode tanpa transaksi, alur
+draft→selesai, isolasi outlet/tenant, rekap laporan, ekspor Excel, dan
+monitoring Platform Admin.

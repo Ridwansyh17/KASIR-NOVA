@@ -726,6 +726,18 @@ const loadCashiers = async () => {
   if (!body) return;
   show($('cashier-section'));
   renderCashierList(body.items ?? []);
+
+  // Sinkronkan filter kasir pada Laporan Setoran.
+  const sel = $('dep-cashier-filter');
+  const previous = sel.value;
+  sel.innerHTML = '<option value="">Semua kasir</option>';
+  for (const c of body.items ?? []) {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.full_name;
+    sel.appendChild(opt);
+  }
+  if ([...sel.options].some((o) => o.value === previous)) sel.value = previous;
 };
 
 /** Isi pilihan outlet pada formulir tambah kasir. */
@@ -2750,50 +2762,159 @@ $('void-form').addEventListener('submit', async (event) => {
   }
 });
 
-// ---------------------------------------------------------- Setoran kas ------
-const DEP_METHOD_LABELS = { cash: 'Tunai' };
+// ---------------------------------------------------- Laporan Setoran ------
+// Migrasi 0012: setoran kas adalah PERPINDAHAN KAS (bukan pendapatan/beban).
+// Panel hanya menampilkan hasil hitung server (semua nominal SEN).
+const DEP_STATUS_TEXT = {
+  draft: 'DRAFT',
+  completed: 'SELESAI',
+  voided: 'DIBATALKAN',
+  recorded: 'SELESAI',
+};
 
-const depQuery = () => ({
+const depStatusBadge = (status) => {
+  const label = DEP_STATUS_TEXT[status] ?? status ?? '—';
+  const tone = status === 'completed' || status === 'recorded' ? 'ok' : 'off';
+  return `<span class="badge ${tone}">${escapeHtml(label)}</span>`;
+};
+
+const DEP_PAGE_SIZE = 20;
+let depPage = 1;
+let depPreviewData = null;
+let depCompleteId = null;
+let depCompleteRequired = 0;
+let voidDepositId = null;
+
+const depFilters = () => ({
   outletId: $('dep-outlet-filter').value || '',
-  status: $('dep-status-filter').value || 'recorded',
+  cashierId: $('dep-cashier-filter').value || '',
   from: $('dep-date-from').value || '',
   to: $('dep-date-to').value || '',
-  limit: 100,
 });
 
-const renderDeposits = (data) => {
-  const items = data.items ?? [];
-  const totals = data.totals ?? {};
-  const recorded = Number(totals.recorded_total ?? 0);
-  const voided = Number(totals.voided_total ?? 0);
+const depQuery = () => ({
+  ...depFilters(),
+  status: $('dep-status-filter').value || 'all',
+  page: depPage,
+  limit: DEP_PAGE_SIZE,
+});
+
+const depReportQuery = () => ({
+  ...depFilters(),
+  group: $('dep-group').value || 'day',
+});
+
+const depExportQuery = () => ({
+  ...depFilters(),
+  status: $('dep-status-filter').value || 'all',
+});
+
+/** Label periode rekap sesuai pengelompokan (hari/minggu/bulan). */
+const fmtDepPeriod = (period, group) => {
+  if (!period) return '—';
+  if (group === 'month') {
+    const [y, m] = String(period).split('-').map(Number);
+    return `${BULAN_ID[m - 1] ?? m} ${y}`;
+  }
+  if (group === 'week') return `Minggu ${fmtDay(period)}`;
+  return fmtDay(period);
+};
+
+const renderDepositSummary = (listTotals = {}, reportTotals = {}) => {
+  const diff = Number(reportTotals.difference ?? 0);
+  const shortfall = Number(reportTotals.shortfall ?? 0);
   $('dep-summary').innerHTML = [
-    statCard('Total tampil', fmtIDR(recorded + voided), `${items.length} catatan`),
-    statCard('Tercatat', fmtIDR(recorded), 'setoran aktif'),
-    statCard('Dibatalkan', fmtIDR(voided), 'void'),
+    statCard('Total pendapatan', fmtIDR(reportTotals.total_revenue ?? 0), 'setoran selesai'),
+    statCard('Pengeluaran', fmtIDR(reportTotals.total_expense ?? 0), 'kas + non-tunai'),
+    statCard('Wajib setor tunai', fmtIDR(reportTotals.required_cash ?? 0), 'pendapatan kas − pengeluaran kas'),
+    statCard('Tunai aktual', fmtIDR(reportTotals.actual_cash ?? 0), 'sudah disetor'),
+    statCard('Selisih', fmtIDR(diff), diff < 0 ? 'kurang dari wajib' : diff > 0 ? 'lebih dari wajib' : 'pas'),
+    statCard('Kekurangan kas', fmtIDR(shortfall), 'pengeluaran > pendapatan kas'),
+    statCard('Setoran selesai', String(listTotals.completed_count ?? reportTotals.count ?? 0), 'status SELESAI'),
+    statCard('Draft', String(listTotals.draft_count ?? 0), 'belum diselesaikan'),
   ].join('');
+};
+
+const renderDepositRecap = (report) => {
+  const groups = report.groups ?? [];
+  const group = report.group ?? ($('dep-group').value || 'day');
+  $('dep-recap-note').textContent =
+    `Rekap ${group === 'month' ? 'bulanan' : group === 'week' ? 'mingguan' : 'harian'} — hanya setoran berstatus SELESAI.`;
+
+  const body = $('dep-recap-body');
+  body.innerHTML = '';
+  $('dep-recap-empty').classList.toggle('hidden', groups.length > 0);
+  for (const g of groups) {
+    const cashExpense = Number(g.cash_expense ?? 0);
+    const noncashExpense = Number(g.total_expense ?? 0) - cashExpense;
+    const diff = Number(g.difference ?? 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(fmtDepPeriod(g.period, group))}</td>
+      <td class="right">${Number(g.count ?? 0)}</td>
+      <td class="right strong">${money(g.total_revenue)}</td>
+      <td class="right">${money(cashExpense)}</td>
+      <td class="right">${money(noncashExpense)}</td>
+      <td class="right">${money(g.required_cash)}</td>
+      <td class="right">${money(g.actual_cash)}</td>
+      <td class="right ${diff < 0 ? 'danger-text' : diff > 0 ? 'ok-text' : ''}">${money(diff)}</td>
+      <td class="right ${Number(g.shortfall ?? 0) > 0 ? 'danger-text' : ''}">${money(g.shortfall)}</td>
+      <td class="right strong">${money(g.actual_cash)}</td>`;
+    body.appendChild(tr);
+  }
+};
+
+const renderDepositRows = (data) => {
+  const items = data.items ?? [];
+  const total = Number(data.total ?? 0);
+  const pages = Math.max(1, Math.ceil(total / DEP_PAGE_SIZE));
+  if (depPage > pages) {
+    depPage = pages;
+    return loadDeposits();
+  }
 
   const body = $('dep-body');
   body.innerHTML = '';
   $('dep-empty').classList.toggle('hidden', items.length > 0);
+
   for (const d of items) {
+    const isDraft = d.status === 'draft';
     const isVoid = d.status === 'voided';
+    const canVoid = d.status === 'completed' || d.status === 'recorded';
+    const diff = Number(d.difference ?? 0);
+    const actions = [
+      `<button class="btn small" data-action="detail" data-id="${d.id}">Detail</button>`,
+      isDraft
+        ? `<button class="btn small primary" data-action="complete" data-id="${d.id}">Selesaikan</button>`
+        : '',
+      isDraft
+        ? `<button class="btn small danger" data-action="delete" data-id="${d.id}">Hapus</button>`
+        : '',
+      canVoid
+        ? `<button class="btn small danger" data-action="void" data-id="${d.id}">Batalkan</button>`
+        : '',
+    ].filter(Boolean);
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${escapeHtml(fmtDay(d.deposited_on))}</td>
+      <td class="mono">${escapeHtml(d.settlement_no ?? '—')}</td>
       <td>${escapeHtml(d.outlet_name ?? '—')}</td>
-      <td>${escapeHtml(DEP_METHOD_LABELS[d.method] ?? d.method)}</td>
-      <td class="right strong">${money(d.amount)}</td>
-      <td>${escapeHtml(d.officer_name ?? '—')}${isVoid ? ' <span class="badge off">VOID</span>' : ''}</td>
-      <td>${escapeHtml(d.note ?? '—')}</td>
-      <td class="right">
-        ${
-          isVoid
-            ? '—'
-            : `<button class="btn small danger" data-action="void" data-id="${d.id}">Batalkan</button>`
-        }
-      </td>`;
+      <td>${escapeHtml(d.shift_label ?? '—')}</td>
+      <td>${depStatusBadge(d.status)}</td>
+      <td class="right">${money(d.required_cash)}</td>
+      <td class="right">${isDraft || isVoid ? '—' : money(d.actual_cash)}</td>
+      <td class="right ${diff < 0 ? 'danger-text' : diff > 0 ? 'ok-text' : ''}">${
+        isDraft || isVoid ? '—' : money(diff)
+      }</td>
+      <td class="right ${Number(d.shortfall ?? 0) > 0 ? 'danger-text' : ''}">${money(d.shortfall)}</td>
+      <td class="right">${actions.join(' ')}</td>`;
     body.appendChild(tr);
   }
+
+  $('dep-page-info').textContent = `Halaman ${depPage} / ${pages} • ${total} setoran`;
+  $('dep-prev-btn').disabled = depPage <= 1;
+  $('dep-next-btn').disabled = depPage >= pages;
 };
 
 const loadDeposits = async () => {
@@ -2803,18 +2924,123 @@ const loadDeposits = async () => {
     return;
   }
   show($('deposit-section'));
-  const data = await guard(() => api.cashDeposits.list(b.id, depQuery()));
-  if (!data) return;
-  renderDeposits(data);
+  const [data, report] = await Promise.all([
+    guard(() => api.cashDeposits.list(b.id, depQuery())),
+    guard(() => api.cashDeposits.report(b.id, depReportQuery())),
+  ]);
+  if (!data || !report) return;
+  renderDepositSummary(data.totals ?? {}, report.totals ?? {});
+  renderDepositRecap(report);
+  renderDepositRows(data);
 };
 
-$('dep-refresh-btn').addEventListener('click', loadDeposits);
-$('dep-status-filter').addEventListener('change', loadDeposits);
-$('dep-date-from').addEventListener('change', loadDeposits);
-$('dep-date-to').addEventListener('change', loadDeposits);
-$('dep-outlet-filter').addEventListener('change', loadDeposits);
+const reloadDepositsFromFilters = () => {
+  depPage = 1;
+  loadDeposits();
+};
 
-// Modal setoran kas (owner wajib memilih outlet)
+$('dep-refresh-btn').addEventListener('click', reloadDepositsFromFilters);
+$('dep-status-filter').addEventListener('change', reloadDepositsFromFilters);
+$('dep-group').addEventListener('change', reloadDepositsFromFilters);
+$('dep-date-from').addEventListener('change', reloadDepositsFromFilters);
+$('dep-date-to').addEventListener('change', reloadDepositsFromFilters);
+$('dep-outlet-filter').addEventListener('change', reloadDepositsFromFilters);
+$('dep-cashier-filter').addEventListener('change', reloadDepositsFromFilters);
+$('dep-prev-btn').addEventListener('click', () => {
+  if (depPage > 1) {
+    depPage -= 1;
+    loadDeposits();
+  }
+});
+$('dep-next-btn').addEventListener('click', () => {
+  depPage += 1;
+  loadDeposits();
+});
+
+const downloadDepositExcel = () => {
+  const b = activeBusiness();
+  if (!b) return;
+  return runXlsxDownload({
+    buttonId: 'dep-export-xlsx',
+    loader: () => api.cashDeposits.exportXlsx(b.id, depExportQuery()),
+    successLabel: 'Laporan Setoran Excel berhasil diunduh',
+  });
+};
+$('dep-export-xlsx').addEventListener('click', downloadDepositExcel);
+
+// ------------------------------------------------- Detail setoran -----------
+const openDepositDetail = async (depositId) => {
+  const b = activeBusiness();
+  if (!b) return;
+  const data = await guard(() => api.cashDeposits.detail(b.id, depositId));
+  if (!data) return;
+  const d = data.deposit ?? {};
+  const outletName = d.outlet_name ?? data.outlet_name ?? '—';
+
+  $('dep-detail-title').textContent = `Detail Setoran ${d.settlement_no ?? ''}`.trim();
+  $('dep-detail-outlet').textContent = outletName;
+  $('dep-detail-period').textContent =
+    d.period_start || d.period_end
+      ? `${fmtDate(d.period_start)} – ${fmtDate(d.period_end)}`
+      : fmtDay(d.deposited_on);
+  $('dep-detail-shift').textContent = d.shift_label ?? '—';
+  $('dep-detail-status').innerHTML = depStatusBadge(d.status);
+  $('dep-detail-officer').textContent = d.officer_name ?? data.officer_name ?? '—';
+  $('dep-detail-deposited').textContent = d.completed_at
+    ? fmtDate(d.completed_at)
+    : fmtDay(d.deposited_on);
+  $('dep-detail-note').textContent = d.note || d.cashier_note || '—';
+  $('dep-detail-void').textContent = d.void_reason || '—';
+
+  const diff = Number(d.difference ?? 0);
+  $('dep-detail-summary').innerHTML = [
+    statCard('Pendapatan', fmtIDR(d.total_revenue ?? 0), `${d.shift_label ?? ''}`),
+    statCard('Tunai', fmtIDR(d.cash_revenue ?? 0), 'pendapatan kas'),
+    statCard('QRIS', fmtIDR(d.qris_revenue ?? 0), 'non-tunai'),
+    statCard('Pengeluaran', fmtIDR(d.total_expense ?? 0), 'kas + non-tunai'),
+    statCard('Wajib setor', fmtIDR(d.required_cash ?? 0), 'tunai'),
+    statCard('Tunai aktual', fmtIDR(d.actual_cash ?? 0), 'diserahkan'),
+    statCard('Selisih', fmtIDR(diff), diff < 0 ? 'kurang' : diff > 0 ? 'lebih' : 'pas'),
+    statCard('Kekurangan kas', fmtIDR(d.shortfall ?? 0), 'pengeluaran > pendapatan kas'),
+  ].join('');
+
+  const txBody = $('dep-detail-tx-body');
+  const tx = data.transactions ?? [];
+  txBody.innerHTML = '';
+  $('dep-detail-tx-empty').classList.toggle('hidden', tx.length > 0);
+  for (const t of tx) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(fmtDate(t.created_at))}</td>
+      <td class="mono">${escapeHtml(t.invoice_no ?? '—')}</td>
+      <td>${escapeHtml(METHOD_LABELS[t.method] ?? t.method ?? '—')}</td>
+      <td class="right strong">${money(t.amount)}</td>`;
+    txBody.appendChild(tr);
+  }
+
+  const expBody = $('dep-detail-exp-body');
+  const exp = data.expenses ?? [];
+  expBody.innerHTML = '';
+  $('dep-detail-exp-empty').classList.toggle('hidden', exp.length > 0);
+  for (const e of exp) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(fmtDay(e.spent_on))}</td>
+      <td>${escapeHtml(CATEGORY_LABELS[e.category] ?? e.category ?? '—')}</td>
+      <td>${escapeHtml(METHOD_LABELS[e.method] ?? e.method ?? '—')}</td>
+      <td>${escapeHtml(e.note ?? '—')}</td>
+      <td class="right strong">${money(e.amount)}</td>`;
+    expBody.appendChild(tr);
+  }
+
+  show($('dep-detail-modal'));
+};
+$('dep-detail-close').addEventListener('click', () => hide($('dep-detail-modal')));
+$('dep-detail-modal').addEventListener('click', (event) => {
+  if (event.target === $('dep-detail-modal')) hide($('dep-detail-modal'));
+});
+
+// ------------------------------------------------- Setoran baru -------------
 const fillDepositOutlets = async () => {
   const b = activeBusiness();
   if (!b) return;
@@ -2828,40 +3054,91 @@ const fillDepositOutlets = async () => {
     sel.appendChild(opt);
   }
   const filter = $('dep-outlet-filter').value;
-  if (filter) sel.value = filter;
+  if (filter && [...sel.options].some((o) => o.value === filter)) sel.value = filter;
+};
+
+const loadDepositPreview = async () => {
+  const b = activeBusiness();
+  if (!b) return null;
+  const outletId = $('dep-outlet').value;
+  const overlapEl = $('dep-preview-overlap');
+  hide(overlapEl);
+  hide($('dep-preview-empty'));
+  if (!outletId) {
+    hide($('dep-preview'));
+    return null;
+  }
+
+  const data = await guard(() =>
+    api.cashDeposits.preview(b.id, {
+      outletId,
+      date: $('dep-date').value || undefined,
+      shift: $('dep-shift').value || 'full',
+    })
+  );
+  if (!data) return null;
+  depPreviewData = data;
+
+  show($('dep-preview'));
+  $('dep-preview-period').textContent = [
+    data.outlet?.name ?? '—',
+    data.period?.date ? fmtDay(data.period.date) : '',
+    data.period?.shift_label ?? '',
+  ]
+    .filter(Boolean)
+    .join(' • ');
+
+  const t = data.totals ?? {};
+  $('dep-preview-summary').innerHTML = [
+    statCard('Pendapatan tunai', fmtIDR(t.cash_revenue ?? 0), `${(data.transactions ?? []).length} transaksi`),
+    statCard('Pendapatan QRIS', fmtIDR(t.qris_revenue ?? 0), 'non-tunai'),
+    statCard('Pengeluaran', fmtIDR(t.total_expense ?? 0), 'kas + non-tunai'),
+    statCard('Wajib setor tunai', fmtIDR(t.required_cash ?? 0), 'tunai'),
+    statCard('Kekurangan kas', fmtIDR(t.shortfall ?? 0), 'jika pengeluaran > tunai'),
+  ].join('');
+
+  if (data.overlap) {
+    overlapEl.textContent = `Periode ini tumpang tindih dengan setoran ${
+      data.overlap.settlement_no ?? data.overlap.id
+    }. Pilih tanggal/shift lain.`;
+    show(overlapEl);
+  }
+
+  const hasRows = (data.transactions ?? []).length > 0 || (data.expenses ?? []).length > 0;
+  $('dep-preview-empty').classList.toggle('hidden', hasRows);
+  return data;
 };
 
 const openDepositModal = async () => {
-  state.formPhoto = undefined;
+  depPreviewData = null;
   $('dep-form').reset();
   await fillDepositOutlets();
-  $('dep-date').value = new Date().toISOString().slice(0, 10);
+  $('dep-date').value = todayInTz(activeBusiness()?.timezone);
   hide($('dep-form-error'));
+  hide($('dep-preview'));
   show($('dep-modal'));
-  $('dep-amount').focus();
+  $('dep-outlet').focus();
+  await loadDepositPreview();
 };
 
 $('dep-new-btn').addEventListener('click', () => {
   openDepositModal().catch((err) => alertBox(describeError(err), 'error'));
 });
+$('dep-preview-btn').addEventListener('click', () => {
+  loadDepositPreview().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('dep-outlet').addEventListener('change', () => {
+  loadDepositPreview().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('dep-date').addEventListener('change', () => {
+  loadDepositPreview().catch((err) => alertBox(describeError(err), 'error'));
+});
+$('dep-shift').addEventListener('change', () => {
+  loadDepositPreview().catch((err) => alertBox(describeError(err), 'error'));
+});
 $('dep-cancel').addEventListener('click', () => hide($('dep-modal')));
 $('dep-modal').addEventListener('click', (event) => {
   if (event.target === $('dep-modal')) hide($('dep-modal'));
-});
-
-$('dep-receipt').addEventListener('change', async (event) => {
-  const file = event.target.files?.[0];
-  if (!file) {
-    state.formPhoto = undefined;
-    return;
-  }
-  try {
-    state.formPhoto = await fileToCompressedDataUrl(file);
-  } catch (err) {
-    event.target.value = '';
-    state.formPhoto = undefined;
-    alertBox(describeError(err), 'error');
-  }
 });
 
 $('dep-form').addEventListener('submit', async (event) => {
@@ -2876,30 +3153,61 @@ $('dep-form').addEventListener('submit', async (event) => {
     show(err);
     return;
   }
-  const amount = Math.round(Number($('dep-amount').value || 0) * 100);
-  if (amount <= 0) {
-    err.textContent = 'Nominal harus lebih dari 0.';
-    show(err);
-    return;
-  }
+
+  const saveAs = $('dep-save-as').value || 'completed';
+  const note = $('dep-note').value.trim();
   const payload = {
     outletId,
-    amount,
-    method: 'cash',
-    date: $('dep-date').value || new Date().toISOString().slice(0, 10),
+    date: $('dep-date').value || todayInTz(b.timezone),
+    shift: $('dep-shift').value || 'full',
+    saveAs,
   };
-  const note = $('dep-note').value.trim();
   if (note) payload.note = note;
-  if (typeof state.formPhoto === 'string' && state.formPhoto) {
-    payload.receiptUrl = state.formPhoto;
+  const recipient = $('dep-recipient').value.trim();
+  if (recipient) payload.recipientName = recipient;
+
+  if (saveAs === 'completed') {
+    const raw = $('dep-amount').value.trim();
+    if (raw === '') {
+      err.textContent = 'Uang tunai aktual wajib diisi untuk menyelesaikan setoran.';
+      show(err);
+      return;
+    }
+    const actual = Math.round(Number(raw) * 100);
+    if (!Number.isFinite(actual) || actual < 0) {
+      err.textContent = 'Uang tunai aktual tidak valid.';
+      show(err);
+      return;
+    }
+    payload.actualCash = actual;
+
+    // Validasi cepat hanya bila pratinjau cocok dengan pilihan saat ini;
+    // server tetap menjadi penentu akhir (menghindari blokir dari data basi).
+    const previewMatches =
+      depPreviewData &&
+      depPreviewData.outlet?.id === outletId &&
+      depPreviewData.period?.date === payload.date &&
+      depPreviewData.period?.shift === payload.shift;
+    if (previewMatches) {
+      const required = Number(depPreviewData.totals?.required_cash ?? 0);
+      if (actual !== required && note.length < 3) {
+        err.textContent = 'Alasan selisih wajib diisi (minimal 3 karakter).';
+        show(err);
+        return;
+      }
+    }
   }
 
   const btn = $('dep-form').querySelector('button[type=submit]');
   btn.disabled = true;
   try {
-    await guard(() => api.cashDeposits.create(b.id, payload));
-    alertBox('Setoran kas dicatat.', 'ok');
+    await guard(() => api.cashDeposits.createSettlement(b.id, payload));
+    alertBox(
+      saveAs === 'draft' ? 'Setoran disimpan sebagai draft.' : 'Setoran kas berhasil diselesaikan.',
+      'ok'
+    );
     hide($('dep-modal'));
+    depPage = 1;
     await loadDeposits();
   } catch (e) {
     err.textContent = describeError(e);
@@ -2909,23 +3217,113 @@ $('dep-form').addEventListener('submit', async (event) => {
   }
 });
 
-// Void setoran kas (append-only; butuh alasan)
-let voidDepositId = null;
-let voidDepositLabel = '';
+// ------------------------------------------- Selesaikan / hapus draft -------
+const openCompleteModal = async (depositId) => {
+  const b = activeBusiness();
+  if (!b) return;
+  const data = await guard(() => api.cashDeposits.detail(b.id, depositId));
+  if (!data) return;
+  const d = data.deposit ?? {};
+  depCompleteId = depositId;
+  depCompleteRequired = Number(d.required_cash ?? 0);
+  $('dep-complete-info').textContent = `${d.settlement_no ?? 'Setoran'} • ${
+    d.outlet_name ?? data.outlet_name ?? '—'
+  } • wajib setor ${fmtIDR(depCompleteRequired)}`;
+  $('dep-complete-amount').value = String(Math.round(depCompleteRequired / 100));
+  $('dep-complete-note').value = d.note ?? d.cashier_note ?? '';
+  $('dep-complete-recipient').value = d.recipient_name ?? '';
+  hide($('dep-complete-error'));
+  show($('dep-complete-modal'));
+  $('dep-complete-amount').focus();
+};
 
-$('dep-body').addEventListener('click', (event) => {
-  const btn = event.target.closest('button[data-action="void"]');
-  if (!btn) return;
-  voidDepositId = btn.dataset.id;
-  const row = btn.closest('tr');
-  voidDepositLabel = row?.children?.[0]?.textContent?.trim() ?? '';
-  $('dep-void-info').textContent = `Batalkan setoran ${voidDepositLabel}. Baris tidak dihapus.`;
-  $('dep-void-reason').value = '';
-  hide($('dep-void-error'));
-  show($('dep-void-modal'));
-  $('dep-void-reason').focus();
+$('dep-complete-cancel').addEventListener('click', () => hide($('dep-complete-modal')));
+$('dep-complete-modal').addEventListener('click', (event) => {
+  if (event.target === $('dep-complete-modal')) hide($('dep-complete-modal'));
 });
 
+$('dep-complete-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const err = $('dep-complete-error');
+  hide(err);
+  const b = activeBusiness();
+  if (!b || !depCompleteId) return;
+  const raw = $('dep-complete-amount').value.trim();
+  if (raw === '') {
+    err.textContent = 'Uang tunai aktual wajib diisi.';
+    show(err);
+    return;
+  }
+  const actual = Math.round(Number(raw) * 100);
+  if (!Number.isFinite(actual) || actual < 0) {
+    err.textContent = 'Uang tunai aktual tidak valid.';
+    show(err);
+    return;
+  }
+  const note = $('dep-complete-note').value.trim();
+  if (actual !== depCompleteRequired && note.length < 3) {
+    err.textContent = 'Alasan selisih wajib diisi (minimal 3 karakter).';
+    show(err);
+    return;
+  }
+  const payload = { actualCash: actual };
+  if (note) payload.note = note;
+  const recipient = $('dep-complete-recipient').value.trim();
+  if (recipient) payload.recipientName = recipient;
+
+  const btn = $('dep-complete-form').querySelector('button[type=submit]');
+  btn.disabled = true;
+  try {
+    await guard(() => api.cashDeposits.complete(b.id, depCompleteId, payload));
+    alertBox('Setoran draft diselesaikan.', 'ok');
+    hide($('dep-complete-modal'));
+    await loadDeposits();
+  } catch (e) {
+    err.textContent = describeError(e);
+    show(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+const deleteDraftDeposit = async (depositId) => {
+  const b = activeBusiness();
+  if (!b) return;
+  if (!confirm('Hapus setoran draft ini? Tindakan ini tidak dapat dibatalkan.')) return;
+  await guard(() => api.cashDeposits.deleteDraft(b.id, depositId));
+  alertBox('Setoran draft dihapus.', 'ok');
+  await loadDeposits();
+};
+
+// ------------------------------------------------------ Aksi baris ----------
+$('dep-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  try {
+    if (action === 'detail') {
+      await openDepositDetail(id);
+    } else if (action === 'complete') {
+      await openCompleteModal(id);
+    } else if (action === 'delete') {
+      await deleteDraftDeposit(id);
+    } else if (action === 'void') {
+      voidDepositId = id;
+      const row = btn.closest('tr');
+      const label = row?.querySelector('td:nth-child(2)')?.textContent?.trim() || id;
+      $('dep-void-info').textContent = `Batalkan setoran ${label}. Baris tidak dihapus.`;
+      $('dep-void-reason').value = '';
+      hide($('dep-void-error'));
+      show($('dep-void-modal'));
+      $('dep-void-reason').focus();
+    }
+  } catch (err) {
+    alertBox(describeError(err), 'error');
+  }
+});
+
+// Void setoran kas (append-only; butuh alasan)
 $('dep-void-cancel').addEventListener('click', () => hide($('dep-void-modal')));
 $('dep-void-modal').addEventListener('click', (event) => {
   if (event.target === $('dep-void-modal')) hide($('dep-void-modal'));
