@@ -506,11 +506,13 @@ firebase deploy --only hosting --project kasir-nova
 | Path tak dikenal `/Admin` | **404**, judul `Halaman tidak ditemukan — KASIR NOVA` |
 | Gate lokal sebelum deploy | `qa:portable` **SEMUA TAHAP LULUS** |
 
-> **Wajib oleh pemilik sebelum Setoran Kas dipakai:** terapkan migrasi
-> `0011_cash_deposits.sql` ke DB **Neon** produksi —
-> `cd server && DATABASE_URL='<neon-url>?sslmode=require' npm run db:migrate`
-> (harus melaporkan menjalankan `0011_cash_deposits.sql`). Tanpa ini, operasi
-> setoran akan gagal saat menulis.
+> **Migrasi Neon (19 Okt 2026):** diterapkan ke DB produksi **Neon** dari
+> `DATABASE_URL` Vercel (`vercel env pull`). Terdapat **2** migrasi tertunda —
+> `0010_subscription_invoices.sql` dan `0011_cash_deposits.sql` (keduanya belum
+> pernah masuk produksi) — kini **11/11** diterapkan. Diverifikasi:
+> `schema_migrations` = 11 baris; tabel `cash_deposits` & `subscription_invoices`
+> ada; `cash_deposits` kosong (0 baris). Berkas env hasil pull dihapus setelah
+> dipakai.
 
 
 
