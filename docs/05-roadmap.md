@@ -1078,6 +1078,71 @@ bisa ter-commit.
 **Dokumen diperbarui:** `docs/40-setoran-kas.md` (baru), `docs/11` (keputusan
 #6 selesai), `docs/41-workflow-termux.md` (baru), `docs/05` (entri ini).
 
+## 19 Okt 2026 — Setoran Kasir Berbasis Periode (migrasi 0012) + Perbaikan Omzet Tunai
+
+**Tujuan.** Meningkatkan Setoran Kas dari pencatatan nominal manual menjadi
+**perhitungan otomatis per periode shift** (revenue tunai/QRIS − pengeluaran kas
+= setoran wajib), lengkap dengan UI tiga panel, struk, uji, dan deploy.
+
+**Backend.**
+- Migrasi `0012_cashier_settlements.sql` (aditif, non-destruktif): enum
+  `draft`/`completed` + `expense_method 'other'`, kolom settlement pada
+  `cash_deposits`, tabel `cash_deposit_transactions` & `cash_deposit_expenses`
+  dengan indeks unik parsial `WHERE is_active` (anti-hitung-ganda), `CHECK amount
+  >= 0` (dari `> 0`).
+- `service.js`: `previewSettlement`, `createSettlement`, `completeSettlement`,
+  `getCashDepositDetail`, `deleteDraft`, `settlementReport`,
+  `listPlatformSettlements`, `resolvePeriod`, `computeSettlement`. Shift `full`,
+  `pagi`, `sore`, `malam` di zona waktu bisnis. Advisory lock
+  `pg_advisory_xact_lock(hashtextextended('settlement:<bisnis>:<outlet>:<tgl>'))`
+  + deteksi periode tumpang tindih (409).
+- Nomor setoran `STR-YYYYMMDD-NNN` unik per bisnis. Selisih ≠ 0 wajib beralasan
+  (≥ 3 karakter), `difference = actual_cash − required_cash`.
+- `xlsx.js` (ExcelJS) untuk ekspor; endpoint Owner `/report`, `/export`; Kasir
+  scoped; Platform Admin `GET /api/platform/cash-settlements` (read-only).
+- **Endpoint legacy tetap ada** (POST nominal manual + void) agar kompatibel;
+  endpoint settlement ditambahkan berdampingan.
+
+**Frontend.**
+- Panel Kasir: form setoran (pratinjau live, pilih shift, draft/selesai), riwayat
+  + filter, detail snapshot, void, hapus draft, dan **cetak struk**
+  (`apps/kasir/src/setoran-receipt.js`): 58mm/80mm, PDF, ESC/POS, pratinjau,
+  cetak ulang, penanda `DIBATALKAN` — mengikuti
+  `assets/references/Contoh_Struk_Setoran_KASIR_NOVA.png`.
+- Panel Owner: **Laporan Setoran** (filter outlet/kasir/tanggal/status, rekap
+  harian/mingguan/bulanan, ekspor Excel).
+- Panel Admin Platform: monitoring setoran lintas bisnis (read-only).
+
+**Perbaikan (fix).** Omzet tunai setoran sebelumnya dijumlahkan dari
+`payments.amount` (uang diterima, **termasuk kembalian**) sehingga kas wajib lebih
+besar dari omzet. Diperbaiki memakai `t.total` (nilai bersih) — konsisten dengan
+`paymentMethodRecap` laporan (lihat `server/src/modules/report/service.js`).
+Contoh: total Rp40.000 dibayar Rp100.000 → setoran kini Rp40.000.
+> Setoran yang sudah tersimpan sebelum fix menyimpan snapshot lama; perlu
+> **void + buat ulang** agar angkanya benar.
+
+**Pengujian.**
+- `server/tests/cash-settlements.test.js`: 13 kasus (perhitungan tunai/QRIS/
+  pengeluaran, nomor unik, tolak periode tumpang tindih/duplikat, kewajiban
+  alasan selisih, snapshot setelah void, kekurangan kas, periode kosong,
+  draft→selesai, isolasi outlet/tenant, rekap, ekspor xlsx, monitoring admin,
+  **regresi omzet tunai bersih/kembalian**).
+- Suite server total **352/352 lulus**; `node scripts/verify-ui.mjs` **SEMUA OK**.
+
+**Deploy (19 Okt 2026, izin pemilik).**
+- Migrasi `0012` diterapkan ke **Neon** produksi → total **12 migrasi**.
+- Backend di-deploy ulang ke **Vercel** → https://kasir-nova.vercel.app
+  (`/api/health` OK, `database: up`; rute settlement menjawab `401`, bukan 404).
+- Frontend di-deploy ke **Firebase Hosting** → https://kasir-nova.web.app
+  (base API `https://kasir-nova.vercel.app`).
+
+**Commit:** `cc3102c` (feat: implement cashier settlement and receipt printing),
+`bd4d3b4` (fix(setoran): hitung omzet tunai dari total bersih, kecualikan
+kembalian). Push ke branch `feat/kasir-nova-v2`.
+
+**Dokumen diperbarui:** `docs/40-setoran-kas.md` (model data, API, aturan,
+frontend/struk, pengujian), `docs/05` (entri ini).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
   **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal
