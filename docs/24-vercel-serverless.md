@@ -472,6 +472,46 @@ unggahan baru **6 berkas** (2 di antaranya aset QR: `owner/src/qr-code.js`,
 > Vercel agar `https://kasir-nova.vercel.app/api/payments/duitku/callback`
 > dapat menerima notifikasi Duitku.
 
+## Deploy 19 Okt 2026 — Setoran Kas (UI web + backend)
+
+Izin pemilik (19 Okt 2026): deploy **backend + hosting** dan commit UI Setoran
+Kas. Backend rute `cash-deposit` (commit `6adf8fc`) sebelumnya **belum** aktif
+di produksi: `GET /api/cashier/cash-deposits` → **404** (sama seperti kontrol).
+
+### Perintah yang dijalankan
+
+```bash
+# dari ROOT repo — perlu tautan proyek: vercel link --project kasir-nova --scope kasir-nova
+vercel deploy --prod --yes                       # -> https://kasir-nova.vercel.app
+node scripts/build-hosting.mjs                   # NOVA_API_BASE=https://kasir-nova.vercel.app
+firebase deploy --only hosting --project kasir-nova
+```
+
+- CLI: `Deployment kasir-nova-netg9z5sj-kasir-nova.vercel.app ready.`
+- Hosting: **51 berkas** (33 berubah).
+
+### Verifikasi sesudah deploy
+
+| Uji | Hasil |
+|---|---|
+| `GET /api/health` produksi | OK `status: ok`, `database: up` |
+| `GET /api/cashier/cash-deposits` (tanpa token) | **401** → rute **ada** |
+| `GET /api/cashier/zzz-kontrol` (kontrol negatif) | **404** |
+| `GET /api/owner/businesses/<uuid>/cash-deposits` (tanpa token) | **401** → ada |
+| CORS `Origin: https://localhost` (APK) | `access-control-allow-origin: https://localhost` |
+| Hosting `/` `/kasir/` `/admin/` `/owner/` | **200** |
+| `config.js` ketiga app | `window.NOVA_API_BASE = 'https://kasir-nova.vercel.app'` |
+| Penanda Setoran Kas tersaji (Kasir & Owner HTML/JS) | ada |
+| Cache JS Hosting | `cache-control: no-cache` |
+| Path tak dikenal `/Admin` | **404**, judul `Halaman tidak ditemukan — KASIR NOVA` |
+| Gate lokal sebelum deploy | `qa:portable` **SEMUA TAHAP LULUS** |
+
+> **Wajib oleh pemilik sebelum Setoran Kas dipakai:** terapkan migrasi
+> `0011_cash_deposits.sql` ke DB **Neon** produksi —
+> `cd server && DATABASE_URL='<neon-url>?sslmode=require' npm run db:migrate`
+> (harus melaporkan menjalankan `0011_cash_deposits.sql`). Tanpa ini, operasi
+> setoran akan gagal saat menulis.
+
 
 
 

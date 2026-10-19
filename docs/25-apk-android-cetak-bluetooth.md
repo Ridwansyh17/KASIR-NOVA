@@ -382,6 +382,13 @@ Status (13 Okt 2026, sudah dilakukan):
   `versionName='1.0.0-beta.9'`; **telah diunggah & didistribusikan** ke grup
   `kasir-beta` melalui Firebase App Distribution (17 Okt 2026, release
   `4sllfgq44brq8`) setelah `firebase login --reauth`.
+- **V2 (19 Okt 2026):** APK **`1.0.0-beta.10`** (versionCode `10`) — **Setoran
+  Kas** (tab & pane di panel Kasir: ringkasan, filter tanggal/status, modal
+  setoran baru + bukti foto, modal void + alasan). `www` sudah dibangun ulang
+  dari panel Kasir terkini (`npm run build:www`, `NOVA_API_BASE=https://kasir-nova.vercel.app`).
+  Versi di `package.json`/`app/build.gradle` sudah dinaikkan ke `beta.10`/`10`
+  (commit `99e1033`). **Build & distribusi di PC** (JDK 21 + Android SDK,
+  keystore rilis yang sama) — status: **menunggu dibangun** oleh pemilik.
 
 > **Catatan penting:** desain & fitur baru pada APK hanya terlihat setelah
 > backend produksi memuat versi terbaru. Lihat `docs/24-vercel-serverless.md`.
