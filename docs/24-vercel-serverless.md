@@ -540,3 +540,20 @@ Tidak ada perubahan skema DB (tidak ada migrasi).
 
 Tidak ada perubahan environment Vercel (`JWT_*`, `DATABASE_URL`, `PAYMENT_*`
 tetap). Rilis APK **tidak** dibuat ulang (menunggu keputusan pemilik).
+
+## Deploy 20 Okt 2026 (sore) — Navigasi halaman Owner (izin pemilik)
+
+Perubahan yang dibawa: **hanya frontend** — menu samping Owner kini membuka
+**halaman terpisah per seksi** (kelas `.pg-off`, hash + `popstate`; lihat
+`docs/42` §2). Tidak ada perubahan backend, skema DB, API, maupun aturan
+langganan; karena itu **Vercel tidak di-deploy ulang**.
+
+| Langkah | Perintah | Hasil |
+|---|---|---|
+| Build frontend | `node scripts/build-hosting.mjs` | `dist/hosting` (NOVA_API_BASE `https://kasir-nova.vercel.app`) |
+| Hosting | `firebase deploy --only hosting --project kasir-nova` | rilis selesai |
+| Halaman | `GET /owner/` | **200** |
+| Bundel baru | `/owner/src/app.js` memuat penanda `pg-off`/`applyOwnerPage`/`navigateOwnerPage` | 11 kecocokan |
+| Backend | `GET /api/health` (tetap deployment yang sama) | **200** `database: up` |
+
+Commit: `ae55a45` (`feat/kasir-nova-v2`).

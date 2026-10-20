@@ -1281,8 +1281,9 @@ ada di app.js, selektor `.pg-off` ada di CSS, dan tidak ada lagi
 `node scripts/verify-ui.mjs` **SEMUA OK**; `npm run test:auth` **10/10**;
 `npm run test:server` **360/360**; `node scripts/build-hosting.mjs` berhasil.
 
-**Status:** di-working-tree, **belum di-commit & belum di-deploy** (menunggu
-persetujuan pemilik). Tinjauan visual desktop/HP oleh pemilik tetap
+**Status:** commit `ae55a45` (push `feat/kasir-nova-v2`); **di-deploy 20 Okt
+2026** ke Firebase Hosting (izin pemilik, cakupan hosting saja — backend tidak
+diubah; rincian di `docs/24`). Tinjauan visual desktop/HP oleh pemilik tetap
 dianjurkan — agen tidak memiliki browser (Chromium) di lingkungan Termux.
 
 ## Modul Ditangguhkan (di luar roadmap di atas)
