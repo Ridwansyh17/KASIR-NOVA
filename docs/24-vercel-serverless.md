@@ -517,3 +517,26 @@ firebase deploy --only hosting --project kasir-nova
 
 
 
+
+## Deploy 20 Okt 2026 — Ganti sandi sendiri + tombol lihat sandi + sidebar (izin pemilik)
+
+Perubahan yang dibawa: `POST /api/auth/change-password` (backend), modal
+**Ganti Sandi** ketiga panel, **tombol lihat/sembunyikan sandi**
+(`shared/pw-toggle.js`), dan **navigasi samping** (`shared/sidebar.css`).
+Tidak ada perubahan skema DB (tidak ada migrasi).
+
+| Langkah | Perintah | Hasil |
+|---|---|---|
+| Backend | `vercel deploy --prod --yes` (dari root repo, proyek `kasir-nova`) | alias `https://kasir-nova.vercel.app` (deployment baru) |
+| Health | `GET /api/health` | **200** `database: up` (uptime ~38 dtk → build baru) |
+| Rute baru | `POST /api/auth/change-password` tanpa token | **401** (ada; bukan 404) |
+| Build frontend | `node scripts/build-hosting.mjs https://kasir-nova.vercel.app` | `dist/hosting` memuat `pw-toggle.js` + `.pw-wrap` + `sidebar.css` |
+| Hosting | `firebase deploy --only hosting --project kasir-nova` | rilis selesai |
+| Halaman | `/admin/` `/owner/` `/kasir/` | **200** |
+| Aset baru | `*/src/pw-toggle.js`, `*/styles/sidebar.css` | **200** (ketiga panel) |
+| Bundel | `app.js` memuat impor `pw-toggle.js`; `styles.css` memuat `.pw-wrap` | 1 impor + 3 aturan CSS per panel |
+| CORS | preflight `OPTIONS` `change-password` & `login` dari origin Hosting | **204** |
+| Base API | `/admin/config.js` | `NOVA_API_BASE='https://kasir-nova.vercel.app'` |
+
+Tidak ada perubahan environment Vercel (`JWT_*`, `DATABASE_URL`, `PAYMENT_*`
+tetap). Rilis APK **tidak** dibuat ulang (menunggu keputusan pemilik).

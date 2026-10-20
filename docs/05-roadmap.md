@@ -1229,10 +1229,19 @@ Seluruh perubahan sidebar (`shared/sidebar.css` + salinan ketiga panel,
 di branch `feat/kasir-nova-v2` — pada sesi ini diselesaikan, diuji ulang, lalu
 di-commit bersama fitur tombol lihat sandi.
 
-**Hasil pengujian sesi ini:** suite server **352+ tes lulus** (termasuk
-`change-password.test.js` 8 baru di atas total sebelumnya), `sync-shared --check`
-**SEMUA SAMA**, `node scripts/verify-ui.mjs` **SEMUA OK**, `node --check`
-seluruh berkas JS panel OK.
+**Hasil pengujian sesi ini:** suite server **360/360 lulus** (termasuk 8 tes
+`change-password.test.js`), `sync-shared --check` **SEMUA SAMA**,
+`node scripts/verify-ui.mjs` **SEMUA OK**, `node --check` seluruh berkas JS
+panel OK.
+
+**Deploy (20 Okt 2026, izin pemilik).** Backend **+ hosting** di-deploy —
+`https://kasir-nova.vercel.app` (`/api/health` 200 `database: up`; rute baru
+`change-password` menjawab **401** tanpa token) dan
+`https://kasir-nova.web.app` (halaman ketiga panel **200**; `pw-toggle.js` &
+`sidebar.css` tersaji **200**; `app.js` memuat impor pw-toggle; preflight CORS
+**204**). Tidak ada migrasi DB & tidak ada perubahan env. Rincian perintah:
+`docs/24` bagian *Deploy 20 Okt 2026*. Commit `5f24388` (push
+`feat/kasir-nova-v2`).
 
 **Tertunda (butuh tindakan/keputusan pemilik — tidak dikerjakan agent):**
 tinjauan visual sidebar di desktop/HP; panggilan sungguhan Duitku (kredensial
