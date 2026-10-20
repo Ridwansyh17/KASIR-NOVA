@@ -29,11 +29,20 @@ pengendali navigasi di frontend).
   Dashboard Owner, Profil Bisnis, Langganan, Manajemen Outlet,
   Manajemen Kasir, Produk & Stok, Transaksi, Laporan Penjualan,
   Laporan Keuangan, Pengeluaran, Setoran Kas, Riwayat Stok, Audit Log.
-- Karena panel Owner berupa satu halaman panjang, menu samping **menggulir ke
-  seksi terkait** (`scrollIntoView`) dan menandai seksi yang sedang terlihat
-  saat pengguna menggulir.
-- Menu hanya berpindah ke seksi yang sedang tersedia (tidak tersembunyi).
-  Bila belum ada bisnis aktif, klik menu akan kembali ke atas halaman.
+- Sejak 20 Oktober 2026 (perbaikan poin tertunda §7) panel Owner memakai
+  **halaman terpisah per menu**, bukan lagi gulir-scroll:
+  - Satu klik menu = satu seksi tampil sendirian; seksi lain disembunyikan
+    lewat kelas `.pg-off` (terpisah dari `.hidden` status "data siap" milik
+    pemuat data, sehingga kembali ke menu langsung menampilkan data yang
+    sudah dimuat).
+  - Halaman aktif disimpan di `location.hash` (mis. `/owner/#report-section`)
+    sehingga reload/deep-link langsung membuka halaman itu, dan tombol
+    kembali/maju browser berpindah halaman (`popstate`).
+  - Toolbar pemilih bisnis, `#alert`, dan `#waiting-state` ("Pilih bisnis
+    untuk melihat detailnya.") tetap tampil di semua halaman sebagai konteks.
+    Blok khusus dashboard (`#cross-section`, `#empty-state`) hanya tampil di
+    halaman **Dashboard Owner**.
+  - Saat memilih menu, sidebar ditutup (pada HP) dan halaman di-scroll ke atas.
 
 ### Kasir (`apps/kasir`)
 - Sidebar navy berisi brand, label peran **Kasir**, dan menu:
@@ -66,9 +75,11 @@ pengendali navigasi di frontend).
 | `apps/owner/index.html` | Struktur `app-shell` + sidebar; menu seksi Owner; tautan CSS sidebar. |
 | `apps/kasir/index.html` | Struktur `app-shell` + sidebar; menu tab lama dipindah; bottom-nav dipertahankan. |
 | `apps/admin/src/app.js` | Pengendali buka/tutup sidebar; menutup sidebar saat tab dipilih. |
-| `apps/owner/src/app.js` | Pengendali sidebar + navigasi gulir seksi & penanda seksi aktif. |
+| `apps/owner/src/app.js` | Pengendali sidebar + **navigasi halaman per seksi** (`applyOwnerPage`/`navigateOwnerPage`, hash + `popstate`). |
+| `apps/owner/styles/styles.css` | Selektor `.pg-off { display: none !important }` untuk halaman non-aktif. |
 | `apps/kasir/src/app.js` | Pengendali sidebar; menutup sidebar setiap perpindahan tab. |
 | `scripts/sync-shared.mjs` | Mendaftarkan `shared/sidebar.css` → salinan di ketiga panel. |
+| `scripts/verify-ui.mjs` | Pemeriksaan regresi navigasi halaman Owner (penanda `pg-off`, tanpa `scrollIntoView`). |
 | `docs/02-struktur-folder.md` | Mencatat `shared/sidebar.css` sebagai stylesheet kanonik. |
 | `docs/05-roadmap.md` | Entri progres 20 Oktober 2026. |
 | `docs/42-navigasi-samping.md` | **Baru** — dokumen ini. |
@@ -78,15 +89,16 @@ pengendali navigasi di frontend).
 | Perintah | Hasil |
 |---|---|
 | `node scripts/sync-shared.mjs --check` | **SEMUA SAMA** (salinan `sidebar.css` identik). |
-| `node scripts/verify-ui.mjs` | **SEMUA OK** — rujukan lokal, id JS→HTML, api→api.js, sintaks modul, token V2, smoke hosting. |
+| `node scripts/verify-ui.mjs` | **SEMUA OK** — rujukan lokal, id JS→HTML, api→api.js, sintaks modul, token V2, smoke hosting, **regresi navigasi halaman Owner**. |
 | `node --input-type=module --check < apps/owner/src/app.js` | LOLOS. |
 | `npm run test:auth` | **10/10 lulus**. |
+| `npm run test:server` | **360/360 lulus** (tidak ada perubahan backend). |
 | `node scripts/build-hosting.mjs` | Berhasil membangun `dist/hosting`. |
 | Pemeriksaan keseimbangan tag HTML ketiga panel | OK (tidak ada tag tak tertutup). |
 
 **Catatan:** verifikasi visual manual oleh pemilik tetap dianjurkan karena agen
 tidak dapat merender browser secara langsung. Fokus pemeriksaan: lebar sidebar,
-menu aktif, dan perilaku hamburger di HP.
+menu aktif, perilaku hamburger di HP, dan (Owner) satu halaman per menu.
 
 ## 6. Deploy
 
@@ -102,8 +114,12 @@ menu aktif, dan perilaku hamburger di HP.
 
 ## 7. Pekerjaan tertunda / catatan
 
-- Tinjauan visual pemilik pada perangkat desktop dan HP.
-- Bila diinginkan, menu Owner dapat diubah dari navigasi gulir menjadi
-  halaman terpisah per seksi pada fase desain berikutnya (memerlukan
-  penyesuaian logika tampil/sembunyi seksi yang saat ini dipakai bersama).
-- Tidak ada perubahan skema database, API, atau aturan langganan.
+- Tinjauan visual pemilik pada perangkat desktop dan HP tetap dianjurkan
+  (agen tidak dapat merender browser di lingkungan Termux — tidak ada
+  Chromium/Chrome). Perubahan perilaku terbaru yang perlu dilihat: menu
+  Owner kini membuka halaman terpisah per seksi.
+- ~~Menu Owner diubah dari navigasi gulir menjadi halaman terpisah per seksi~~
+  — **selesai 20 Okt 2026** (lihat §2, kelas `.pg-off`, hash + `popstate`).
+- Tidak ada perubahan skema database, API, atau aturan langganan
+  (diverifikasi lewat `git diff`: hanya `apps/owner`, `scripts/verify-ui.mjs`,
+  dan dokumen).

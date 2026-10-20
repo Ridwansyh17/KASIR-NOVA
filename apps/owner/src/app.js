@@ -43,53 +43,73 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') setSidebarOpen(false);
 });
 
-// --------------------------------------------- Navigasi seksi (Owner) ------
-// Owner memakai satu halaman panjang; menu samping menggulir ke seksi terkait
-// dan menandai seksi yang sedang terlihat.
+// --------------------------------------------- Navigasi halaman (Owner) -----
+// Panel Owner kini memakai HALAMAN terpisah per menu (docs/42 §2): satu menu =
+// satu seksi tampil sendirian, sisanya disembunyikan lewat kelas `.pg-off`.
+// `.pg-off` sengaja terpisah dari `.hidden` (status "data siap" milik pemuat
+// data) sehingga navigasi tidak pernah menghapus status kesiapan sebuah seksi —
+// kembali ke menu akan langsung menampilkan data yang sudah dimuat.
 const ownerNavItems = [...document.querySelectorAll('#owner-nav .tab')];
-const ownerNavTarget = (id) => {
-  if (id === 'owner-top') return $('owner-top');
-  const el = document.getElementById(id);
-  return el && !el.classList.contains('hidden') ? el : null;
-};
+const OWNER_PAGES = ownerNavItems.map((btn) => btn.dataset.scroll);
+const OWNER_DETAIL_PAGES = OWNER_PAGES.filter((id) => id !== 'owner-top');
+// Blok yang hanya milik halaman Dashboard (selebihnya: toolbar + alert
+// #waiting-state tetap tampil di semua halaman sebagai konteks & petunjuk).
+const OWNER_DASHBOARD_ONLY = ['cross-section', 'empty-state'];
+
+let ownerPage = (() => {
+  const hash = window.location.hash.slice(1);
+  return OWNER_PAGES.includes(hash) ? hash : 'owner-top';
+})();
+
 const setOwnerNavActive = (id) => {
   for (const btn of ownerNavItems) {
     btn.classList.toggle('active', btn.dataset.scroll === id);
   }
 };
+
+/** Terapkan halaman aktif: seksi non-aktif diberi `.pg-off`, aktif dilepas. */
+const applyOwnerPage = () => {
+  for (const id of OWNER_DETAIL_PAGES) {
+    document.getElementById(id)?.classList.toggle('pg-off', id !== ownerPage);
+  }
+  const onDashboard = ownerPage === 'owner-top';
+  for (const id of OWNER_DASHBOARD_ONLY) {
+    document.getElementById(id)?.classList.toggle('pg-off', !onDashboard);
+  }
+  setOwnerNavActive(ownerPage);
+};
+
+/**
+ * Pindah halaman.
+ * @param {string} id  id menu (`data-scroll`)
+ * @param {{push?: boolean}} [opts] push=false → jangan menambah entri riwayat
+ *   (dipakai boot dari hash & tombol kembali/maju browser).
+ */
+const navigateOwnerPage = (id, { push = true } = {}) => {
+  if (!OWNER_PAGES.includes(id)) id = 'owner-top';
+  ownerPage = id;
+  applyOwnerPage();
+  setSidebarOpen(false);
+  window.scrollTo({ top: 0, behavior: push ? 'smooth' : 'auto' });
+  const hash = id === 'owner-top' ? '' : `#${id}`;
+  const url = window.location.pathname + window.location.search + hash;
+  if (window.location.hash === hash) return;
+  if (push) history.pushState({ ownerPage: id }, '', url);
+  else history.replaceState({ ownerPage: id }, '', url);
+};
+
 for (const btn of ownerNavItems) {
-  btn.addEventListener('click', () => {
-    const target = ownerNavTarget(btn.dataset.scroll);
-    setSidebarOpen(false);
-    if (!target) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    setOwnerNavActive(btn.dataset.scroll);
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  btn.addEventListener('click', () => navigateOwnerPage(btn.dataset.scroll));
 }
-let ownerNavTicking = false;
-window.addEventListener(
-  'scroll',
-  () => {
-    if (ownerNavTicking) return;
-    ownerNavTicking = true;
-    requestAnimationFrame(() => {
-      let current = 'owner-top';
-      for (const btn of ownerNavItems) {
-        if (btn.dataset.scroll === 'owner-top') continue;
-        const target = ownerNavTarget(btn.dataset.scroll);
-        if (target && target.getBoundingClientRect().top <= 140) {
-          current = btn.dataset.scroll;
-        }
-      }
-      setOwnerNavActive(current);
-      ownerNavTicking = false;
-    });
-  },
-  { passive: true }
-);
+
+// Tombol kembali/maju browser antar halaman menu.
+window.addEventListener('popstate', () => {
+  const hash = window.location.hash.slice(1);
+  navigateOwnerPage(OWNER_PAGES.includes(hash) ? hash : 'owner-top', { push: false });
+});
+
+// Muat halaman dari hash saat reload/deep-link (mis. /owner/#report-section).
+applyOwnerPage();
 
 const escapeHtml = (value) =>
   String(value ?? '').replace(

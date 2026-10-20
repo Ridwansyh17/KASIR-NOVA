@@ -1251,6 +1251,40 @@ pemilik); tata letak halaman placeholder Kasir & paket mobile Owner/Admin
 (menunggu spesifikasi, `docs/26` FASE 11); keputusan penyimpanan gambar
 produk & aset logo transparan (`docs/26` §7).
 
+## 20 Okt 2026 — Navigasi Panel Owner: Halaman Terpisah per Menu (bukan gulir)
+
+**Tujuan.** Menutup poin tertunda `docs/42` §7: menu samping Owner yang
+sebelumnya menggulir (`scrollIntoView`) diubah menjadi **halaman terpisah per
+menu**, mengikuti pola tab Admin/Kasir sehingga konsisten antar panel.
+
+**Implementasi (frontend saja).**
+- `apps/owner/src/app.js`: blok navigasi diganti — `ownerPage` (halaman aktif,
+  default `owner-top`, bisa dari `location.hash` saat reload/deep-link),
+  `applyOwnerPage()` menandai seksi di luar halaman dengan kelas baru
+  `.pg-off`, `navigateOwnerPage()` (tutup sidebar, scroll ke atas,
+  `pushState`), plus `popstate` untuk tombol kembali/maju browser.
+- `apps/owner/styles/styles.css`: `.pg-off { display: none !important }` —
+  **terpisah** dari `.hidden` (status "data siap" milik pemuat data), sehingga
+  pemuat data (`show`/`hide`) tidak perlu diubah sama sekali dan kembali ke
+  suatu menu langsung menampilkan data yang sudah dimuat.
+- Toolbar pemilih bisnis, `#alert`, dan `#waiting-state` tetap tampil di semua
+  halaman; `#cross-section` & `#empty-state` khusus halaman Dashboard.
+- **Tanpa perubahan** backend, skema DB, API, maupun aturan langganan
+  (`git diff` hanya menyentuh `apps/owner`, `scripts/verify-ui.mjs`, docs).
+
+**Pengunci regresi.** `scripts/verify-ui.mjs` bagian **"navigasi halaman
+Owner"**: penanda `pg-off`/`applyOwnerPage`/`navigateOwnerPage`/`popstate`
+ada di app.js, selektor `.pg-off` ada di CSS, dan tidak ada lagi
+`scrollIntoView`.
+
+**Hasil pengujian:** `sync-shared --check` **SEMUA SAMA**;
+`node scripts/verify-ui.mjs` **SEMUA OK**; `npm run test:auth` **10/10**;
+`npm run test:server` **360/360**; `node scripts/build-hosting.mjs` berhasil.
+
+**Status:** di-working-tree, **belum di-commit & belum di-deploy** (menunggu
+persetujuan pemilik). Tinjauan visual desktop/HP oleh pemilik tetap
+dianjurkan — agen tidak memiliki browser (Chromium) di lingkungan Termux.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
   **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal

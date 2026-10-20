@@ -306,6 +306,25 @@ console.log('\n[tombol lihat sandi (20 Okt 2026)]');
   console.log('  pemeriksaan tombol lihat sandi selesai');
 }
 
+// ------------------------------ Navigasi halaman (Owner) --------------------
+// Menu samping Owner memakai HALAMAN terpisah per seksi (bukan gulir-scroll).
+// Kelas .pg-off (bukan .hidden) menyembunyikan seksi non-aktif agar status
+// "data siap" milik pemuat data tetap utuh.
+console.log('\n[navigasi halaman Owner]');
+{
+  const ownerJs = readFileSync(join(root, 'apps', 'owner', 'src', 'app.js'), 'utf8');
+  for (const token of ['pg-off', 'applyOwnerPage', 'navigateOwnerPage', 'ownerPage', 'OWNER_PAGES', 'popstate']) {
+    if (!ownerJs.includes(token)) {
+      fail(`apps/owner/src/app.js tidak memuat penanda navigasi halaman: ${token}`);
+    }
+  }
+  const ownerCss = readFileSync(join(root, 'apps', 'owner', 'styles', 'styles.css'), 'utf8');
+  if (!/\.pg-off\s*\{[^}]*display:\s*none/.test(ownerCss)) {
+    fail('apps/owner/styles/styles.css: selektor .pg-off { display: none } tidak ada');
+  }
+  console.log('  penanda navigasi halaman & CSS .pg-off lengkap');
+}
+
 // --------------------------------- Smart Receipt Preview (FASE 3) -----------
 // Mengunci alur: pratinjau (BELUM DIBAYAR) TIDAK pernah LUNAS, cetak hanya
 // setelah konfirmasi server, cetak ulang dari snapshot, dan gagal cetak tidak

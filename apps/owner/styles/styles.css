@@ -80,6 +80,12 @@ body {
   display: none !important;
 }
 
+/* Halaman per seksi (docs/42 §2): menandai seksi di luar halaman aktif.
+   Terpisah dari .hidden agar status "data siap" pemuat data tetap utuh. */
+.pg-off {
+  display: none !important;
+}
+
 .muted {
   color: var(--muted);
 }
