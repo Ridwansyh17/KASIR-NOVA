@@ -75,6 +75,18 @@ apps/kasir-mobile/android/local.properties
 apps/kasir-mobile/android/key.properties
 apps/kasir-mobile/android/keystore-credentials.txt
 apps/kasir-mobile/android/app/google-services.json
+
+# Android / Capacitor (APK Owner — FASE 11)
+apps/owner-mobile/www/
+apps/owner-mobile/android/.gradle/
+apps/owner-mobile/android/build/
+apps/owner-mobile/android/app/build/
+apps/owner-mobile/android/app/src/main/assets/public/
+apps/owner-mobile/android/local.properties
+apps/owner-mobile/android/key.properties
+apps/owner-mobile/android/keystore-credentials.txt
+apps/owner-mobile/android/app/google-services.json
+
 *.keystore
 *.jks
 *.apk

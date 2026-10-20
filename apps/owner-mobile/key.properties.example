@@ -1,0 +1,14 @@
+# Contoh kredensial keystore rilis KASIR NOVA Owner — JANGAN diisi asli di sini.
+#
+# Cara pakai:
+#   1. Salin berkas ini menjadi:  apps/owner-mobile/android/key.properties
+#   2. Isi dengan data keystore Anda sendiri (BUKAN keystore Kasir).
+#   3. JANGAN commit `key.properties`, `*.jks`, atau `*.keystore`.
+#
+# `storeFile` diresolusi relatif terhadap modul `android/app/`.
+# Jadi `../nova-owner-release.jks` menunjuk ke
+# apps/owner-mobile/android/nova-owner-release.jks
+storeFile=../nova-owner-release.jks
+storePassword=GANTI_PASSWORD_KEYSTORE
+keyAlias=nova-owner
+keyPassword=GANTI_PASSWORD_KEY

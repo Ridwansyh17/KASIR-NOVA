@@ -1286,7 +1286,44 @@ ada di app.js, selektor `.pg-off` ada di CSS, dan tidak ada lagi
 diubah; rincian di `docs/24`). Tinjauan visual desktop/HP oleh pemilik tetap
 dianjurkan — agen tidak memiliki browser (Chromium) di lingkungan Termux.
 
+## 20 Okt 2026 — APK Kasir beta.11 + Kerangka APK Owner (FASE 11)
+
+**APK Kasir 1.0.0-beta.11 (versionCode 11).**
+- Dibangun di Termux (aarch64) dengan JDK 21 + Android SDK. `aapt2` bawaan
+  Android SDK adalah biner x86-64 sehingga gagal di ARM (`Daemon startup
+  failed`); solusinya override Gradle
+  `-Pandroid.aapt2FromMavenOverride=/root/android-sdk-tools/build-tools/aapt2`
+  (build-tools Android aarch64, statis). Dicatat di `README.md`.
+- `npm run sync` + `setup-android.mjs` (versi 11). `gradlew assembleRelease`
+  **BUILD SUCCESSFUL** → `app-release.apk` (5,29 MB) dengan tanda tangan
+  resmi **KASIR NOVA** (`apksigner verify`: v1+v2 OK), izin Bluetooth lengkap,
+  `NOVA_API_BASE=https://kasir-nova.vercel.app` di `www/config.js`, dan
+  `pw-toggle.js` ikut terbundel.
+- **Distribusi:** `npm run distribute` → Firebase App Distribution, grup
+  `kasir-beta` (2 penguji: `ridwansyarifuddin110@gmail.com`,
+  `arshakacoffe@gmail.com`). Rilis
+  [beta.11](https://console.firebase.google.com/project/kasir-nova/appdistribution/app/android:id.kasirnova.kasir/releases/5c5h8k3prtkio).
+
+**Kerangka APK Owner (`apps/owner-mobile`, belum build).**
+- Keputusan pemilik: appId `id.kasirnova.owner`, nama **KASIR NOVA Owner**,
+  ikon dari aset Owner V2 yang sudah ada, dibatasi sampai **kerangka
+  siap-build** (tanpa `cap add android`, tanpa keystore, tanpa build).
+- Isi baru: `package.json` (versi 1.0.0-beta.1), `capacitor.config.json`,
+  `scripts/build-www.mjs` (menyalin `apps/owner` → `www`),
+  `scripts/setup-android.mjs` (versi + signing + nama app, **tanpa** izin
+  Bluetooth), `scripts/distribute.mjs` (butuh `NOVA_FIREBASE_APP_ID` setelah
+  app didaftarkan), `android-templates/MainActivity.java`,
+  `key.properties.example`.
+- `.gitignore` diperluas untuk artefak `apps/owner-mobile`.
+- Sisa langkah menunggu keputusan pemilik: `npx cap add android`, keystore
+  Owner, pendaftaran app di Firebase, lalu build & distribusi.
+
+**Pengujian:** `node scripts/verify-ui.mjs` **SEMUA OK**; `node --check`
+ketiga skrip `owner-mobile` lolos; `build-www.mjs` Owner menghasilkan `www`
+dengan `NOVA_API_BASE` benar.
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
+
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
   **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal
   kartu/QR/wallet untuk **penjualan kasir** masih ditangguhkan (tetap dicatat

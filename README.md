@@ -142,6 +142,43 @@ Versi aplikasi bersumber dari `apps/kasir-mobile/package.json`; naikkan
 (`nova-release.jks`, `key.properties`, `keystore-credentials.txt`). Runbook
 lengkap: `docs/25-apk-android-cetak-bluetooth.md`.
 
+### Catatan build di lingkungan Termux/proot (aarch64)
+
+`aapt2` bawaan Android SDK (`build-tools/*/aapt2`) adalah biner **x86-64**
+sehingga gagal dengan `Daemon startup failed` di perangkat ARM. Gunakan biner
+ARM statis yang sudah tersedia di `/root/android-sdk-tools/build-tools/aapt2`
+(build-tools Android aarch64) lewat override Gradle:
+
+```bash
+cd apps/kasir-mobile/android
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ANDROID_HOME=/root/android-sdk \
+  ./gradlew assembleRelease --console=plain \
+  -Pandroid.aapt2FromMavenOverride=/root/android-sdk-tools/build-tools/aapt2
+```
+
+`apksigner`/`zipalign` dari `build-tools/*/` (skrip shell + Java) tetap aman
+dipakai karena `apksigner` adalah skrip yang memanggil Java.
+
+## APK Android (panel Owner) — persiapan (FASE 11)
+
+Kerangka kemasan Android untuk panel Owner ada di `apps/owner-mobile`
+(Capacitor 7, **tanpa** plugin printer). Struktur & skrip meniru
+`apps/kasir-mobile`. App ID: `id.kasirnova.owner`, nama: `KASIR NOVA Owner`.
+
+```powershell
+cd apps\owner-mobile
+npm install
+npm run sync              # salin apps/owner -> www, lalu cap sync android
+npm run android:prepare   # versi, signing, nama aplikasi (tanpa izin Bluetooth)
+npm run apk:release       # APK rilis (butuh android/key.properties)
+```
+
+Langkah yang **belum** dilakukan (menunggu keputusan pemilik):
+1. `npx cap add android` untuk mengisi folder `android/` dari template.
+2. Membuat keystore Owner (`nova-owner-release.jks`) + `key.properties`.
+3. Mendaftarkan app Android `id.kasirnova.owner` di Firebase project
+   `kasir-nova`, lalu mengisi `NOVA_FIREBASE_APP_ID` saat `npm run distribute`.
+
 ## Struktur
 
 ```
@@ -150,6 +187,7 @@ apps/admin   Panel Admin Platform
 apps/owner   Panel Owner (multi-bisnis)
 apps/kasir   Aplikasi Kasir (POS)
 apps/kasir-mobile  Kemasan Capacitor -> APK Android (printer Bluetooth)
+apps/owner-mobile  Kemasan Capacitor -> APK Android Owner (persiapan, tanpa printer)
 packages/    Kode bersama (validasi, konstanta, format IDR)
 shared/      Modul frontend kanonik (disalin ke apps/* oleh scripts/sync-shared.mjs)
              + shared/vendor/ untuk pustaka pihak ketiga apa adanya (encoder QR, MIT)
