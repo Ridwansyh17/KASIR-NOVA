@@ -9,7 +9,8 @@
  * (tabel `cashiers`) tanpa mengubah alur di sini.
  */
 import { query, withTransaction } from '../../config/db.js';
-import { verifyPassword, verifyPin } from '../../utils/hash.js';
+import { hashPassword, verifyPassword, verifyPin } from '../../utils/hash.js';
+import { writeAudit } from '../audit/service.js';
 import {
   signAccessToken,
   generateRefreshToken,
@@ -358,6 +359,85 @@ export const revokeAllSessions = async (role, userId) => {
   return rowCount;
 };
 
+/**
+ * Ganti sandi sendiri (Keputusan #5).
+ *
+ * Aturan:
+ *   - wajib verifikasi sandi lama (mencegah pengambilalihan sesi pasif);
+ *   - setelah sukses, SEMUA refresh token pengguna dicabut KECUALI sesi
+ *     perangkat yang dipakai mengganti (bila `refreshToken` dikirim), sehingga
+ *     perangkat/peramban lain dipaksa login ulang;
+ *   - perubahan + pencabutan + audit terjadi dalam SATU transaksi DB.
+ *
+ * @param {object} p
+ * @param {'platform_admin'|'owner'|'cashier'} p.role
+ * @param {string} p.userId
+ * @param {string} p.currentPassword
+ * @param {string} p.newPassword
+ * @param {string|null} [p.refreshToken] sesi perangkat ini yang dipertahankan
+ * @param {string|null} [p.ip]
+ * @returns {Promise<{sessionsRevoked:number}>}
+ */
+export const changePassword = async ({
+  role,
+  userId,
+  currentPassword,
+  newPassword,
+  refreshToken = null,
+  ip = null,
+}) => {
+  const store = USER_STORES[role];
+  if (!store) throw new AppError('Peran tidak didukung', 400);
+
+  const { rows } = await query(
+    `SELECT id, password_hash, status FROM ${store.table} WHERE id = $1`,
+    [userId]
+  );
+  const account = rows[0];
+  if (!account) throw new UnauthorizedError('Sesi tidak valid');
+  if (account.status !== 'active') {
+    throw new AppError('Akun Anda dinonaktifkan. Hubungi administrator.', 403);
+  }
+
+  const currentOk = await verifyPassword(currentPassword, account.password_hash);
+  if (!currentOk) throw new AppError('Sandi saat ini salah', 400);
+  if (currentPassword === newPassword) {
+    throw new AppError('Sandi baru harus berbeda dari sandi saat ini', 422);
+  }
+
+  const newHash = await hashPassword(newPassword);
+  const keepHash = refreshToken ? hashRefreshToken(refreshToken) : null;
+
+  const sessionsRevoked = await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE ${store.table} SET password_hash = $1 WHERE id = $2`,
+      [newHash, userId]
+    );
+
+    const { rowCount } = await client.query(
+      `UPDATE refresh_tokens
+          SET revoked_at = now()
+        WHERE user_role = $1 AND user_id = $2 AND revoked_at IS NULL
+          AND ($3::text IS NULL OR token_hash <> $3)`,
+      [role, userId, keepHash]
+    );
+
+    await writeAudit({
+      client,
+      actorRole: role,
+      actorId: userId,
+      action: 'auth.change_password',
+      entityType: role,
+      entityId: userId,
+      ip,
+    });
+
+    return rowCount;
+  });
+
+  return { sessionsRevoked };
+};
+
 export default {
   login,
   refresh,
@@ -366,5 +446,6 @@ export default {
   getCashierContext,
   isRoleSupported,
   revokeAllSessions,
+  changePassword,
   SUPPORTED_ROLES,
 };

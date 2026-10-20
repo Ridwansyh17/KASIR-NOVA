@@ -104,8 +104,7 @@ lihat **`docs/38-pembayaran-langganan-gateway.md`**.
 
 ## KEPUTUSAN MENUNGGU #5 — "Ubah sandi sendiri" tidak ada (klaim dokumen vs kenyataan)
 
-**Ditemukan 17 Okt 2026** saat menetapkan akun Admin "paten". Status:
-**belum diputuskan** (tidak memblokir pekerjaan lain).
+**✅ DIPUTUSKAN 20 Okt 2026 — OPSI A (fitur ganti sandi sendiri), diimplementasikan.**
 
 **Konteks.** `docs/04-matriks-hak-akses.md` § 1 mengklaim "Mengubah password
 sendiri ✅" untuk **ketiga** peran. Setelah diperiksa ke kode: **tidak ada**
@@ -118,14 +117,18 @@ di panel Admin/Owner/Kasir. Yang ada hanya:
 Dokumen sudah dikoreksi agar jujur. Akibat praktis: pemilik **tidak bisa**
 mengganti sandi akun Admin-nya sendiri dari aplikasi (harus lewat CLI).
 
-**Pilihan:**
-- **A. Buat fitur "ganti sandi sendiri"** untuk ketiga peran (endpoint
-  `POST /api/auth/change-password` + form di tiap panel; verifikasi sandi lama,
-  cabut sesi lain setelah ganti). Butuh tes + dokumen.
-- **B. Biarkan** — admin lewat CLI; owner/kasir direset atasannya. Cukup untuk
-  operasi sekarang, tetapi celah keamanan (sandi tidak bisa diputar sendiri).
+**Keputusan.** Opsi **A** — fitur ganti sandi sendiri untuk ketiga peran:
+`POST /api/auth/change-password` (verifikasi sandi lama, minimal 8 karakter,
+berbeda dari sandi lama, **mencabut semua sesi lain** di server dalam satu
+transaksi, sesi perangkat yang dipakai tetap berlaku via `refreshToken`
+opsional, audit `auth.change_password` tanpa menyimpan sandi) + form
+**Ganti Sandi** di panel Admin, Owner, dan Kasir (`passwordLimiter`
+10/IP/15 menit). Kontrak API: `docs/08-api-auth.md`; tes:
+`server/tests/change-password.test.js` (8 kasus).
 
-**Rekomendasi:** **A**, dikerjakan setelah rilis APK & uji pembayaran selesai.
+**Catatan terkait:** demi kemudahan pemakaian, ketiga panel kini juga
+memiliki **tombol lihat/sembunyikan sandi** pada semua input sandi (login,
+ganti sandi, PIN) — `shared/pw-toggle.js`. Lihat entri roadmap 20 Okt 2026.
 
 ---
 

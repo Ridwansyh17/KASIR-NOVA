@@ -80,7 +80,9 @@ nova-kasir/
 │
 ├── shared/                   # Modul frontend KANONIK (disalin ke apps/*)
 │   ├── product-image.js      # Smart Product Image (FASE 2)
+│   ├── pw-toggle.js          # Tombol lihat/sembunyi sandi ketiga panel (20 Okt 2026)
 │   ├── qr-code.js            # Kode QR QRIS (pembayaran langganan, 17 Okt 2026)
+│   ├── sidebar.css           # Navigasi samping ketiga panel (20 Okt 2026)
 │   └── vendor/               # Pustaka pihak ketiga APA ADANYA (lisensi asli)
 │       └── qrcode-generator.js   # MIT, (c) 2009 Kazuhiko Arase
 │

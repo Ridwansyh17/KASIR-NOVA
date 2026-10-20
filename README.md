@@ -266,6 +266,14 @@ roadmap fase.
   Alur pelanggan baru dari akun sampai langganan aktif (akun Owner dibuat Admin
   Platform, bisnis baru otomatis dapat paket **Gratis** 30 hari, lalu upgrade
   self-service): `docs/39-cara-pelanggan-baru-mendaftar-langganan.md`.
+- **Navigasi samping + ganti sandi sendiri + tombol lihat sandi (20 Okt 2026)**:
+  ketiga panel web memakai **sidebar** (desktop 252 px; ≤ 900 px off-canvas
+  dengan hamburger/overlay — `shared/sidebar.css`, `docs/42-navigasi-samping.md`);
+  ketiga peran bisa **mengganti sandinya sendiri** (`POST
+  /api/auth/change-password`, verifikasi sandi lama, sesi lain dicabut di
+  server dalam satu transaksi — `docs/08`, `docs/11` #5); semua **input sandi**
+  (login, ganti sandi, PIN) mendapat **tombol lihat/sembunyikan** yang dibentuk
+  runtime (`shared/pw-toggle.js`).
 - **Modul tertunda** (butuh keputusan pemilik): kanal gateway untuk **penjualan
   kasir** (kartu/QR/wallet tetap dicatat manual) dan perpanjangan langganan
   otomatis — lihat *Modul Ditangguhkan* di `docs/05-roadmap.md`.

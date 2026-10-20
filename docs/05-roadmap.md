@@ -1143,6 +1143,105 @@ kembalian). Push ke branch `feat/kasir-nova-v2`.
 **Dokumen diperbarui:** `docs/40-setoran-kas.md` (model data, API, aturan,
 frontend/struk, pengujian), `docs/05` (entri ini).
 
+## 20 Okt 2026 — Navigasi Samping (Sidebar) Admin, Owner, dan Kasir
+
+**Tujuan.** Menyesuaikan desain ketiga panel web agar menu berada di sisi kiri
+mengikuti referensi `KASIR-NOVA-V3-REFERENSI-LENGKAP`. Perubahan hanya pada
+lapisan tampilan frontend; alur bisnis, hak akses, API, dan database tidak
+berubah.
+
+**Frontend.**
+- Stylesheet kanonik baru `shared/sidebar.css` disalin ke
+  `apps/{admin,owner,kasir}/styles/sidebar.css` lewat `scripts/sync-shared.mjs`.
+- `apps/admin`: sidebar berisi menu Owner, Paket, Bisnis & Langganan, Audit Log,
+  Sesi Kasir, Setoran Kasir; info pengguna + tombol Keluar di kaki sidebar.
+- `apps/owner`: sidebar berisi menu seksi (Dashboard, Profil Bisnis,
+  Langganan, Outlet, Kasir, Produk & Stok, Transaksi, Laporan Penjualan,
+  Laporan Keuangan, Pengeluaran, Setoran Kas, Riwayat Stok, Audit Log) yang
+  menggulir ke seksi terkait dan menandai seksi aktif.
+- `apps/kasir`: menu modul dipindah ke sidebar; navigasi bawah HP
+  (`#bottom-nav`) tetap dipertahankan.
+- Responsif: desktop sidebar tetap 252 px; layar ≤ 900 px memakai sidebar
+  off-canvas dengan tombol hamburger, overlay, tombol Escape, dan kunci
+  gulir halaman. Modal berada di atas sidebar (`z-index: 100`). Sidebar
+  disembunyikan saat mencetak.
+
+**Pengujian.**
+- `node scripts/sync-shared.mjs --check` → **SEMUA SAMA**.
+- `node scripts/verify-ui.mjs` → **SEMUA OK** (termasuk sintaks modul,
+  id JS→HTML, token V2, dan smoke hosting).
+- `npm run test:auth` → **10/10 lulus**.
+- `node scripts/build-hosting.mjs` → berhasil.
+- Keseimbangan tag HTML ketiga panel → OK.
+
+**Deploy (20 Okt 2026, izin pemilik).**
+- `firebase deploy --only hosting` → https://kasir-nova.web.app
+- `/admin/`, `/owner/`, `/kasir/` → **200 OK**; `sidebar.css` tersaji (200).
+- Backend/Vercel, database, dan billing tidak diubah.
+
+**Dokumen:** `docs/42-navigasi-samping.md` (rincian lengkap), `docs/02`
+(peta folder `shared/sidebar.css`), entri roadmap ini.
+
+**Tertunda:** tinjauan visual pemilik di desktop dan HP.
+
+## 20 Okt 2026 — Ganti Sandi Sendiri, Tombol Lihat Sandi, & Komitmen Navigasi Samping
+
+**Tujuan.** Menutup pekerjaan yang tertunda di working tree (Keputusan #5 +
+navigasi samping) dan menambahkan kemudahan **tombol lihat sandi** pada layar
+login ketiga panel sesuai permintaan pemilik.
+
+**Ganti sandi sendiri (Keputusan #5 — OPSI A).**
+- Backend: `POST /api/auth/change-password` (`requireAuth` + `passwordLimiter`
+  10/IP/15 menit + skema zod `changePasswordSchema`). Verifikasi sandi lama;
+  sandi baru minimal 8 karakter & berbeda; **satu transaksi DB** mengganti
+  `password_hash` + me-revoke **semua refresh token** peran+user **kecuali**
+  token perangkat yang dipakai (dikirim via `refreshToken` opsional) +
+  audit `auth.change_password` tanpa menyimpan sandi. Berlaku ketiga peran
+  (`USER_STORES`).
+- Frontend: modal **Ganti Sandi** di ketiga panel (`#password-modal`,
+  tombol `#change-password-btn` di area pengguna/sidebar) + `api.changePassword()`
+  (panggilan biner dengan refresh 401 mengikuti pola panel).
+- Kontrak API: `docs/08` (bagian baru). Matriks hak akses: `docs/04` §1 kini
+  ✅ untuk ketiga peran. Keputusan: `docs/11` #5 (arsip: sebelumnya "belum
+  diputuskan").
+- **Pengujian:** `server/tests/change-password.test.js` **8/8** (ketiga peran,
+  sandi lama salah → 400 + hash tidak berubah, validasi 422, tanpa token → 401,
+  sesi lain dicabut/refresh perangkat ini tetap jalan, audit tanpa data
+  sensitif).
+
+**Tombol lihat/sembunyikan sandi (permintaan pemilik).**
+- Modul bersama baru `shared/pw-toggle.js` (disalin ke
+  `apps/{admin,owner,kasir}/src/` oleh `scripts/sync-shared.mjs`, diimpor sebagai
+  side-effect di tiap `app.js`). Membungkus **semua** `input[type="password"]`
+  (layar login, modal ganti sandi, PIN kasir, reset sandi) dengan `.pw-wrap` +
+  tombol `.pw-toggle` berikon mata (SVG inline, coretan saat aktif);
+  `aria-label`/`aria-pressed`/`aria-controls` diperbarui otomatis; pengamat DOM
+  menangani input yang muncul belakangan. Tanpa perubahan markup HTML; murni
+  lapisan tampilan.
+- Gaya `.pw-wrap`/`.pw-toggle` ditambahkan di `styles/styles.css` ketiga panel.
+- **Pengunci regresi:** `scripts/verify-ui.mjs` bagian **"tombol lihat sandi
+  (20 Okt 2026)"** (salinan sinkron, impor app.js, kelas CSS, input login tetap
+  `type="password"`); `sync-shared --check` **SEMUA SAMA**.
+
+**Navigasi samping (dikerjakan 20 Okt 2026 pagi, kini di-commit).**
+Seluruh perubahan sidebar (`shared/sidebar.css` + salinan ketiga panel,
+`docs/42-navigasi-samping.md`) dan ganti sandi sebelumnya **belum ter-commit**
+di branch `feat/kasir-nova-v2` — pada sesi ini diselesaikan, diuji ulang, lalu
+di-commit bersama fitur tombol lihat sandi.
+
+**Hasil pengujian sesi ini:** suite server **352+ tes lulus** (termasuk
+`change-password.test.js` 8 baru di atas total sebelumnya), `sync-shared --check`
+**SEMUA SAMA**, `node scripts/verify-ui.mjs` **SEMUA OK**, `node --check`
+seluruh berkas JS panel OK.
+
+**Tertunda (butuh tindakan/keputusan pemilik — tidak dikerjakan agent):**
+tinjauan visual sidebar di desktop/HP; panggilan sungguhan Duitku (kredensial
+sandbox di `server/.env` + `PAYMENT_*` di Vercel); uji cetak printer thermal
+fisik; buka `.xlsx` di Excel milik pemilik; rilis APK berikutnya (ditahan
+pemilik); tata letak halaman placeholder Kasir & paket mobile Owner/Admin
+(menunggu spesifikasi, `docs/26` FASE 11); keputusan penyimpanan gambar
+produk & aset logo transparan (`docs/26` §7).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
   **langganan** (Duitku sandbox, lihat entri 17 Okt 2026 di atas). Kanal

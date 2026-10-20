@@ -306,6 +306,20 @@ const qs = (params = {}) => {
 export const api = {
   me: () => request('/api/auth/me'),
 
+  /**
+   * Ganti sandi sendiri. Refresh token perangkat ini dikirim agar server
+   * mencabut sesi lain tetapi mempertahankan sesi yang sedang dipakai.
+   */
+  changePassword: ({ currentPassword, newPassword }) =>
+    request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+        ...(tokenStore.refresh ? { refreshToken: tokenStore.refresh } : {}),
+      }),
+    }),
+
   /** Info outlet/bisnis kasir + izin (mis. `can_view_profit`). */
   info: () => request('/api/cashier/me'),
 

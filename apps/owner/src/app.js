@@ -6,6 +6,7 @@
  * & isolasi tenant tetap ditegakkan server; UI ini hanya alat bantu.
  */
 import { api, login, logout, restoreSession, tokenStore, ApiError } from './api.js';
+import './pw-toggle.js';
 import { renderPrintReport, PRINT_STATUS_LABELS } from './report-print.js';
 
 const $ = (id) => document.getElementById(id);
@@ -26,6 +27,69 @@ const state = {
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
+
+// --------------------------------------------------------- Sidebar ----------
+/** Buka/tutup navigasi samping pada layar kecil. */
+const setSidebarOpen = (open) => {
+  document.body.classList.toggle('sidebar-open', open);
+  $('sidebar-toggle')?.setAttribute('aria-expanded', String(open));
+};
+
+$('sidebar-toggle')?.addEventListener('click', () => {
+  setSidebarOpen(!document.body.classList.contains('sidebar-open'));
+});
+$('sidebar-overlay')?.addEventListener('click', () => setSidebarOpen(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') setSidebarOpen(false);
+});
+
+// --------------------------------------------- Navigasi seksi (Owner) ------
+// Owner memakai satu halaman panjang; menu samping menggulir ke seksi terkait
+// dan menandai seksi yang sedang terlihat.
+const ownerNavItems = [...document.querySelectorAll('#owner-nav .tab')];
+const ownerNavTarget = (id) => {
+  if (id === 'owner-top') return $('owner-top');
+  const el = document.getElementById(id);
+  return el && !el.classList.contains('hidden') ? el : null;
+};
+const setOwnerNavActive = (id) => {
+  for (const btn of ownerNavItems) {
+    btn.classList.toggle('active', btn.dataset.scroll === id);
+  }
+};
+for (const btn of ownerNavItems) {
+  btn.addEventListener('click', () => {
+    const target = ownerNavTarget(btn.dataset.scroll);
+    setSidebarOpen(false);
+    if (!target) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setOwnerNavActive(btn.dataset.scroll);
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+let ownerNavTicking = false;
+window.addEventListener(
+  'scroll',
+  () => {
+    if (ownerNavTicking) return;
+    ownerNavTicking = true;
+    requestAnimationFrame(() => {
+      let current = 'owner-top';
+      for (const btn of ownerNavItems) {
+        if (btn.dataset.scroll === 'owner-top') continue;
+        const target = ownerNavTarget(btn.dataset.scroll);
+        if (target && target.getBoundingClientRect().top <= 140) {
+          current = btn.dataset.scroll;
+        }
+      }
+      setOwnerNavActive(current);
+      ownerNavTicking = false;
+    });
+  },
+  { passive: true }
+);
 
 const escapeHtml = (value) =>
   String(value ?? '').replace(
@@ -119,6 +183,58 @@ $('logout-btn').addEventListener('click', async () => {
   await logout();
   hide($('app-view'));
   show($('login-view'));
+});
+
+// ------------------------------------------------------- Ganti sandi --------
+// Keputusan #5: pengguna dapat mengganti sandi sendiri. Server memverifikasi
+// sandi lama dan mencabut sesi di perangkat lain; sesi ini dipertahankan
+// dengan mengirim refresh token perangkat.
+const openPasswordModal = () => {
+  $('password-form').reset();
+  hide($('password-error'));
+  hide($('password-success'));
+  show($('password-modal'));
+  $('password-current').focus();
+};
+
+const closePasswordModal = () => hide($('password-modal'));
+
+$('change-password-btn').addEventListener('click', openPasswordModal);
+$('password-cancel').addEventListener('click', closePasswordModal);
+$('password-modal').addEventListener('click', (event) => {
+  if (event.target === $('password-modal')) closePasswordModal();
+});
+
+$('password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('password-error'));
+  hide($('password-success'));
+
+  const currentPassword = $('password-current').value;
+  const newPassword = $('password-new').value;
+  if (newPassword !== $('password-confirm').value) {
+    $('password-error').textContent = 'Konfirmasi sandi baru tidak sama.';
+    show($('password-error'));
+    return;
+  }
+
+  const button = event.submitter ?? $('password-form').querySelector('button[type=submit]');
+  button.disabled = true;
+  try {
+    await guard(() => api.changePassword({ currentPassword, newPassword }));
+    $('password-current').value = '';
+    $('password-new').value = '';
+    $('password-confirm').value = '';
+    $('password-success').textContent =
+      'Sandi berhasil diubah. Sesi di perangkat lain telah diakhiri.';
+    show($('password-success'));
+    setTimeout(closePasswordModal, 1500);
+  } catch (err) {
+    $('password-error').textContent = describeError(err);
+    show($('password-error'));
+  } finally {
+    button.disabled = false;
+  }
 });
 
 // ------------------------------------------------------------ Bisnis ---------

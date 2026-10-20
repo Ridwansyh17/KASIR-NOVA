@@ -1836,3 +1836,52 @@ body {
     text-align: center;
   }
 }
+
+/* ---------- Tombol lihat sandi (20 Okt 2026) ---------- */
+/* Pembungkus .pw-wrap + tombol dibentuk runtime oleh src/pw-toggle.js di
+   sekitar setiap input[type="password"] (login, ganti sandi, PIN, reset). */
+.pw-wrap {
+  position: relative;
+  display: block;
+}
+
+.pw-wrap input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.pw-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.pw-toggle:hover {
+  color: var(--text);
+  background: var(--card-2);
+}
+
+.pw-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.pw-toggle .pw-slash {
+  display: none;
+}
+
+.pw-toggle--on .pw-slash {
+  display: block;
+}

@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
     <title>KASIR NOVA — Admin Platform</title>
     <link rel="stylesheet" href="./styles/styles.css" />
+    <link rel="stylesheet" href="./styles/sidebar.css" />
   </head>
   <body>
     <!-- ================= LOGIN ================= -->
@@ -40,32 +41,63 @@
     </section>
 
     <!-- ================= APP ================= -->
-    <div id="app-view" class="hidden">
-      <header class="topbar">
-        <div class="brand">
+    <div id="app-view" class="app-shell hidden">
+      <aside id="sidebar" class="sidebar" aria-label="Navigasi Admin Platform">
+        <div class="sidebar-brand">
           <img
-            class="brand-logo"
+            class="sidebar-logo"
             src="./assets/logo-kasir-nova-inverse.png"
             alt="Logo KASIR NOVA"
           />
-          <span>KASIR NOVA <span class="muted">/ Admin Platform</span></span>
+          <span class="sidebar-brand-text">
+            <strong>KASIR NOVA</strong>
+            <small>Admin Platform</small>
+          </span>
         </div>
-        <div class="user">
-          <span id="current-user" class="muted"></span>
+
+        <p class="sidebar-role">Admin</p>
+
+        <nav id="main-tabs" class="side-nav" aria-label="Menu utama">
+          <button class="tab active" data-tab="owners">Owner</button>
+          <button class="tab" data-tab="plans">Paket</button>
+          <button class="tab" data-tab="businesses">Bisnis &amp; Langganan</button>
+          <button class="tab" data-tab="audit">Audit Log</button>
+          <button class="tab" data-tab="sessions">Sesi Kasir</button>
+          <button class="tab" data-tab="settlements">Setoran Kasir</button>
+        </nav>
+
+        <div class="sidebar-foot">
+          <span id="current-user" class="sidebar-user"></span>
+          <button id="change-password-btn" class="btn">Ganti Sandi</button>
           <button id="logout-btn" class="btn">Keluar</button>
         </div>
-      </header>
+      </aside>
 
-      <nav class="tabs">
-        <button class="tab active" data-tab="owners">Owner</button>
-        <button class="tab" data-tab="plans">Paket</button>
-        <button class="tab" data-tab="businesses">Bisnis &amp; Langganan</button>
-        <button class="tab" data-tab="audit">Audit Log</button>
-        <button class="tab" data-tab="sessions">Sesi Kasir</button>
-        <button class="tab" data-tab="settlements">Setoran Kasir</button>
-      </nav>
+      <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
 
-      <main class="container">
+      <div class="app-main">
+        <header class="topbar">
+          <button
+            type="button"
+            id="sidebar-toggle"
+            class="btn sidebar-toggle"
+            aria-label="Buka menu"
+            aria-controls="sidebar"
+            aria-expanded="false"
+          >
+            <span class="sidebar-toggle-bars" aria-hidden="true"></span>
+          </button>
+          <div class="brand">
+            <img
+              class="brand-logo"
+              src="./assets/logo-kasir-nova-inverse.png"
+              alt="Logo KASIR NOVA"
+            />
+            <span>KASIR NOVA <span class="muted">/ Admin Platform</span></span>
+          </div>
+        </header>
+
+        <main class="container">
         <!-- ================= TAB OWNER ================= -->
         <section id="view-owners" class="tab-view">
           <div class="toolbar">
@@ -321,7 +353,8 @@
             <button id="settle-next-btn" class="btn">Berikutnya ›</button>
           </div>
         </section>
-      </main>
+        </main>
+      </div>
     </div>
 
     <!-- ================= MODAL OWNER ================= -->
@@ -485,6 +518,37 @@
           <button type="button" id="sub-assign" class="btn primary">Pasang Paket Ini</button>
           <button type="button" id="sub-set-status" class="btn">Terapkan Status</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ================= MODAL GANTI SANDI ================= -->
+    <div id="password-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3>Ganti Sandi</h3>
+        <p class="muted">
+          Masukkan sandi saat ini lalu sandi baru (minimal 8 karakter). Sesi di
+          perangkat lain akan diakhiri; perangkat ini tetap masuk.
+        </p>
+        <form id="password-form" novalidate>
+          <label class="field">
+            <span>Sandi saat ini</span>
+            <input id="password-current" type="password" autocomplete="current-password" required />
+          </label>
+          <label class="field">
+            <span>Sandi baru</span>
+            <input id="password-new" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <label class="field">
+            <span>Ulangi sandi baru</span>
+            <input id="password-confirm" type="password" autocomplete="new-password" minlength="8" required />
+          </label>
+          <p id="password-success" class="alert ok hidden"></p>
+          <p id="password-error" class="error hidden"></p>
+          <div class="modal-actions">
+            <button type="button" id="password-cancel" class="btn">Batal</button>
+            <button type="submit" class="btn primary">Simpan Sandi Baru</button>
+          </div>
+        </form>
       </div>
     </div>
 

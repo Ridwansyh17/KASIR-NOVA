@@ -228,6 +228,20 @@ export const logout = async () => {
 export const api = {
   me: () => request('/api/auth/me'),
 
+  /**
+   * Ganti sandi sendiri. Refresh token perangkat ini dikirim agar server
+   * mencabut sesi lain tetapi mempertahankan sesi yang sedang dipakai.
+   */
+  changePassword: ({ currentPassword, newPassword }) =>
+    request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+        ...(tokenStore.refresh ? { refreshToken: tokenStore.refresh } : {}),
+      }),
+    }),
+
   listOwners({ search = '', status = '', page = 1, limit = 10 } = {}) {
     const q = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) q.set('search', search);

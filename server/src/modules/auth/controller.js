@@ -65,6 +65,26 @@ export const logout = async (req, res, next) => {
   }
 };
 
+export const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword, refreshToken } = req.body;
+    const result = await authService.changePassword({
+      role: req.user.role,
+      userId: req.user.id,
+      currentPassword,
+      newPassword,
+      refreshToken: refreshToken ?? null,
+      ip: req.ip,
+    });
+    res.status(200).json({
+      message: 'Sandi berhasil diubah. Sesi di perangkat lain telah diakhiri.',
+      sessionsRevoked: result.sessionsRevoked,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const me = async (req, res, next) => {
   try {
     let context = null;

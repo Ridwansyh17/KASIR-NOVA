@@ -7,6 +7,7 @@
  * hanya perkiraan untuk tampilan. Verifikasi peran/status ditegakkan server.
  */
 import { api, login, logout, loginWithPin, listPinCashiers, restoreSession, tokenStore, ApiError } from './api.js';
+import './pw-toggle.js';
 import {
   escapeHtml,
   fmtIDR,
@@ -78,6 +79,21 @@ const state = {
 
 const show = (el) => el.classList.remove('hidden');
 const hide = (el) => el.classList.add('hidden');
+
+// --------------------------------------------------------- Sidebar ----------
+/** Buka/tutup navigasi samping pada layar kecil. */
+const setSidebarOpen = (open) => {
+  document.body.classList.toggle('sidebar-open', open);
+  $('sidebar-toggle')?.setAttribute('aria-expanded', String(open));
+};
+
+$('sidebar-toggle')?.addEventListener('click', () => {
+  setSidebarOpen(!document.body.classList.contains('sidebar-open'));
+});
+$('sidebar-overlay')?.addEventListener('click', () => setSidebarOpen(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') setSidebarOpen(false);
+});
 
 // Binding perangkat -> outlet (untuk layar pemilih login PIN).
 const OUTLET_KEY = 'nova_kasir_outlet';
@@ -1232,6 +1248,58 @@ $('logout-btn').addEventListener('click', async () => {
   show($('login-view'));
 });
 
+// ------------------------------------------------------- Ganti sandi --------
+// Keputusan #5: pengguna dapat mengganti sandi sendiri. Server memverifikasi
+// sandi lama dan mencabut sesi di perangkat lain; sesi ini dipertahankan
+// dengan mengirim refresh token perangkat.
+const openPasswordModal = () => {
+  $('password-form').reset();
+  hide($('password-error'));
+  hide($('password-success'));
+  show($('password-modal'));
+  $('password-current').focus();
+};
+
+const closePasswordModal = () => hide($('password-modal'));
+
+$('change-password-btn').addEventListener('click', openPasswordModal);
+$('password-cancel').addEventListener('click', closePasswordModal);
+$('password-modal').addEventListener('click', (event) => {
+  if (event.target === $('password-modal')) closePasswordModal();
+});
+
+$('password-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('password-error'));
+  hide($('password-success'));
+
+  const currentPassword = $('password-current').value;
+  const newPassword = $('password-new').value;
+  if (newPassword !== $('password-confirm').value) {
+    $('password-error').textContent = 'Konfirmasi sandi baru tidak sama.';
+    show($('password-error'));
+    return;
+  }
+
+  const button = event.submitter ?? $('password-form').querySelector('button[type=submit]');
+  button.disabled = true;
+  try {
+    await guard(() => api.changePassword({ currentPassword, newPassword }));
+    $('password-current').value = '';
+    $('password-new').value = '';
+    $('password-confirm').value = '';
+    $('password-success').textContent =
+      'Sandi berhasil diubah. Sesi di perangkat lain telah diakhiri.';
+    show($('password-success'));
+    setTimeout(closePasswordModal, 1500);
+  } catch (err) {
+    $('password-error').textContent = describeError(err);
+    show($('password-error'));
+  } finally {
+    button.disabled = false;
+  }
+});
+
 $('refresh-btn').addEventListener('click', async () => {
   await fetchCurrentUser();
   await loadCashierInfo();
@@ -1379,6 +1447,7 @@ const bottomNavKey = (tab) => (BOTTOM_NAV.includes(tab) ? tab : 'lainnya');
 const switchTab = (tab) => {
   if (!TABS.includes(tab)) tab = 'beranda';
   state.activeTab = tab;
+  setSidebarOpen(false);
   for (const el of document.querySelectorAll('[data-pane]')) {
     el.classList.toggle('hidden', el.dataset.pane !== tab);
   }

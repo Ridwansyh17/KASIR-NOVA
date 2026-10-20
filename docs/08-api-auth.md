@@ -180,6 +180,44 @@ sesi normal (access + refresh, rotasi). Dibatasi `pinLimiter` (20/IP/15 mnt).
 
 ---
 
+## POST `/api/auth/change-password`  *(Ganti sandi sendiri — 20 Okt 2026)*
+
+Ganti sandi akun **yang sedang login** untuk ketiga peran (`platform_admin`,
+`owner`, `cashier`). Body:
+
+```json
+{
+  "currentPassword": "SandiLama123!",
+  "newPassword": "SandiBaru456!",
+  "refreshToken": "opsional — refresh token perangkat INI agar sesinya dipertahankan"
+}
+```
+
+**200 OK:**
+
+```json
+{ "message": "Sandi berhasil diubah. Sesi di perangkat lain telah diakhiri.", "sessionsRevoked": 2 }
+```
+
+| Status | Arti |
+|---|---|
+| 400 | Sandi saat ini salah / peran tidak didukung |
+| 401 | Tanpa/invalid access token |
+| 403 | Akun bukan `active` (dinonaktifkan) |
+| 422 | `newPassword` < 8 karakter atau sama dengan `currentPassword` (juga dijaga zod `.refine`) |
+| 429 | `passwordLimiter` (10 percobaan/IP/15 menit) |
+
+**Aturan (server, atomik — satu transaksi DB):**
+- Verifikasi sandi lama memakai `verifyPassword` terhadap hash tersimpan.
+- `password_hash` di-*hash* ulang (scrypt).
+- **Semua refresh token** peran+user itu di-revoke (`revoked_at = now()`),
+  **kecuali** hash dari `refreshToken` body (perangkat yang dipakai tetap bisa
+  refresh tanpa login ulang).
+- Menulis `audit_logs` `auth.change_password` (tanpa sandi/hash).
+- UI tersedia di ketiga panel (modal **Ganti Sandi**, tombol di area pengguna).
+
+---
+
 ## Catatan keamanan untuk tim frontend
 
 - **Jangan** simpan access token di `localStorage` bila memungkinkan (rentan

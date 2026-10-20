@@ -40,3 +40,26 @@ export const cashierPinLoginSchema = z.object({
 export const cashierPinLookupSchema = z.object({
   outletId: z.string().uuid('ID outlet tidak valid'),
 });
+
+// Ganti sandi sendiri (Keputusan #5): wajib verifikasi sandi lama; sandi baru
+// tidak boleh sama persis. `refreshToken` opsional dipakai server untuk
+// mempertahankan sesi perangkat ini saat mencabut sesi lain.
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, 'Sandi saat ini wajib diisi')
+      .max(200, 'Sandi maksimal 200 karakter'),
+    newPassword: z
+      .string()
+      .min(8, 'Sandi baru minimal 8 karakter')
+      .max(200, 'Sandi maksimal 200 karakter'),
+    refreshToken: z
+      .string()
+      .regex(/^[a-f0-9]{96}$/, 'Format refresh token tidak valid')
+      .optional(),
+  })
+  .refine((value) => value.newPassword !== value.currentPassword, {
+    message: 'Sandi baru harus berbeda dari sandi saat ini',
+    path: ['newPassword'],
+  });

@@ -258,6 +258,54 @@ if (!readFileSync(join(root, 'apps', 'kasir', 'styles', 'styles.css'), 'utf8').i
   fail('apps/kasir/styles/styles.css: kelas .pos-photo tidak ada');
 }
 
+// ----------------------- Tombol lihat sandi (20 Okt 2026) -------------------
+// Semua input sandi (login, ganti sandi, PIN) mendapat tombol tampil/
+// sembunyi yang dibentuk runtime oleh modul bersama shared/pw-toggle.js.
+// Kunci regresi: salinan tersinkron, app.js mengimpornya, kelas CSS pendukung
+// ada, dan input sandi login tetap type="password" di markup.
+console.log('\n[tombol lihat sandi (20 Okt 2026)]');
+{
+  const pwCanonicalPath = join(root, 'shared', 'pw-toggle.js');
+  if (!existsSync(pwCanonicalPath)) {
+    fail('shared/pw-toggle.js tidak ada');
+  } else {
+    const canonical = readFileSync(pwCanonicalPath, 'utf8');
+    for (const app of APPS) {
+      const rel = `apps/${app.name}/src/pw-toggle.js`;
+      const abs = join(root, rel);
+      if (!existsSync(abs)) {
+        fail(`${rel} tidak ada (jalankan: node scripts/sync-shared.mjs)`);
+      } else if (readFileSync(abs, 'utf8') !== canonical) {
+        fail(`${rel} menyimpang dari shared/pw-toggle.js (jalankan: node scripts/sync-shared.mjs)`);
+      } else {
+        console.log(`  salinan bersama OK: ${rel}`);
+      }
+
+      const appJs = readFileSync(join(root, 'apps', app.name, 'src', 'app.js'), 'utf8');
+      if (!/import\s+['"]\.\/pw-toggle\.js['"]/.test(appJs)) {
+        fail(`apps/${app.name}/src/app.js tidak mengimpor ./pw-toggle.js`);
+      }
+
+      const css = readFileSync(join(root, 'apps', app.name, 'styles', 'styles.css'), 'utf8');
+      for (const cls of ['.pw-wrap', '.pw-toggle', '.pw-toggle--on .pw-slash']) {
+        if (!css.includes(cls)) {
+          fail(`apps/${app.name}/styles/styles.css: ${cls} tidak ada`);
+        }
+      }
+
+      const html = readFileSync(join(root, 'apps', app.name, 'index.html'), 'utf8');
+      if (!/id="login-password"[^>]*type="password"|type="password"[^>]*id="login-password"/.test(html)) {
+        fail(`apps/${app.name}/index.html: input #login-password bukan type="password"`);
+      }
+    }
+    const syncSharedSrc = readFileSync(join(root, 'scripts', 'sync-shared.mjs'), 'utf8');
+    if (!syncSharedSrc.includes("'shared/pw-toggle.js'")) {
+      fail("scripts/sync-shared.mjs tidak memuat 'shared/pw-toggle.js'");
+    }
+  }
+  console.log('  pemeriksaan tombol lihat sandi selesai');
+}
+
 // --------------------------------- Smart Receipt Preview (FASE 3) -----------
 // Mengunci alur: pratinjau (BELUM DIBAYAR) TIDAK pernah LUNAS, cetak hanya
 // setelah konfirmasi server, cetak ulang dari snapshot, dan gagal cetak tidak

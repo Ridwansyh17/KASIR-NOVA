@@ -46,6 +46,23 @@ export const pinLimiter = rateLimit({
 });
 
 /**
+ * Limiter ganti sandi sendiri: backstop brute force terhadap sandi lama dari
+ * sesi yang sudah terautentikasi. 10 percobaan / 15 menit per IP.
+ */
+export const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message:
+        'Terlalu banyak percobaan ganti sandi dari IP ini. Coba lagi dalam 15 menit.',
+    },
+  },
+});
+
+/**
  * Limiter callback gateway pembayaran (publik, tanpa sesi).
  *
  * Duitku mengirim ulang callback maksimal 5x sampai menerima HTTP 200, jadi
@@ -81,4 +98,10 @@ export const invoiceSyncLimiter = rateLimit({
   },
 });
 
-export default { loginLimiter, pinLimiter, webhookLimiter, invoiceSyncLimiter };
+export default {
+  loginLimiter,
+  pinLimiter,
+  passwordLimiter,
+  webhookLimiter,
+  invoiceSyncLimiter,
+};

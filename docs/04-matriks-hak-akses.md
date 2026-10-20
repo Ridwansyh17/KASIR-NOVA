@@ -16,7 +16,21 @@
 | Membuat akun Admin Platform | ❌ **sengaja** tidak ada di aplikasi — hanya CLI `npm run admin:create` / seeding | ❌ | ❌ |
 | Mencabut sesi sendiri (logout) | ✅ | ✅ | ✅ |
 | Mencabut sesi bawahan | ✅ (semua) | ✅ (kasirnya) | ❌ |
-| Mengubah password sendiri | ❌ belum ada di API (pakai CLI `npm run admin:password`) | ❌ belum ada di API (direset Admin) | ❌ belum ada di API (direset Owner) |
+| Mengubah password sendiri | ✅ (`POST /api/auth/change-password`, verifikasi sandi lama) | ✅ (endpoint yang sama) | ✅ (endpoint yang sama) |
+
+> **Ganti sandi sendiri (20 Okt 2026).** Berlaku untuk ketiga peran: verifikasi
+> sandi lama (salah → 400), sandi baru minimal 8 karakter dan berbeda dari sandi
+> lama (422), dibatasi `passwordLimiter` (10/IP/15 menit). Perubahan berjalan
+> dalam satu transaksi DB dan **mencabut semua sesi lain** (refresh token lain
+> di-revoke); sesi perangkat yang dipakai tetap berlaku bila mengirim
+> `refreshToken` aktif pada body. Tercatat di `audit_logs` sebagai
+> `auth.change_password` tanpa menyimpan sandi. UI: form **Ganti Sandi** di
+> ketiga panel. Kontrak: `docs/08-api-auth.md`.
+>
+> **Tombol lihat sandi (20 Okt 2026).** Semua input sandi di ketiga panel
+> (layar login, form ganti sandi, PIN kasir, reset sandi) mendapat tombol
+> tampil/sembunyi yang dibentuk runtime oleh `shared/pw-toggle.js` — murni
+> lapisan tampilan; tidak memengaruhi hak akses.
 
 ## 2. Platform Admin
 
