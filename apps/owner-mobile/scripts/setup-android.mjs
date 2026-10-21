@@ -1,5 +1,5 @@
 /**
- * Terapkan penyesuaian KASIR NOVA Owner ke proyek Android hasil `cap add android`.
+ * Terapkan penyesuaian OWNER NOVA ke proyek Android hasil `cap add android`.
  *
  * Aman dijalankan berulang (idempoten): dapat dipanggil lagi setelah
  * `npx cap add android`.
@@ -8,7 +8,7 @@
  *   1. Menyalin MainActivity.java dari android-templates (tanpa plugin printer).
  *   2. Menetapkan versionName/versionCode aplikasi.
  *   3. Menambahkan dukungan tanda tangan rilis dari `android/key.properties`.
- *   4. Menetapkan nama aplikasi di strings.xml.
+ *   4. Menetapkan nama aplikasi di strings.xml ("OWNER NOVA").
  *
  * Berbeda dari panel Kasir, Owner TIDAK memakai izin Bluetooth maupun plugin
  * printer thermal (docs/26 FASE 11) sehingga hanya butuh izin INTERNET bawaan.
@@ -61,8 +61,11 @@ if (gradle !== before) {
 //    terbaru (idempoten dan bisa diperbarui). Bila `key.properties` tidak ada,
 //    APK rilis ditandatangani dengan **debug keystore** agar tetap dapat
 //    dipasang untuk uji lokal; distribusi resmi memakai keystore rilis.
-const SIGNING_LOAD = `
-// KASIR NOVA Owner: signing
+//
+//    Setiap blok sisipan dibungkus **sentinel** (`// NOVA_SIGNING_*`) supaya
+//    penghapusan blok lama tidak bergantung pada teks komentar persis —
+//    perubahan komentar pada skrip ini tidak lagi menghasilkan blok ganda.
+const SIGNING_LOAD = `// NOVA_SIGNING_BEGIN
 // Memuat kredensial keystore rilis dari android/key.properties (TIDAK di-commit).
 // Contoh isi: lihat apps/owner-mobile/key.properties.example
 def keystoreProperties = new Properties()
@@ -71,9 +74,11 @@ def hasReleaseSigning = keystorePropertiesFile.exists()
 if (hasReleaseSigning) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
+// NOVA_SIGNING_END
 `;
 
-const SIGNING_CONFIGS = `    signingConfigs {
+const SIGNING_CONFIGS = `    // NOVA_SIGNING_CONFIGS_BEGIN
+    signingConfigs {
         release {
             if (hasReleaseSigning) {
                 storeFile file(keystoreProperties['storeFile'])
@@ -83,35 +88,52 @@ const SIGNING_CONFIGS = `    signingConfigs {
             }
         }
     }
+    // NOVA_SIGNING_CONFIGS_END
 `;
 
-const SIGNING_BUILD_TYPE_OLD = `            if (hasReleaseSigning) {
-                signingConfig signingConfigs.release
-            }
+const SIGNING_BUILD_TYPE = `            // NOVA_SIGNING_RELEASE_BEGIN
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            // NOVA_SIGNING_RELEASE_END
 `;
-const SIGNING_BUILD_TYPE = `            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
-`;
+
+// Pola penghapusan: versi sekarang (sentinel) + versi lama (tanpa sentinel).
+// Pola TIDAK consumes baris kosong di sekitarnya agar struktur berkas tetap
+// rapi (baris `}` tidak boleh menempel ke baris sebelumnya).
+const REMOVE_PATTERNS = [
+  /\/\/ NOVA_SIGNING_BEGIN\n(?:[^\n]*\n)*?\/\/ NOVA_SIGNING_END\n/g,
+  /[ \t]*\/\/ NOVA_SIGNING_CONFIGS_BEGIN\n(?:[^\n]*\n)*?[ \t]*\/\/ NOVA_SIGNING_CONFIGS_END\n/g,
+  /[ \t]*\/\/ NOVA_SIGNING_RELEASE_BEGIN\n(?:[^\n]*\n)*?[ \t]*\/\/ NOVA_SIGNING_RELEASE_END\n/g,
+  // Versi lama: blok `def keystoreProperties` preceded komentar "...: signing".
+  /\/\/[^\n]*: signing[^\n]*\n(?:[^\n]*\n)*?if \(hasReleaseSigning\) \{\n(?:[^\n]*\n)*?\}\n/g,
+  // Versi lama: blok `signingConfigs { release { ... } }`.
+  /[ \t]*signingConfigs \{\n[ \t]*release \{\n[ \t]*if \(hasReleaseSigning\) \{\n(?:[^\n]*\n)*?[ \t]*\}\n[ \t]*\}\n[ \t]*\}\n/g,
+  // Versi lama: `signingConfig` di dalam blok release.
+  /[ \t]*signingConfig hasReleaseSigning \? signingConfigs\.release : signingConfigs\.debug\n/g,
+  /[ \t]*if \(hasReleaseSigning\) \{\n[ \t]*signingConfig signingConfigs\.release\n[ \t]*\}\n/g,
+];
 
 {
   // Normalisasi: buang sisipan versi mana pun yang sudah ada.
   let normalized = gradle;
-  for (const snippet of [SIGNING_LOAD, SIGNING_CONFIGS, SIGNING_BUILD_TYPE_OLD, SIGNING_BUILD_TYPE]) {
-    normalized = normalized.split(snippet).join('');
+  for (const pattern of REMOVE_PATTERNS) {
+    normalized = normalized.replace(pattern, '');
   }
   // Rapikan baris kosong berlebih yang mungkin ditinggalkan versi sebelumnya.
   normalized = normalized.replace(/(\r?\n)+android \{/, '\n\nandroid {');
 
   const APP_PLUGIN = "apply plugin: 'com.android.application'";
   let injected = normalized.includes(APP_PLUGIN)
-    ? normalized.replace(APP_PLUGIN, `${APP_PLUGIN}${SIGNING_LOAD}`)
+    ? normalized.replace(APP_PLUGIN, `${APP_PLUGIN}\n${SIGNING_LOAD}`)
     : null;
   injected = injected && injected.replace(/(\r?\n)(    buildTypes \{)/, `$1${SIGNING_CONFIGS}$2`);
+  // Sisipkan `signingConfig ...` tepat setelah baris proguardFiles di dalam
+  // blok `release { ... }` (template Capacitor 7 memakai proguard-android.txt).
   injected =
     injected &&
-    injected.replace(/\n(\s*)release \{\n(\s*)minifyEnabled/, (m, indent, inner) => {
-      return `\n${indent}release {\n${inner}minifyEnabled`;
-    });
-  injected = injected && injected.replace(/(\n\s*release \{\n)(\s*)/, `$1$2${SIGNING_BUILD_TYPE}`);
+    injected.replace(
+      /(\n\s*proguardFiles getDefaultProguardFile\('proguard-android(?:-optimize)?\.txt'\), 'proguard-rules\.pro'\n)/,
+      `$1${SIGNING_BUILD_TYPE}`
+    );
 
   if (!injected || !injected.includes('signingConfig hasReleaseSigning')) {
     console.warn('• app/build.gradle: gagal menyisipkan blok signing (struktur berbeda) — periksa manual.');
@@ -124,21 +146,24 @@ const SIGNING_BUILD_TYPE = `            signingConfig hasReleaseSigning ? signin
 }
 
 // 4) Patch strings.xml — nama aplikasi.
+//    Label di bawah ikon peluncur diambil dari `title_activity_main`
+//    (activity LAUNCHER), jadi keduanya disetel sama: "OWNER NOVA".
+const APP_LABEL = process.env.NOVA_APP_LABEL ?? 'OWNER NOVA';
 const stringsPath = join(androidDir, 'app', 'src', 'main', 'res', 'values', 'strings.xml');
 if (existsSync(stringsPath)) {
   let strings = readFileSync(stringsPath, 'utf8');
   const beforeStrings = strings;
   strings = strings.replace(
     /<string name="app_name">[^<]*<\/string>/,
-    '<string name="app_name">KASIR NOVA Owner</string>'
+    `<string name="app_name">${APP_LABEL}</string>`
   );
   strings = strings.replace(
     /<string name="title_activity_main">[^<]*<\/string>/,
-    '<string name="title_activity_main">KASIR NOVA Owner</string>'
+    `<string name="title_activity_main">${APP_LABEL}</string>`
   );
   if (strings !== beforeStrings) {
     writeFileSync(stringsPath, strings);
-    console.log('✓ strings.xml: nama aplikasi = KASIR NOVA Owner');
+    console.log(`✓ strings.xml: nama aplikasi = ${APP_LABEL}`);
   } else {
     console.log('• strings.xml: nama aplikasi tidak berubah');
   }

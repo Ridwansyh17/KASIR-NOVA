@@ -18,7 +18,7 @@
       latar splash (dijaga identik dengan `values/ic_launcher_background.xml`
       agar splash Android 12+ menyatu dengan ikon peluncur).
 
-  Keluaran (apps/kasir-mobile/android/app/src/main/res), ukuran mengikuti
+  Keluaran (apps/<TargetApp>/android/app/src/main/res), ukuran mengikuti
   templat Capacitor supaya tidak mengubah perilaku pemuatan gambar:
     - drawable/splash.png                    480x320  (default)
     - drawable-land-mdpi|hdpi|xhdpi|xxhdpi|xxxhdpi/splash.png
@@ -28,8 +28,15 @@
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-splash.ps1
     # atau, bila aset sudah diekstrak:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-splash.ps1 -SourceDir C:\path\hasil-ekstrak
+    # APK Owner memakai logo loading yang sama persis dengan panel Kasir:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-splash.ps1 -TargetApp owner-mobile
 #>
-param([string]$SourceDir, [string]$BackgroundColor)
+param(
+  [string]$SourceDir,
+  [string]$BackgroundColor,
+  [ValidateSet('kasir-mobile', 'owner-mobile')]
+  [string]$TargetApp = 'kasir-mobile'
+)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -140,7 +147,7 @@ $targets = @(
   @{ dir = 'drawable-port-xxxhdpi';   w = 1280; h = 1920 }
 )
 
-$res = Join-Path $root 'apps/kasir-mobile/android/app/src/main/res'
+$res = Join-Path $root ("apps/" + $TargetApp + "/android/app/src/main/res")
 foreach ($t in $targets) {
   $path = Join-Path (Join-Path $res $t.dir) 'splash.png'
   Save-Png (New-Splash $lockup $t.w $t.h $navy 0.66 0.42) $path

@@ -1,5 +1,5 @@
 apply plugin: 'com.android.application'
-// KASIR NOVA: signing
+// NOVA_SIGNING_BEGIN
 // Memuat kredensial keystore rilis dari android/key.properties (TIDAK di-commit).
 // Contoh isi: lihat apps/kasir-mobile/key.properties.example
 def keystoreProperties = new Properties()
@@ -8,6 +8,7 @@ def hasReleaseSigning = keystorePropertiesFile.exists()
 if (hasReleaseSigning) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
+// NOVA_SIGNING_END
 
 
 android {
@@ -26,6 +27,7 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // NOVA_SIGNING_CONFIGS_BEGIN
     signingConfigs {
         release {
             if (hasReleaseSigning) {
@@ -36,10 +38,13 @@ android {
             }
         }
     }
+    // NOVA_SIGNING_CONFIGS_END
     buildTypes {
         release {
             minifyEnabled false
+            // NOVA_SIGNING_RELEASE_BEGIN
             signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            // NOVA_SIGNING_RELEASE_END
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

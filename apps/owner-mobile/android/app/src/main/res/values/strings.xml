@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OWNER NOVA</string>
+    <string name="title_activity_main">OWNER NOVA</string>
+    <string name="package_name">id.kasirnova.owner</string>
+    <string name="custom_url_scheme">id.kasirnova.owner</string>
+</resources>

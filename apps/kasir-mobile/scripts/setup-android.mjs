@@ -89,8 +89,11 @@ if (gradle !== before) {
 //    terbaru (idempoten dan bisa diperbarui). Bila `key.properties` tidak ada,
 //    APK rilis ditandatangani dengan **debug keystore** agar tetap dapat
 //    dipasang untuk uji lokal; distribusi resmi memakai keystore rilis.
-const SIGNING_LOAD = `
-// KASIR NOVA: signing
+//
+//    Setiap blok sisipan dibungkus **sentinel** (`// NOVA_SIGNING_*`) supaya
+//    penghapusan blok lama tidak bergantung pada teks komentar persis —
+//    perubahan komentar pada skrip ini tidak lagi menghasilkan blok ganda.
+const SIGNING_LOAD = `// NOVA_SIGNING_BEGIN
 // Memuat kredensial keystore rilis dari android/key.properties (TIDAK di-commit).
 // Contoh isi: lihat apps/kasir-mobile/key.properties.example
 def keystoreProperties = new Properties()
@@ -99,9 +102,11 @@ def hasReleaseSigning = keystorePropertiesFile.exists()
 if (hasReleaseSigning) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
+// NOVA_SIGNING_END
 `;
 
-const SIGNING_CONFIGS = `    signingConfigs {
+const SIGNING_CONFIGS = `    // NOVA_SIGNING_CONFIGS_BEGIN
+    signingConfigs {
         release {
             if (hasReleaseSigning) {
                 storeFile file(keystoreProperties['storeFile'])
@@ -111,29 +116,42 @@ const SIGNING_CONFIGS = `    signingConfigs {
             }
         }
     }
+    // NOVA_SIGNING_CONFIGS_END
 `;
 
-// Bentuk lama (v1) dipertahankan agar berkas yang sudah pernah dipatch ikut
-// dinormalisasi ketika skrip dijalankan kembali.
-const SIGNING_BUILD_TYPE_OLD = `            if (hasReleaseSigning) {
-                signingConfig signingConfigs.release
-            }
+const SIGNING_BUILD_TYPE = `            // NOVA_SIGNING_RELEASE_BEGIN
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            // NOVA_SIGNING_RELEASE_END
 `;
-const SIGNING_BUILD_TYPE = `            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
-`;
+
+// Pola penghapusan: versi sekarang (sentinel) + versi lama (tanpa sentinel).
+// Pola TIDAK consumes baris kosong di sekitarnya agar struktur berkas tetap
+// rapi (baris `}` tidak boleh menempel ke baris sebelumnya).
+const REMOVE_PATTERNS = [
+  /\/\/ NOVA_SIGNING_BEGIN\n(?:[^\n]*\n)*?\/\/ NOVA_SIGNING_END\n/g,
+  /[ \t]*\/\/ NOVA_SIGNING_CONFIGS_BEGIN\n(?:[^\n]*\n)*?[ \t]*\/\/ NOVA_SIGNING_CONFIGS_END\n/g,
+  /[ \t]*\/\/ NOVA_SIGNING_RELEASE_BEGIN\n(?:[^\n]*\n)*?[ \t]*\/\/ NOVA_SIGNING_RELEASE_END\n/g,
+  // Versi lama: blok `def keystoreProperties` preceded komentar "...: signing".
+  /\/\/[^\n]*: signing[^\n]*\n(?:[^\n]*\n)*?if \(hasReleaseSigning\) \{\n(?:[^\n]*\n)*?\}\n/g,
+  // Versi lama: blok `signingConfigs { release { ... } }`.
+  /[ \t]*signingConfigs \{\n[ \t]*release \{\n[ \t]*if \(hasReleaseSigning\) \{\n(?:[^\n]*\n)*?[ \t]*\}\n[ \t]*\}\n[ \t]*\}\n/g,
+  // Versi lama: `signingConfig` di dalam blok release.
+  /[ \t]*signingConfig hasReleaseSigning \? signingConfigs\.release : signingConfigs\.debug\n/g,
+  /[ \t]*if \(hasReleaseSigning\) \{\n[ \t]*signingConfig signingConfigs\.release\n[ \t]*\}\n/g,
+];
 
 {
   // Normalisasi: buang sisipan versi mana pun yang sudah ada.
   let normalized = gradle;
-  for (const snippet of [SIGNING_LOAD, SIGNING_CONFIGS, SIGNING_BUILD_TYPE_OLD, SIGNING_BUILD_TYPE]) {
-    normalized = normalized.split(snippet).join('');
+  for (const pattern of REMOVE_PATTERNS) {
+    normalized = normalized.replace(pattern, '');
   }
   // Rapikan baris kosong berlebih yang mungkin ditinggalkan versi sebelumnya.
   normalized = normalized.replace(/(\r?\n)+android \{/, '\n\nandroid {');
 
   const APP_PLUGIN = "apply plugin: 'com.android.application'";
   let injected = normalized.includes(APP_PLUGIN)
-    ? normalized.replace(APP_PLUGIN, `${APP_PLUGIN}${SIGNING_LOAD}`)
+    ? normalized.replace(APP_PLUGIN, `${APP_PLUGIN}\n${SIGNING_LOAD}`)
     : null;
   injected = injected && injected.replace(/(\r?\n)(    buildTypes \{)/, `$1${SIGNING_CONFIGS}$2`);
   injected =

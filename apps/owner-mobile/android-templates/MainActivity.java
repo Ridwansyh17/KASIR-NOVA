@@ -5,7 +5,7 @@ import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
 /**
- * Activity utama KASIR NOVA Owner (Android).
+ * Activity utama OWNER NOVA (Android).
  *
  * Panel Owner tidak memakai plugin kustom (tanpa printer thermal Bluetooth),
  * sehingga cukup BridgeActivity standar Capacitor.

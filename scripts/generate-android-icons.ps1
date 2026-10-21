@@ -11,7 +11,7 @@
     - 04-app-icon-dark-reference.png  : ikon kotak navy + tanda terang
       -> ikon legacy persegi (ic_launcher.png) + sumber warna latar navy.
 
-  Keluaran (apps/kasir-mobile/android/app/src/main/res):
+  Keluaran (apps/<TargetApp>/android/app/src/main/res):
     - mipmap-mdpi|hdpi|xhdpi|xxhdpi|xxxhdpi/ic_launcher.png      (48/72/96/144/192)
     - mipmap-*/ic_launcher_round.png                             (bulat, ukuran sama)
     - mipmap-*/ic_launcher_foreground.png                        (adaptive 108dp: 108/162/216/324/432)
@@ -19,8 +19,14 @@
 
   Pemakaian (dari root repo):
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-icons.ps1
+    # APK Owner memakai logo yang sama persis dengan panel Kasir:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/generate-android-icons.ps1 -TargetApp owner-mobile
 #>
-param([string]$SourceDir)
+param(
+  [string]$SourceDir,
+  [ValidateSet('kasir-mobile', 'owner-mobile')]
+  [string]$TargetApp = 'kasir-mobile'
+)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
@@ -112,7 +118,7 @@ $mark = Get-Trimmed $imgMark 2
 $navy = $imgFull.GetPixel(2, [int]($imgFull.Height / 2))   # warna tepi kotak navy ikon 04
 Write-Output ("Mark: {0}x{1} | Ikon penuh: {2}x{3} | Latar navy: #{4:X2}{5:X2}{6:X2}" -f $mark.Width, $mark.Height, $imgFull.Width, $imgFull.Height, $navy.R, $navy.G, $navy.B)
 
-$res = Join-Path $root 'apps/kasir-mobile/android/app/src/main/res'
+$res = Join-Path $root ("apps/" + $TargetApp + "/android/app/src/main/res")
 $legacy = [ordered]@{ mdpi = 48; hdpi = 72; xhdpi = 96; xxhdpi = 144; xxxhdpi = 192 }
 $adaptiveFg = [ordered]@{ mdpi = 108; hdpi = 162; xhdpi = 216; xxhdpi = 324; xxxhdpi = 432 }
 
@@ -140,4 +146,4 @@ $bgXml = @"
 Set-Content -Path (Join-Path $res 'values/ic_launcher_background.xml') -Value $bgXml -NoNewline -Encoding UTF8
 
 Write-Output ("Selesai. Warna latar: #{0:X2}{1:X2}{2:X2}" -f $navy.R, $navy.G, $navy.B)
-Write-Output 'Ikon launcher -> apps/kasir-mobile/android/app/src/main/res'
+Write-Output ("Ikon launcher -> apps/" + $TargetApp + "/android/app/src/main/res")

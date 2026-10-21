@@ -6,7 +6,7 @@
  *   - Aplikasi Android `id.kasirnova.owner` sudah terdaftar di project
  *     Firebase `kasir-nova` (lihat NOVA_FIREBASE_APP_ID di bawah).
  *     Daftarkan sekali lewat konsol Firebase (Project settings → Add app →
- *     Android) atau `firebase apps:create ANDROID "KASIR NOVA Owner"`.
+ *     Android) atau `firebase apps:create ANDROID "OWNER NOVA"`.
  *
  * Pemakaian:
  *   node scripts/distribute.mjs                        # APK rilis (fallback debug)
@@ -14,7 +14,7 @@
  *
  * Opsi lingkungan:
  *   NOVA_FIREBASE_APP_ID  App ID Android Owner (WAJIB diisi bila berbeda)
- *   NOVA_TESTER_GROUPS    grup penguji (default: owner-beta)
+ *   NOVA_TESTER_GROUPS    grup penguji (default: kasir-beta)
  *   NOVA_TESTERS          daftar email penguji (pisahkan koma)
  *   NOVA_RELEASE_NOTES    catatan rilis (default: dibuat otomatis)
  *   NOVA_FIREBASE_TOKEN   token CI (opsional; untuk non-interaktif)
@@ -32,11 +32,11 @@ const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url),
 const version = pkg.version ?? '0.0.0';
 
 const APP_ID = (process.env.NOVA_FIREBASE_APP_ID ?? '').trim();
-const GROUPS = process.env.NOVA_TESTER_GROUPS ?? 'owner-beta';
+const GROUPS = process.env.NOVA_TESTER_GROUPS ?? 'kasir-beta';
 const TESTERS = (process.env.NOVA_TESTERS ?? '').trim();
 const NOTES =
   process.env.NOVA_RELEASE_NOTES ??
-  `KASIR NOVA Owner ${version} - panel Owner (bisnis, outlet, kasir, laporan)`;
+  `OWNER NOVA ${version} - panel Owner (bisnis, outlet, kasir, laporan)`;
 
 const defaultRelease = join(projectRoot, 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
 const defaultDebug = join(projectRoot, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Tema aplikasi (dipakai oleh <application>). -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+    <!-- Tema isi aplikasi: WebView penuh + bilah sistem navy brand.
+         Catatan: pada Android 15+ (API 35) bilah sistem digambar tepi-ke-tepi,
+         Capacitor memberi margin pada WebView, sehingga area bilah sistem
+         menampilkan `android:windowBackground` — karena itu warnanya navy. -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/nova_splash_background</item>
+        <item name="android:statusBarColor">@color/nova_status_bar</item>
+        <item name="android:navigationBarColor">@color/nova_navigation_bar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+    <!-- Tema saat splash. Pustaka core-splashscreen (induk Theme.SplashScreen)
+         menyetel ikon splash ke ikon bawaan Android dan latar ke
+         `?android:colorBackground`; keduanya ditimpa di bawah.
+
+         - Android 12+ memakai windowSplashScreen* (ikon + latar, tema sistem).
+         - Android 11- memakai `android:windowBackground` (drawable splash.png
+           ber-brand dari scripts/generate-android-splash.ps1).
+         - `postSplashScreenTheme` sudah disetel eksplisit walaupun aplikasi ini
+           belum memanggil installSplashScreen() (aplikasi memakai tema splash
+           ini sepanjang sesi, jadi warna bilah sistem juga ditetapkan di sini).
+
+         Identik dengan tema panel Kasir agar logo loading (splash) Owner
+         sama persis dengan KASIR NOVA. -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">@drawable/splash</item>
+        <item name="android:windowBackground">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/nova_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="windowSplashScreenAnimationDuration">300</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:statusBarColor">@color/nova_status_bar</item>
+        <item name="android:navigationBarColor">@color/nova_navigation_bar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+
+</resources>
