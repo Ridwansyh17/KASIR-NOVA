@@ -147,6 +147,48 @@ integrasi laporan) menyusul sebagai pekerjaan terpisah.
 
 ---
 
+## KEPUTUSAN MENUNGGU #7 — Penyimpanan gambar/foto produk (21 Okt 2026)
+
+**✅ DIPUTUSKAN 21 Okt 2026 — OPSI A: tetap data URL base64 di Postgres.**
+
+| Aspek | Keputusan |
+|---|---|
+| Media | **Base64 data URL** di `products.photo_url` (batas ≈280 KB, divalidasi skema; klien mengecilkan JPEG di canvas) |
+| Alternatif ditolak | Firebase Storage & S3-compatible — menambah biaya/kredensial, belum perlu untuk skala saat ini |
+
+Tidak ada perubahan kode; kontrak lama tetap berlaku.
+
+## KEPUTUSAN MENUNGGU #8 — Kanal pembayaran digital untuk penjualan kasir (21 Okt 2026)
+
+**✅ DIPUTUSKAN 21 Okt 2026 — tetap MANUAL (sesuai keputusan #4 lingkup).**
+
+Pembayaran kartu/QR/wallet pada penjualan kasir **tetap dicatat manual**
+(satu pembayaran per transaksi). Integrasi Duitku **hanya untuk langganan**.
+Bila nanti dibutuhkan, tambahkan kolom `payments.provider` + modul provider
+baru (pola `server/src/payments/`).
+
+## KEPUTUSAN MENUNGGU #9 — Perpanjangan langganan otomatis (21 Okt 2026)
+
+**✅ DIPUTUSKAN 21 Okt 2026 — tetap MANUAL.**
+
+`auto_renew` tetap `false`; tidak ada job penagihan otomatis. Perpanjangan
+dilakukan Owner via gateway (Duitku) atau Admin Platform memasang paket.
+
+## KEPUTUSAN MENUNGGU #10 — Nama aplikasi APK Owner (21 Okt 2026)
+
+**✅ DIPUTUSKAN 21 Okt 2026 — nama aplikasi: "OWNER NOVA".**
+
+| Aspek | Keputusan |
+|---|---|
+| Label di perangkat | **OWNER NOVA** (ikon peluncur + judul aplikasi) |
+| App ID | tetap `id.kasirnova.owner` (tidak berubah — App ID tidak boleh diubah setelah rilis) |
+| Rilis | `1.0.0-beta.2` (versionCode 2), Build `1g27chnasnkeo` |
+| Ikon & splash | logo yang sama persis dengan panel Kasir (`-TargetApp owner-mobile`) |
+
+Label sebelumnya "KASIR NOVA Owner" (rilis `1.0.0-beta.1`) tetap terarsip di
+`dist/apk/`; APK beta.2 memakai keystore yang sama sehingga dapat menimpa
+beta.1 di perangkat.
+
 ## Cara melanjutkan
 
 Bila pemilik proyek menjawab Keputusan #1 (mis. "pilih A"), Fase 4 dapat

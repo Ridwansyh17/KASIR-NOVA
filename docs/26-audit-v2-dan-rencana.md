@@ -229,7 +229,7 @@ memenuhi syarat "PNG transparan" untuk logo di UI/splash. Perlu aset final
 | 8 | Laporan akhir + screenshot before/after | FASE 1–3 | **selesai** (docs/33) |
 | 9 | E2E lokal & QA satu perintah (`scripts/e2e-local.ps1`, `scripts/qa-local.ps1`) | — | **selesai** (E2E 31/31 + QA 6/6 tahap lulus; docs/32 §3a) |
 | 10 | Desain Kasir Mobile V2 (bilah bawah 5 butir, Beranda + grafik omzet, pane Lainnya, bilah atas terang di HP) | referensi `05-KASIR-MOBILE` | **selesai** (docs/34 — menunggu tinjauan visual pemilik) |
-| 11 | Tata letak rinci halaman placeholder (Riwayat Transaksi, Pengeluaran, Pengaturan Printer) & paket mobile Owner/Admin | spesifikasi pemilik | **sebagian** — kerangka APK Owner (`apps/owner-mobile`, 20 Okt 2026) sudah ada |
+| 11 | Tata letak rinci halaman placeholder (Riwayat Transaksi, Pengeluaran, Pengaturan Printer) & paket mobile Owner/Admin | spesifikasi pemilik | **selesai** — APK Owner dibangun & didistribusikan 21 Okt 2026 (`apps/owner-mobile`, `1.0.0-beta.1`, lalu `1.0.0-beta.2` berlabel **OWNER NOVA**) |
 
 Urutan teknis yang saya usulkan: **3 → 2 → 1 → 6 → 7 → 8**, karena Smart
 Receipt hanya menyentuh Kasir dan tidak bergantung object storage, sedangkan
@@ -240,11 +240,9 @@ komponen `product-card`/form tidak dikerjakan dua kali.
 
 ## 7. Keputusan yang Dibutuhkan Pemilik Proyek
 
-1. **Penyimpanan gambar produk (FASE 2).** Pilihan: (a) pertahankan data URL
-   base64 di Postgres (sudah jalan, tanpa biaya baru, tetapi membengkakkan DB
-   & payload API); (b) object storage S3-compatible (perlu bucket + kredensial);
-   (c) Firebase Storage (Firebase sudah dipakai, perlu aturan keamanan).
-   Pilihan (b)/(c) menambah biaya/kredensial → butuh persetujuan.
+1. **Penyimpanan gambar produk (FASE 2).** ✅ **DIPUTUSKAN 21 Okt 2026:
+   OPSI A — tetap data URL base64 di Postgres** (tanpa biaya/kredensial baru).
+   Lihat `docs/11` Keputusan #7.
 2. **Pustaka gambar Smart Product Image.** Perlu pustaka dengan lisensi jelas.
    Bila tidak tersedia, saya usulkan **placeholder KASIR NOVA + pemetaan
    kategori** (tanpa mengambil gambar dari Google Images), lalu pemilik
@@ -257,10 +255,15 @@ komponen `product-card`/form tidak dikerjakan dua kali.
    kerangka token + komponen (tema terang, sidebar navy, kartu putih, tabel,
    modal) pada semua panel lalu pemilik meninjau; (c) fokus halaman prioritas
    (Login, Dashboard Owner, Produk & Stok, Kasir POS, Struk).
-5. **Gateway pembayaran digital & perpanjangan langganan otomatis** — masih
-   tertunda dari catatan sebelumnya (keputusan bisnis).
+5. **Gateway pembayaran digital & perpanjangan langganan otomatis** —
+   ✅ **DIPUTUSKAN 21 Okt 2026: keduanya tetap MANUAL** (pembayaran penjualan
+   kasir dicatat manual; `auto_renew` tetap `false`, tanpa job penagihan).
+   Lihat `docs/11` Keputusan #8 & #9.
 6. **Rotasi kredensial** (`dist/apk/keystore-credentials.txt`, token yang
    pernah terekspos) — tindakan pemilik.
+7. **Nama aplikasi APK Owner.** ✅ **DIPUTUSKAN 21 Okt 2026: "OWNER NOVA"**
+   (App ID `id.kasirnova.owner` tetap; rilis `1.0.0-beta.2`). Lihat `docs/11`
+   Keputusan #10.
 
 ---
 

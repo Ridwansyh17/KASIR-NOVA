@@ -159,25 +159,50 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ANDROID_HOME=/root/android-sdk \
 `apksigner`/`zipalign` dari `build-tools/*/` (skrip shell + Java) tetap aman
 dipakai karena `apksigner` adalah skrip yang memanggil Java.
 
-## APK Android (panel Owner) — persiapan (FASE 11)
+## APK Android (panel Owner)
 
-Kerangka kemasan Android untuk panel Owner ada di `apps/owner-mobile`
+Kemasan Android untuk panel Owner ada di `apps/owner-mobile`
 (Capacitor 7, **tanpa** plugin printer). Struktur & skrip meniru
-`apps/kasir-mobile`. App ID: `id.kasirnova.owner`, nama: `KASIR NOVA Owner`.
+`apps/kasir-mobile`. App ID: `id.kasirnova.owner`, nama aplikasi: **OWNER
+NOVA**.
 
-```powershell
-cd apps\owner-mobile
+```bash
+cd apps/owner-mobile
 npm install
 npm run sync              # salin apps/owner -> www, lalu cap sync android
 npm run android:prepare   # versi, signing, nama aplikasi (tanpa izin Bluetooth)
 npm run apk:release       # APK rilis (butuh android/key.properties)
+npm run distribute        # unggah ke Firebase App Distribution (butuh NOVA_FIREBASE_APP_ID)
 ```
 
-Langkah yang **belum** dilakukan (menunggu keputusan pemilik):
-1. `npx cap add android` untuk mengisi folder `android/` dari template.
-2. Membuat keystore Owner (`nova-owner-release.jks`) + `key.properties`.
-3. Mendaftarkan app Android `id.kasirnova.owner` di Firebase project
-   `kasir-nova`, lalu mengisi `NOVA_FIREBASE_APP_ID` saat `npm run distribute`.
+Ikon peluncur & splash APK Owner memakai **logo yang sama persis** dengan
+panel Kasir (dihasilkan `scripts/generate-android-icons.ps1` &
+`generate-android-splash.ps1` dengan `-TargetApp owner-mobile`).
+
+Di lingkungan Termux/proot (aarch64) build rilis memakai override `aapt2`
+seperti Kasir:
+
+```bash
+cd apps/owner-mobile/android
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-arm64 ANDROID_HOME=/root/android-sdk \
+  ./gradlew assembleRelease --console=plain \
+  -Pandroid.aapt2FromMavenOverride=/root/android-sdk-tools/build-tools/aapt2
+```
+
+Sudah dibangun & didistribusikan: **`1.0.0-beta.2` (versionCode 2)** —
+`dist/apk/KASIR-NOVA-Owner-1.0.0-beta.2.apk` (5,09 MB, SHA-256
+`969da9e5…53b`), sertifikat rilis **KASIR NOVA Owner** (v1+v2), App ID
+Firebase `1:1057858530498:android:91a343c6cd0203432a9f5b`, grup penguji
+`kasir-beta`. Rilis `beta.1` (label lama "KASIR NOVA Owner") tetap ada di
+`dist/apk/` sebagai arsip.
+
+Distribusi lewat Firebase CLI:
+
+```bash
+cd apps/owner-mobile
+NOVA_FIREBASE_APP_ID=1:1057858530498:android:91a343c6cd0203432a9f5b \
+  npm run distribute
+```
 
 ## Struktur
 

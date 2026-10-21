@@ -1322,6 +1322,118 @@ dianjurkan — agen tidak memiliki browser (Chromium) di lingkungan Termux.
 ketiga skrip `owner-mobile` lolos; `build-www.mjs` Owner menghasilkan `www`
 dengan `NOVA_API_BASE` benar.
 
+## 21 Okt 2026 — APK Owner Dibangun & Didistribusikan (FASE 11 tuntas) + Keputusan #7–#9
+
+**APK Owner `1.0.0-beta.1` (versionCode 1).**
+- `npx cap add android` mengisi `apps/owner-mobile/android` (Capacitor 7,
+  appId `id.kasirnova.owner`, nama **KASIR NOVA Owner**).
+- Keystore rilis baru `nova-owner-release.jks` (alias `nova-owner`, RSA 2048,
+  valid s/d 2053, `CN=KASIR NOVA Owner`; berbeda dari keystore Kasir) +
+  `key.properties` + `keystore-credentials.txt` (semua diabaikan Git).
+- **Perbaikan `scripts/setup-android.mjs`:** injeksi `signingConfig` dulu
+  menghasilkan `build.gradle` tak valid pada template Owner (baris
+  `proguardFiles` berbeda dari Kasir). Regex kini memakai pola
+  `proguard-android(-optimize)?.txt` dan idempoten (diuji: dua kali jalan →
+  berkas identik).
+- Build rilis di Termux/aarch64 dengan override `aapt2` ARM
+  (`-Pandroid.aapt2FromMavenOverride=…/build-tools/aapt2`): **BUILD
+  SUCCESSFUL** → `app-release.apk` (3,66 MB). `aapt2 dump badging`:
+  `id.kasirnova.owner`, versionCode 1, targetSdk 35, **hanya izin INTERNET**
+  (tanpa Bluetooth = benar untuk panel Owner); `apksigner verify`: v1+v2 OK,
+  DN `CN=KASIR NOVA Owner`.
+- Salinan siap pasang: `dist/apk/KASIR-NOVA-Owner-1.0.0-beta.1.apk`
+  (SHA-256 `d64df6a0…e99e5`).
+- **Firebase App Distribution:** app Android `id.kasirnova.owner` didaftarkan
+  (App ID `1:1057858530498:android:91a343c6cd0203432a9f5b`) dan APK
+  **didistribusikan** ke grup `kasir-beta` (2 penguji), rilis
+  `7ldpbpnkusdh0`.
+
+**Keputusan pemilik (dijawab 21 Okt 2026) — dicatat di `docs/11` #7–#9 &
+`docs/26` §7.**
+- **#7 Foto produk:** tetap **data URL base64** di Postgres (tanpa
+  object storage/biaya baru).
+- **#8 Pembayaran penjualan kasir:** tetap **manual** (Duitku hanya untuk
+  langganan).
+- **#9 Perpanjangan langganan:** tetap **manual** (`auto_renew` tetap `false`).
+
+**Pengujian:** `node scripts/verify-ui.mjs` **SEMUA OK**; `node --check` 3
+skrip `owner-mobile` OK; **suite server 360/360 lulus** (DB lokal
+`db:start`).
+
+**Tertunda (sisi pemilik):** pasang APK Owner di perangkat & tinjauan visual;
+kredensial Duitku; uji cetak printer thermal fisik; rotasi kredensial lama.
+
+## 21 Okt 2026 (lanjutan) — Nama APK Owner menjadi **OWNER NOVA** (beta.2)
+
+**Konteks.** Sesi sebelumnya berhenti di tengah proses: `capacitor.config.json`,
+skrip `setup-android.mjs`, dan `strings.xml` sudah diubah ke label **OWNER
+NOVA**, tetapi APK **belum dibangun ulang** — binary yang tersebar masih
+berlabel "KASIR NOVA Owner" (`1.0.0-beta.1`), sehingga nama di layar perangkat
+tidak sama dengan konfigurasi terbaru.
+
+**Perubahan kode (tanpa menyentuh backend/skema/API).**
+- `apps/owner-mobile/capacitor.config.json`: `appName` → `OWNER NOVA`.
+- `apps/owner-mobile/scripts/setup-android.mjs`: label aplikasi default
+  `OWNER NOVA` (dapat ditimpa `NOVA_APP_LABEL`); penandaan `app_name` **dan**
+  `title_activity_main` disetel sama karena label di bawah ikon peluncur
+  diambil dari activity LAUNCHER. Blok signing tetap idempoten (diuji dua kali
+  jalan → berkas identik).
+- `apps/owner-mobile/scripts/distribute.mjs`: grup penguji default
+  `owner-beta` → **`kasir-beta`** (grup yang benar-benar ada di project
+  `kasir-nova`, 2 penguji) dan catatan rilis memakai "OWNER NOVA".
+- Ikon peluncur & splash APK Owner disamakan dengan panel Kasir:
+  `scripts/generate-android-icons.ps1` & `scripts/generate-android-splash.ps1`
+  kini menerima `-TargetApp owner-mobile`; seluruh folder `res` Owner kini
+  identik dengan Kasir (dicek per direktori mipmap/drawable).
+- Versi dinaikkan: **`1.0.0-beta.2` (versionCode 2)** di
+  `apps/owner-mobile/package.json` + `package-lock.json`.
+- Proyek Android Owner (`apps/owner-mobile/android`) kini **di-track Git**,
+  sejajar dengan `apps/kasir-mobile/android` (54 berkas proyek; `key.properties`,
+  `keystore-credentials.txt`, `local.properties`, dan seluruh artefak build
+  tetap diabaikan lewat `.gitignore`).
+- **Perbaikan `setup-android.mjs` (Owner **dan** Kasir):** blok signing kini
+  dibungkus **sentinel** `// NOVA_SIGNING_*`, sehingga penghapusan blok lama
+  tidak lagi bergantung pada teks komentar persis. Sebelumnya, mengubah
+  komentar pada skrip Owner membuat blok `def keystoreProperties` **terduplikasi**
+  di `app/build.gradle` (berkas rusak, build mustahil) — bug ini ditemukan
+  saat sesi ini (saat mengganti nama aplikasi) dan langsung diperbaiki;
+  idempotensi diuji 3× (hash berkas identik) dan build rilis Owner **dan**
+  Kasir tetap sukses.
+
+**Build & verifikasi.**
+- `npm run sync` (build-www + `cap sync android`) → `www` 794 KB,
+  `NOVA_API_BASE=https://kasir-nova.vercel.app`, `assets/capacitor.config.json`
+  memuat `appName: OWNER NOVA`.
+- `npm run android:prepare` (`NOVA_APP_VERSION_CODE=2`) → `versionName`
+  `1.0.0-beta.2`, `versionCode` 2, blok signing idempoten.
+- `./gradlew assembleRelease` (override `aapt2` ARM) → **BUILD SUCCESSFUL**
+  (2m 19s) → `app-release.apk` **5,09 MB** (naik dari 3,66 MB pada beta.1
+  karena aset ikon/splash Owner kini memakai logo resolusi penuh Kasir).
+- `aapt2 dump badging`: `id.kasirnova.owner`, versionCode 2, versionName
+  `1.0.0-beta.2`, targetSdk 35, **hanya izin INTERNET** (tanpa Bluetooth —
+  benar untuk panel Owner), `application-label: OWNER NOVA` (semua locale).
+- `apksigner verify`: v1+v2 **OK**, DN `CN=KASIR NOVA Owner` (keystore yang
+  sama → beta.2 menimpa beta.1 di perangkat).
+- SHA-256 `969da9e5e375687407c0f191cdd937d12ac0f70d4674d3a87e045f9e84ff153b`
+  → `dist/apk/KASIR-NOVA-Owner-1.0.0-beta.2.apk` (beta.1 tetap diarsipkan).
+  APK dibangun ulang setelah perbaikan skrip signing menghasilkan **binary
+  byte-per-byte identik** (SHA-256 sama) → tidak perlu distribusi ulang.
+- **Distribusi Firebase App Distribution:** app
+  `1:1057858530498:android:91a343c6cd0203432a9f5b`, grup penguji
+  `kasir-beta` (2 penguji), rilis **`1g27chnasnkeo`**.
+
+**Pengujian:** `node scripts/sync-shared.mjs --check` **SEMUA SAMA**;
+`node scripts/verify-ui.mjs` **SEMUA OK**; `npm run test:auth` **10/10**;
+`npm run test:server` **360/360** (DB lokal `db:start`); `node --check` 3
+skrip `owner-mobile` OK.
+
+**Catatan:** nama tampilan app di **konsol Firebase** masih "KASIR NOVA
+Owner" (metadata konsol, bukan label perangkat) — dapat diubah manual di
+konsol bila pemilik diinginkan.
+
+**Tertunda (sisi pemilik):** pasang APK Owner beta.2 di perangkat & tinjauan
+visual (label ikon, halaman dashboard, muat data bisnis).
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk
