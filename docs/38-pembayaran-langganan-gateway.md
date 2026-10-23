@@ -1,10 +1,12 @@
 # KASIR NOVA — Pembayaran Langganan via Payment Gateway (Duitku SANDBOX)
 
-> Status: **implementasi selesai & teruji (17 Okt 2026)**, **sudah dideploy**
-> (backend + hosting) namun **belum** terhubung ke Duitku: uji end-to-end ke
-> Duitku menunggu pemilik proyek mengisi kredensial sandbox di `server/.env`
-> (lihat bagian *Uji sandbox lokal*). Tanpa kredensial, endpoint pembayaran
-> menjawab **503** dan aplikasi berjalan normal.
+> Status: **implementasi selesai & teruji (17 Okt 2026)**; **kredensial sandbox
+> diisi 23 Okt 2026** (hanya di `server/.env` dan Vercel Environment Variables,
+> tidak di-commit). Inquiry + cek status nyata ke sandbox Duitku **lulus**
+> (lihat *Bukti uji sandbox*). Backend produksi sudah di-deploy ulang; callback
+> publik kini menjawab **401** untuk tanda tangan tidak sah (bukan 503), yang
+> berarti gateway aktif. Penyelesaian pembayaran penuh (aktivasi langganan via
+> callback asli) masih menunggu transaksi uji pemilik.
 >
 > Ruang lingkup: **hanya pembayaran LANGGANAN**. Pembayaran transaksi penjualan
 > kasir tetap **manual** (tunai/kartu/QR/wallet dicatat kasir) dan **tidak**
@@ -259,7 +261,7 @@ implementasi asli** `createDuitkuClient().verifyCallback` dengan kunci uji.
 Bootstrap env tes: `server/tests/helpers/payment-env.js` (dimuat sebelum
 `src/config/env.js`, menang atas `server/.env` → deterministik).
 
-Hasil terakhir: **321/321** tes backend lulus, `scripts/verify-ui.mjs` →
+Hasil terakhir: **374/374** tes backend lulus, `scripts/verify-ui.mjs` →
 **SEMUA OK** (memuat kunci statis fitur ini), `scripts/qa-local.ps1` →
 **SEMUA TAHAP LULUS** (7/7).
 
@@ -293,14 +295,14 @@ Hasil terakhir: **321/321** tes backend lulus, `scripts/verify-ui.mjs` →
    (`https://sandbox.duitku.com/payment/demo/demosuccesstransaction.aspx`),
    lalu tekan **Cek Status** di panel (atau jalankan `npm run sandbox:duitku`
    lagi) — tagihan pending dipakai ulang, jadi tidak ada tagihan ganda.
-5. Untuk callback sungguhan: backend **sudah dideploy** (17 Okt 2026,
-   `https://kasir-nova.vercel.app`), jadi URL callback tersedia:
-   `https://kasir-nova.vercel.app/api/payments/duitku/callback`. Agar aktif,
-   pemilik perlu menambahkan `PAYMENT_PROVIDER`, `PAYMENT_MODE`,
-   `DUITKU_MERCHANT_CODE`, `DUITKU_API_KEY` (dan `PAYMENT_API_BASE_URL`) di
-   **Vercel → Settings → Environment Variables**, lalu backend di-deploy ulang.
-   Selama belum diisi, endpoint menjawab **503** (aman) — sudah diverifikasi di
-   produksi.
+5. Untuk callback sungguhan: URL callback produksi
+   `https://kasir-nova.vercel.app/api/payments/duitku/callback`.
+   **Sudah aktif (23 Okt 2026):** `PAYMENT_PROVIDER`, `PAYMENT_MODE`,
+   `PAYMENT_ALLOW_PRODUCTION=false`, `DUITKU_MERCHANT_CODE`, `DUITKU_API_KEY`,
+   `PAYMENT_CHANNELS`, `PAYMENT_API_BASE_URL`, dan `PAYMENT_OWNER_PANEL_URL`
+   ditambahkan ke **Vercel → Environment Variables (Production)**, lalu backend
+   di-deploy ulang. Verifikasi: callback tanpa tanda tangan sah menjawab
+   **401** (sebelumnya 503), `/api/health` **200** `database: up`.
 
 ### Bukti uji sandbox (17 Okt 2026, server lokal)
 
@@ -337,12 +339,33 @@ yang masih pending **tidak** terpakai ulang (aturan pakai-ulang: bisnis + paket
 
 ---
 
+### Bukti uji sandbox (23 Okt 2026, kredensial baru)
+
+Kredensial sandbox (Merchant Code + API Key) diisi pemilik; nilai rahasia hanya
+disimpan di `server/.env` (gitignored) dan Vercel Environment Variables.
+`npm run sandbox:duitku` dijalankan terhadap server lokal + DB dev:
+
+| Langkah | Hasil |
+| --- | --- |
+| 1. Health server lokal | PASS (`db=up`) |
+| 2. Login Owner | PASS (`role=owner`) |
+| 3. Bisnis milik Owner | PASS ("Demo Kasir NOVA") |
+| 4. Status gateway | PASS `provider=duitku mode=sandbox enabled=true kanal=BC,I1,M2,BR` |
+| 5. Paket berbayar | PASS ("Paket Uji 10rb", Rp 10.000) |
+| 6. Buat tagihan | PASS `201 order=SINV-20261023021121-4CE2050F status=pending` (VA BCA) |
+| 7. Cek status ke gateway | PASS `200 tagihan=pending diperiksa=true` |
+
+Produksi sesudah backend di-deploy ulang: `POST /api/payments/duitku/callback`
+tanpa parameter → **401** `Callback gateway tidak sah` (gateway terkonfigurasi;
+bukan 503), dan `GET /api/health` → **200** `database: up`.
+
 ## 11. Batasan & tindak lanjut
 
 - **Gambar QR QRIS** sudah dirender di panel Owner (17 Okt 2026) memakai encoder
   yang di-**vendor** apa adanya — lihat §12.
 - **Inquiry + cek status gateway sudah diuji nyata** ke sandbox Duitku
-  (17 Okt 2026) — lihat §10 "Bukti uji sandbox".
+  (17 Okt 2026 dan 23 Okt 2026 dengan kredensial baru) — lihat §10
+  "Bukti uji sandbox".
 - **Pembayaran penuh (aktivasi langganan) & callback asli belum diuji**
   (butuh menyelesaikan pembayaran di halaman demo Duitku + URL publik).
 - `auto_renew` masih `false`; penagihan otomatis (tabel

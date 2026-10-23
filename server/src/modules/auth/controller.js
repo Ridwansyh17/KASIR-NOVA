@@ -3,6 +3,7 @@
  * Semua error dilempar ke middleware error terpusat (next(err)).
  */
 import * as authService from './service.js';
+import env from '../../config/env.js';
 
 export const login = async (req, res, next) => {
   try {
@@ -15,6 +16,91 @@ export const login = async (req, res, next) => {
       userAgent: req.get('user-agent') ?? null,
     });
     res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const registerOwner = async (req, res, next) => {
+  try {
+    const { fullName, businessName, email, password, phone } = req.body;
+    const result = await authService.registerOwner({
+      fullName,
+      businessName,
+      email,
+      password,
+      phone,
+      ip: req.ip,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Tautan verifikasi dari email membuka endpoint ini. Peramban diarahkan kembali
+ * ke panel Owner dengan status; `?format=json` dipakai pengujian/otomasi.
+ */
+export const verifyEmail = async (req, res, next) => {
+  const wantsJson = req.query.format === 'json';
+  try {
+    const result = await authService.verifyOwnerEmail({
+      token: req.query.token,
+      ip: req.ip,
+    });
+    if (wantsJson) return res.status(200).json(result);
+    return res.redirect(302, `${env.app.ownerPanelUrl}/?verified=1`);
+  } catch (err) {
+    if (wantsJson) return next(err);
+    const code = err?.statusCode === 400 ? 'invalid' : 'error';
+    return res.redirect(302, `${env.app.ownerPanelUrl}/?verify=${code}`);
+  }
+};
+
+export const resendVerification = async (req, res, next) => {
+  try {
+    const result = await authService.resendOwnerVerification({
+      email: req.body.email,
+      ip: req.ip,
+    });
+    res.status(202).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const firebaseVerificationStatus = async (req, res, next) => {
+  try {
+    const result = await authService.getOwnerFirebaseVerificationStatus({
+      state: req.query.state,
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const verifyFirebaseOwner = async (req, res, next) => {
+  try {
+    const result = await authService.verifyOwnerFirebase({
+      state: req.body.state,
+      idToken: req.body.idToken,
+      ip: req.ip,
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const resendFirebaseVerification = async (req, res, next) => {
+  try {
+    const result = await authService.resendOwnerFirebaseVerification({
+      state: req.body.state,
+      ip: req.ip,
+    });
+    res.status(202).json(result);
   } catch (err) {
     next(err);
   }

@@ -5,6 +5,8 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       { "source": "/admin/**", "destination": "/admin/index.html" },
+      { "source": "/owner/verify-email", "destination": "/owner/verify-email.html" },
+      { "source": "/owner/verify-email/", "destination": "/owner/verify-email.html" },
       { "source": "/owner/**", "destination": "/owner/index.html" },
       { "source": "/kasir/**", "destination": "/kasir/index.html" }
     ],

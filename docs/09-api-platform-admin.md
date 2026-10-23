@@ -16,13 +16,15 @@
 | GET | `/owners` | Daftar owner (cari, filter status, paginasi) |
 | POST | `/owners` | Buat owner baru |
 | GET | `/owners/:id` | Detail owner |
+| POST | `/owners/:id/verify` | Verifikasi manual akun pending **lama** (WhatsApp) + buat bisnis/trial |
 | PATCH | `/owners/:id` | Ubah nama/email/telepon owner |
 | PATCH | `/owners/:id/status` | Suspend / aktivasi owner |
 | POST | `/owners/:id/password` | Reset password owner |
 | DELETE | `/owners/:id` | Soft delete owner |
 
 Field owner yang dikembalikan (tanpa `password_hash`):
-`id, email, full_name, phone, status, created_by, created_at, updated_at, deleted_at`
+`id, email, full_name, phone, status, created_by, created_at, updated_at, deleted_at,
+email_verified_at, pending_business_name, email_verification_method, firebase_linked`
 
 ---
 
@@ -56,6 +58,36 @@ default 1), `limit` (1–100, default 20).
 | 201 | Dibuat |
 | 409 | Email sudah terdaftar |
 | 422 | Validasi gagal |
+
+## POST `/owners/:id/verify`
+
+Verifikasi manual akun Owner pending **lama** (alur WhatsApp). Akun yang
+terhubung Firebase **ditolak 409** karena wajib menyelesaikan verifikasi email
+sendiri. Dalam satu transaksi: mengisi
+`email_verified_at`, mengosongkan `pending_business_name`, membuat **bisnis
+pertama** + langganan default **Gratis 30 hari**, dan menulis audit
+`owner.whatsapp_verified` + `business.create`.
+
+**200 OK**
+```json
+{
+  "owner": { "id": "uuid", "email_verified_at": "…", "pending_business_name": null },
+  "business": { "id": "uuid", "name": "Toko Budi", "status": "active" },
+  "message": "Owner terverifikasi. Bisnis dan langganan Gratis berhasil dibuat."
+}
+```
+
+`404` owner tidak ditemukan • `409` owner sudah terverifikasi atau terhubung
+Firebase (`firebase_linked = true`).
+
+### Catatan Firebase
+
+- Owner hasil pendaftaran mandiri memiliki `email_verification_method =
+  'firebase'` dan `firebase_linked = true`.
+- Perubahan `email` untuk Owner Firebase ditolak **409** dari panel Admin.
+- Badge panel Admin membedakan **terverifikasi**, **menunggu email** (Firebase),
+  dan **menunggu** (akun lama). Tombol verifikasi/WA hanya muncul untuk akun
+  lama yang belum terverifikasi.
 
 ## PATCH `/owners/:id`
 

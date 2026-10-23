@@ -65,6 +65,60 @@ menjawab **503** dan aplikasi tetap berjalan normal. Rincian:
 > (atau tunnel) agar callback sungguhan dapat diterima. `VERCEL_PROJECT_PRODUCTION_URL`
 > otomatis dipakai bila `PAYMENT_API_BASE_URL` tidak diisi.
 
+### Variabel verifikasi email Owner — Firebase Authentication
+
+Pendaftaran Owner baru memakai **Firebase Email Verification Link** (paket
+Spark, tanpa SMTP/domain berbayar). Password Owner tetap di-hash di PostgreSQL;
+Firebase hanya menyimpan email/UID dan status `emailVerified`.
+
+**Wajib di backend (Vercel → Settings → Environment Variables, Production):**
+
+| Key | Nilai |
+|---|---|
+| `FIREBASE_PROJECT_ID` | ID project, mis. `kasir-nova` |
+| `FIREBASE_CLIENT_EMAIL` | email service account `firebase-adminsdk-…@….iam.gserviceaccount.com` |
+| `FIREBASE_PRIVATE_KEY` | private key service account (newline boleh `\n`) |
+| `FIREBASE_WEB_API_KEY` | Web API Key project (bukan rahasia, dipakai backend meminta email) |
+
+Alternatif: isi **satu** variabel `FIREBASE_SERVICE_ACCOUNT_JSON` (isi JSON
+service account) sebagai pengganti tiga variabel kredensial di atas. Jangan
+pernah commit service account/private key.
+
+**Opsional:**
+
+| Key | Nilai |
+|---|---|
+| `FIREBASE_VERIFICATION_CONTINUE_URL` | default `APP_OWNER_PANEL_URL/verify-email`, mis. `https://kasir-nova.web.app/owner/verify-email` |
+| `FIREBASE_RESEND_COOLDOWN_SECONDS` | default `60` (minimum `30`) |
+| `APP_OWNER_PANEL_URL` | `https://kasir-nova.web.app/owner` |
+| `SUPPORT_WHATSAPP` | nomor Admin untuk akun pending **lama** (default `6281359704766`) |
+
+**Konfigurasi manual Firebase Console** (wajib sebelum rilis):
+
+1. **Authentication → Sign-in method**: aktifkan **Email/Password**. Login
+   frontend tetap memakai password KASIR NOVA; metode ini diperlukan agar
+   Firebase dapat membuat user dan memverifikasi email.
+2. **Authentication → Settings → Authorized domains**: pastikan
+   `kasir-nova.web.app` dan `localhost` ada.
+3. **Authentication → Templates → Email address verification**: sesuaikan
+   subjek/isi bahasa Indonesia, mis. “Verifikasi Alamat Email KASIR NOVA”.
+   Pengirim memakai domain bawaan Firebase; **tidak perlu** domain/SMTP sendiri.
+4. **Project settings → Service accounts → Generate new private key**: simpan
+   JSON hanya di env Vercel; jangan ke repo.
+5. **Project settings → General → Web API Key**: salin ke
+   `FIREBASE_WEB_API_KEY`.
+
+Contoh continue URL:
+```text
+FIREBASE_VERIFICATION_CONTINUE_URL=https://kasir-nova.web.app/owner/verify-email
+```
+
+> Tanpa kredensial Firebase lengkap, `POST /api/auth/register-owner` menjawab
+> **503** `firebase_not_configured`; login Admin/Kasir dan Owner lama tetap
+> berjalan. Verifikasi email baru diuji otomatis dengan adapter palsu; pengiriman
+> email sungguhan baru dapat diuji setelah kredensial diisi.
+
+
 ---
 
 ## Deploy (CLI)
@@ -557,3 +611,28 @@ langganan; karena itu **Vercel tidak di-deploy ulang**.
 | Backend | `GET /api/health` (tetap deployment yang sama) | **200** `database: up` |
 
 Commit: `ae55a45` (`feat/kasir-nova-v2`).
+
+## Deploy 23 Okt 2026 — Beranda harga paket + kredensial Duitku sandbox (izin pemilik)
+
+Perubahan yang dibawa: **beranda publik baru** (`scripts/hosting-landing.html`)
+dengan panel login tiga peran, harga empat paket (toggle bulanan/tahunan →
+WhatsApp), delapan fitur, dan kontak; serta **kredensial Duitku sandbox** untuk
+checkout langganan. Tidak ada perubahan skema DB maupun aturan bisnis.
+
+| Langkah | Perintah | Hasil |
+|---|---|---|
+| Uji landing | `npm run test:landing` | **145/145 lulus** |
+| Uji UI | `npm run verify:ui` | **SEMUA OK** |
+| Env Vercel (Production) | `vercel env add ...` untuk `PAYMENT_PROVIDER`, `PAYMENT_MODE`, `PAYMENT_ALLOW_PRODUCTION`, `DUITKU_MERCHANT_CODE`, `DUITKU_API_KEY`, `PAYMENT_CHANNELS`, `PAYMENT_EXPIRY_MINUTES`, `PAYMENT_MIN_AMOUNT_IDR`, `PAYMENT_API_BASE_URL`, `PAYMENT_OWNER_PANEL_URL` | 10 variabel tersimpan (nilai rahasia tidak dicetak) |
+| Backend | `vercel --prod --yes` dari root repo | deployment Production **Ready** (32 dtk); alias `https://kasir-nova.vercel.app` |
+| Health | `GET /api/health` | **200** `database: up` |
+| Gateway produksi | `POST /api/payments/duitku/callback` (body kosong) | **401** `Callback gateway tidak sah` (terkonfigurasi, bukan 503) |
+| Build frontend | `node scripts/build-hosting.mjs` | 59 berkas; `NOVA_API_BASE=https://kasir-nova.vercel.app` |
+| Hosting | `firebase deploy --only hosting --non-interactive` | rilis selesai |
+| Halaman | `/`, `/kasir/`, `/owner/`, `/admin/` | **200** |
+| Aset baru | `/assets/logo-kasir-nova-inverse.png` | **200** |
+| Isi beranda | teks `NOVA STARTER/BUSINESS/PRO/ENTERPRISE`, panel login, nomor WhatsApp | ada |
+
+Uji sandbox lokal (server + DB dev): `npm run sandbox:duitku` **SEMUA LANGKAH
+LULUS** — inquiry tagihan VA BCA `201` dan cek status `200` benar-benar
+memanggil sandbox Duitku. Detail: `docs/38` §10.

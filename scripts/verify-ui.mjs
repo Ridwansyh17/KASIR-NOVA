@@ -124,6 +124,55 @@ console.log('\n[sintaks modul panel]');
   rmSync(syntaxDir, { recursive: true, force: true });
 }
 
+// ------------------------------------------- Halaman verifikasi email Owner ---
+// Halaman ini dipakai tautan Firebase (continueUrl). Kesalahan rujukan/ID di
+// sini membuat pemilik tidak bisa menyelesaikan verifikasi email.
+console.log('\n[halaman verifikasi email Owner]');
+{
+  const dir = join(root, 'apps', 'owner');
+  const html = readFileSync(join(dir, 'verify-email.html'), 'utf8');
+  const js = readFileSync(join(dir, 'src', 'verify-email.js'), 'utf8');
+  const apiSrc = readFileSync(join(dir, 'src', 'api.js'), 'utf8');
+
+  const refs = new Set();
+  for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    const v = m[1];
+    if (/^(https?:|data:|#|mailto:)/i.test(v)) continue;
+    refs.add(v.replace(/^\.\//, ''));
+  }
+  for (const r of refs) {
+    if (!existsSync(resolve(dir, r))) fail(`verify-email.html: rujukan tidak ada: ${r}`);
+  }
+
+  const jsIds = new Set();
+  for (const m of js.matchAll(/\$\('([^']+)'\)/g)) jsIds.add(m[1]);
+  for (const m of js.matchAll(/getElementById\('([^']+)'\)/g)) jsIds.add(m[1]);
+  const htmlIds = new Set();
+  for (const m of html.matchAll(/\bid="([^"]+)"/g)) htmlIds.add(m[1]);
+  const missingIds = [...jsIds].filter((id) => !htmlIds.has(id));
+  if (missingIds.length) fail(`verify-email.js: id tidak ada di HTML: ${missingIds.join(', ')}`);
+
+  const keys = new Set();
+  for (const m of js.matchAll(/\bapi\.([A-Za-z0-9_]+)\(/g)) keys.add(m[1]);
+  const imports = /import\s*\{([^}]+)\}\s*from\s*'\.\/api\.js'/.exec(js)?.[1] ?? '';
+  for (const name of imports.split(',').map((v) => v.trim()).filter(Boolean)) {
+    if (name === 'ApiError') continue;
+    keys.add(name);
+  }
+  const missingApi = [...keys].filter((k) => !new RegExp(`\\b${k}\\b`).test(apiSrc));
+  if (missingApi.length) fail(`verify-email.js: API tidak ada di api.js: ${missingApi.join(', ')}`);
+
+  for (const cls of ['.verify-page', '.verify-card', '.verify-email-box', '.verify-spinner']) {
+    if (!readFileSync(join(dir, 'styles', 'styles.css'), 'utf8').includes(cls)) {
+      fail(`apps/owner/styles/styles.css: kelas ${cls} tidak ada`);
+    }
+  }
+  if (!html.includes('type="module" src="./src/verify-email.js"')) {
+    fail('verify-email.html: modul ./src/verify-email.js tidak dimuat');
+  }
+  console.log(`  rujukan=${refs.size} id=${jsIds.size} api=${keys.size}`);
+}
+
 // ----------------------------------- Regresi Bug 1 (login) & Bug 2 (produk) ---
 // Dua bug yang diminta diperbaiki:
 //   Bug 1 - Persistent Login: aplikasi dibuka ulang -> dipaksa login walau
@@ -1075,6 +1124,7 @@ if (!hasHosting) {
   const server = createServer(async (req, res) => {
     try {
       let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+      if (p === '/owner/verify-email') p = '/owner/verify-email.html';
       if (p.endsWith('/')) p += 'index.html';
       const full = join(hosting, p);
       const data = await readFile(full);
@@ -1096,7 +1146,10 @@ if (!hasHosting) {
     ['/kasir/src/app.js', 'js'],
     ['/kasir/src/product-image.js', 'js'],
     ['/owner/', 'html'],
+    ['/owner/verify-email', 'html'],
+    ['/owner/verify-email.html', 'html'],
     ['/owner/assets/favicon-32.png', 'png'],
+    ['/owner/src/verify-email.js', 'js'],
     ['/owner/src/app.js', 'js'],
     ['/owner/src/product-image.js', 'js'],
     ['/owner/src/qr-code.js', 'js'],

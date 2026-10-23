@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#062a66" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Verifikasi Email — KASIR NOVA</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="./assets/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./styles/styles.css" />
+  </head>
+  <body>
+    <main class="auth verify-page">
+      <section class="card auth-card verify-card" aria-labelledby="verify-title">
+        <img
+          class="brand-logo-lg"
+          src="./assets/logo-kasir-nova.png"
+          alt="Logo KASIR NOVA"
+        />
+        <div class="brand-login">
+          <h1 id="verify-title" class="brand-title verify-title">Verifikasi Email Anda</h1>
+          <p class="muted verify-description">
+            Kami telah mengirimkan tautan verifikasi ke alamat email Anda. Silakan buka
+            email dan klik tautan tersebut untuk mengaktifkan akun KASIR NOVA.
+          </p>
+        </div>
+
+        <div class="verify-email-box">
+          <span class="verify-label">Email terdaftar</span>
+          <strong id="verify-email" class="verify-email">Memuat…</strong>
+        </div>
+
+        <div id="verify-loading" class="verify-loading" role="status" aria-live="polite">
+          <span class="verify-spinner" aria-hidden="true"></span>
+          <span>Memeriksa status verifikasi…</span>
+        </div>
+
+        <p id="verify-message" class="alert hidden" role="status" aria-live="polite"></p>
+
+        <div class="verify-actions">
+          <a
+            id="open-gmail"
+            class="btn primary block"
+            href="https://mail.google.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Buka Gmail
+          </a>
+          <button id="check-verify" type="button" class="btn block" disabled>
+            Saya Sudah Verifikasi
+          </button>
+          <button id="resend-verify" type="button" class="btn block" disabled>
+            Kirim Ulang Email
+          </button>
+        </div>
+
+        <p class="auth-switch">
+          <a id="back-login" class="link-btn" href="./">Kembali ke halaman masuk</a>
+        </p>
+        <p class="muted small verify-help">
+          Tidak menemukan email? Periksa folder Spam/Promosi, lalu gunakan tombol
+          Kirim Ulang Email.
+        </p>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script type="module" src="./src/verify-email.js"></script>
+  </body>
+</html>

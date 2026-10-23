@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="./styles/sidebar.css" />
   </head>
   <body>
-    <!-- ================= LOGIN ================= -->
+    <!-- ================= LOGIN / DAFTAR ================= -->
     <section id="login-view" class="auth hidden">
       <form id="login-form" class="card auth-card" novalidate>
         <img
@@ -37,6 +37,95 @@
 
         <button type="submit" class="btn primary block">Masuk</button>
         <p id="login-error" class="error hidden"></p>
+        <p id="login-notice" class="alert ok hidden"></p>
+        <p class="auth-switch">
+          Belum punya akun?
+          <button type="button" id="show-register-btn" class="link-btn">Daftar gratis</button>
+        </p>
+        <p id="whatsapp-wrap" class="auth-switch hidden">
+          <a
+            id="whatsapp-verify-link"
+            class="link-btn"
+            href="https://wa.me/6281359704766"
+            target="_blank"
+            rel="noopener"
+          >
+            Hubungi Admin via WhatsApp
+          </a>
+        </p>
+      </form>
+
+      <form id="register-form" class="card auth-card auth-card-wide hidden" novalidate>
+        <div class="brand-login">
+          <h1 class="brand-title">Daftar Owner</h1>
+          <p class="muted">
+            Buat akun, lalu verifikasi email Anda sebelum mulai berjualan.
+          </p>
+        </div>
+
+        <label class="field">
+          <span>Nama lengkap</span>
+          <input id="register-name" type="text" autocomplete="name" maxlength="120" required />
+        </label>
+        <label class="field">
+          <span>Nama bisnis</span>
+          <input
+            id="register-business"
+            type="text"
+            autocomplete="organization"
+            maxlength="120"
+            placeholder="mis. Toko Budi"
+            required
+          />
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input id="register-email" type="email" autocomplete="email" required />
+        </label>
+        <label class="field">
+          <span>Nomor WhatsApp (wajib)</span>
+          <input
+            id="register-phone"
+            type="tel"
+            autocomplete="tel"
+            inputmode="tel"
+            maxlength="30"
+            placeholder="08xxxxxxxxxx"
+            required
+          />
+        </label>
+        <label class="field">
+          <span>Password (minimal 8 karakter)</span>
+          <input
+            id="register-password"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            required
+          />
+        </label>
+        <label class="field">
+          <span>Ulangi password</span>
+          <input
+            id="register-password-confirm"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            required
+          />
+        </label>
+
+        <button type="submit" class="btn primary block">Daftar &amp; Kirim Verifikasi</button>
+        <p id="register-error" class="error hidden"></p>
+        <p id="register-success" class="alert ok hidden"></p>
+        <p class="auth-switch">
+          Setelah mendaftar, Anda akan diarahkan ke halaman verifikasi email.
+          Buka tautan dari Firebase di kotak masuk Anda.
+        </p>
+        <p class="auth-switch">
+          Sudah punya akun?
+          <button type="button" id="show-login-btn" class="link-btn">Masuk</button>
+        </p>
       </form>
     </section>
 

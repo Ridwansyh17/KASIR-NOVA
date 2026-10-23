@@ -383,6 +383,11 @@ select:focus {
   color: var(--off-fg);
 }
 
+.badge.warn {
+  background: #fff4dc;
+  color: #946200;
+}
+
 .empty {
   padding: 28px;
   text-align: center;

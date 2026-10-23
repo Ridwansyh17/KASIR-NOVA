@@ -16,6 +16,11 @@
 | 10 | **Audit log dimanipulasi** | Sedang | Kolom audit hanya append; tidak ada endpoint hapus (matriks: ❌ semua peran) |
 | 11 | **Bypass langganan** | Sedang | Cek status di middleware server untuk setiap operasi penting |
 | 12 | **Kasir mengakses outlet lain** | Tinggi | `outlet_id` dari sesi; filter query; uji negatif |
+| 13 | **Pendaftaran massal** | Sedang | Register **5/jam/IP**; akun pending tidak bisa dipakai sebelum email terverifikasi; Firebase menangani pengiriman tautan |
+| 14 | **Akun pendaftar dipakai sebelum diverifikasi** | Sedang | `email_verified_at` wajib untuk login Owner; status `emailVerified` diperiksa langsung via Firebase Admin SDK (bukan klaim browser); bisnis + trial baru dibuat **setelah** verifikasi (atomik) |
+| 15 | **Pemalsuan status verifikasi email** | Tinggi | State verifikasi = JWT bertanda tangan; `idToken` (bila ada) diverifikasi Admin SDK + uid/email harus cocok; `requireAuth` menolak Owner pending |
+| 16 | **Spam kirim ulang email** | Sedang | Rate limit **3/15 menit/IP** + cooldown per akun (minimal 30 detik); `retryAfterSeconds` dikembalikan ke klien |
+| 17 | **Kebocoran service account Firebase** | Tinggi | Kredensial hanya dari env (tidak di repo/log); gunakan env Vercel terenkripsi; rotasi key bila bocor |
 
 ## B. Kebutuhan Infrastruktur
 

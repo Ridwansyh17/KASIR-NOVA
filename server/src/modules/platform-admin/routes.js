@@ -4,6 +4,7 @@
  *   GET    /api/platform/owners              daftar owner (cari/filter/paginasi)
  *   POST   /api/platform/owners              buat owner baru
  *   GET    /api/platform/owners/:id          detail owner
+ *   POST   /api/platform/owners/:id/verify   verifikasi manual akun pending lama (WhatsApp)
  *   PATCH  /api/platform/owners/:id          ubah data owner
  *   PATCH  /api/platform/owners/:id/status   suspend/aktivasi
  *   POST   /api/platform/owners/:id/password reset password
@@ -56,6 +57,11 @@ router.get(
 router.get('/owners', ...validate({ query: listOwnersQuerySchema }), controller.listOwners);
 router.post('/owners', ...validate({ body: createOwnerSchema }), controller.createOwner);
 router.get('/owners/:id', ...validate({ params: idParamSchema }), controller.getOwner);
+router.post(
+  '/owners/:id/verify',
+  ...validate({ params: idParamSchema }),
+  controller.verifyOwner
+);
 router.patch(
   '/owners/:id',
   ...validate({ params: idParamSchema, body: updateOwnerSchema }),

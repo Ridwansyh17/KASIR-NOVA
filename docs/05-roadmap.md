@@ -1434,6 +1434,153 @@ konsol bila pemilik diinginkan.
 **Tertunda (sisi pemilik):** pasang APK Owner beta.2 di perangkat & tinjauan
 visual (label ikon, halaman dashboard, muat data bisnis).
 
+## 22 Okt 2026 — Beranda publik baru: harga paket + fitur + WhatsApp
+
+**Konteks.** Sesi 22 Okt 2026 berhenti setelah halaman beranda ditulis ulang
+dan diuji, tetapi integrasi skrip uji, dokumentasi, dan build belum
+diselesaikan. Sesi 23 Okt 2026 melanjutkan dan menuntaskan bagian tersebut.
+
+**Perubahan (hanya tampilan publik; tanpa backend/skema/API).**
+- `scripts/hosting-landing.html` ditulis ulang: header navy + logo, panel
+  login tiga peran (routing `/kasir/`, `/owner/`, `/admin/` **tetap**),
+  empat paket harga (Starter/Business/Pro/Enterprise) dengan toggle
+  **Bulanan/Tahunan** yang mengubah harga dan pesan WhatsApp, delapan fitur
+  unggulan, panel kontak, dan footer.
+- Seluruh tautan WhatsApp memakai nomor `6281359704766` dengan pesan siap
+  kirim per paket/periode; tombol membuka tab baru (`noopener noreferrer`).
+- Halaman **tidak** memanggil API, tidak mengaktifkan paket, dan tidak
+  menyentuh autentikasi/sesi.
+- `scripts/build-hosting.mjs` ikut menyalin `logo-kasir-nova-inverse.png`
+  (dipakai header/panel kontak) ke `dist/hosting/assets`.
+- `scripts/test-landing.mjs` (**baru**, 145 pemeriksaan, memakai `jsdom`
+  sebagai devDependency): struktur/routing, teks wajib, pesan WhatsApp persis,
+  tidak ada panggilan jaringan/error console, dan audit tata letak responsif
+  mulai 360 px.
+- Skrip npm `test:landing` ditambahkan; `scripts/qa-local.mjs` dan
+  `scripts/qa-local.ps1` menjalankan uji ini pada tahap **3/8**.
+
+**Pengujian:** `npm run test:landing` **145/145 lulus**;
+`npm run verify:ui` **SEMUA OK**; `node scripts/build-hosting.mjs` berhasil
+(termasuk aset inverse); `node --check` skrip terkait lolos.
+
+**Status deploy:** dideploy **23 Okt 2026** atas izin pemilik
+(`firebase deploy --only hosting`).
+
+## 23 Okt 2026 — Deploy beranda baru + aktifkan checkout Duitku sandbox
+
+**Beranda.** `dist/hosting` dibangun ulang lalu dideploy ke Firebase Hosting.
+Verifikasi produksi: `/`, `/kasir/`, `/owner/`, `/admin/`, dan aset
+`/assets/logo-kasir-nova-inverse.png` → **200**; beranda memuat empat paket,
+panel login, dan nomor WhatsApp.
+
+**Checkout paket (Duitku sandbox).** Pemilik memberikan Merchant Code dan API
+Key sandbox. Nilai rahasia **hanya** disimpan di `server/.env` (gitignored) dan
+Vercel Environment Variables (Production) — **tidak** di-commit dan tidak
+pernah dicetak di log/UI. Konfigurasi: `PAYMENT_PROVIDER=duitku`,
+`PAYMENT_MODE=sandbox`, `PAYMENT_ALLOW_PRODUCTION=false`, kanal
+`BC,I1,M2,BR`, `PAYMENT_API_BASE_URL=https://kasir-nova.vercel.app`,
+`PAYMENT_OWNER_PANEL_URL=https://kasir-nova.web.app/owner`.
+- Uji lokal `npm run sandbox:duitku`: **SEMUA LANGKAH LULUS** — login Owner,
+  status gateway `enabled=true`, buat tagihan VA BCA **201**, cek status
+  **200** (benar-benar memanggil sandbox, bukan tiruan).
+- Backend Vercel di-deploy ulang. `GET /api/health` **200**; callback publik
+  tanpa tanda tangan sah → **401** (sebelumnya 503) → gateway aktif di
+  produksi.
+- **Belum diuji:** pembayaran penuh sampai callback asli mengaktifkan
+  langganan (perlu menyelesaikan transaksi di halaman demo Duitku).
+
+**Pengujian:** `npm run test:landing` **145/145**, `npm run verify:ui`
+**SEMUA OK**, `node scripts/sync-shared.mjs --check` **SEMUA SAMA**.
+
+## 23 Okt 2026 — Pendaftaran Owner mandiri + verifikasi email
+
+**Keputusan pemilik.** Calon pelanggan boleh mendaftar sendiri; email wajib
+diverifikasi; trial **Gratis 30 hari** otomatis; form tersedia di panel Owner
+dan ditautkan dari beranda. Checkout paket tetap self-service lewat Duitku.
+
+**Implementasi.**
+- Migrasi `0013_owner_self_registration.sql`: `email_verified_at`,
+  `email_verification_token_hash`, `email_verification_expires_at`,
+  `pending_business_name`, index token & antrean unverified. `0014` membuat
+  `email_verified_at` NULL-able (0013 sempat NOT NULL; instalasi baru sudah
+  benar, 0014 memperbaiki DB yang sudah menjalankan 0013).
+- `server/src/utils/mailer.js`: Resend HTTP / SMTP (`nodemailer`) / mode dev
+  yang menulis tautan ke log. Produksi tanpa email = pendaftaran **503**.
+- `env.mail` + `env.app` (`APP_PUBLIC_URL`, `APP_OWNER_PANEL_URL`,
+  `EMAIL_VERIFICATION_TTL_HOURS`).
+- Endpoint publik: `POST /api/auth/register-owner`,
+  `GET /api/auth/verify-email`, `POST /api/auth/resend-verification`; limiter
+  register 5/jam/IP dan resend 3/15 menit/IP.
+- Login Owner menolak akun belum verifikasi (**403** `email_not_verified`).
+- Verifikasi atomik: tandai email + buat bisnis pertama
+  (`createBusinessInTransaction`) + langganan Gratis + audit.
+- Panel Owner: form daftar, konfirmasi password, status verifikasi,
+  `?daftar=1`, `?verified=1`, `?verify=invalid`, kirim ulang.
+- Beranda: tombol **Daftar Gratis** di header + tautan di panel Pemilik
+  (`/owner/?daftar=1`).
+
+**Pengujian (lokal, DB berjalan).**
+- `npm run db:migrate` → 14 migrasi.
+- `npm run test:server` → **372/372 lulus** (12 baru untuk pendaftaran,
+  termasuk duplikat, token kedaluwarsa, rotasi token, replay, login gate,
+  trial otomatis).
+- `npm run test:landing` → **173/173** (termasuk section **Cara Mendaftar** 4 langkah); `npm run test:auth` → **10/10**;
+  `npm run verify:ui` → **SEMUA OK**; `node scripts/sync-shared.mjs --check`
+  → **SEMUA SAMA**; semua berkas JS lolos `node --check`.
+
+**Status.** Kode selesai & teruji lokal; **belum di-commit/dideploy**.
+Produksi perlu kredensial email (`MAIL_PROVIDER`, `MAIL_FROM`,
+`RESEND_API_KEY` atau SMTP) sebelum pendaftaran dibuka. Kolom
+`email_verified_at` tetap kompatibel dengan owner lama/buatan Admin karena
+default `now()`.
+
+---
+
+## 23 Okt 2026 — Verifikasi email Firebase (menggantikan WhatsApp)
+
+**Keputusan pemilik.** Pendaftaran Owner memakai **Firebase Authentication
+Email Verification Link** (paket Spark) agar tidak memerlukan SMTP, Resend,
+atau domain email berbayar. Password Owner **tetap** dikelola KASIR NOVA
+(scrypt + JWT); Firebase hanya menyimpan email/UID dan status `emailVerified`.
+
+**Implementasi.**
+- `POST /api/auth/register-owner`: membuat user Firebase tanpa password,
+  menyimpan Owner pending (`firebase_uid`, metode `firebase`,
+  `pending_business_name`), membuat state JWT, lalu meminta Firebase mengirim
+  tautan verifikasi.
+- Endpoint baru: `GET /api/auth/firebase/verification-status`,
+  `POST /api/auth/firebase/verify-owner`,
+  `POST /api/auth/firebase/resend-verification`.
+- Backend memverifikasi status lewat **Firebase Admin SDK** (`getUser` /
+  `verifyIdToken`); klaim `emailVerified` dari browser tidak dipercaya.
+- Login Owner pending ditolak **403** `email_not_verified` + state. Bila email
+  sudah diverifikasi, aktivasi diselesaikan otomatis saat login.
+- Aktivasi atomik: `email_verified_at`, bisnis pertama, langganan Gratis 30
+  hari, dan audit `owner.email_verified`.
+- Halaman `/owner/verify-email` + rewrite Firebase Hosting; tombol **Buka
+  Gmail**, **Saya Sudah Verifikasi**, **Kirim Ulang Email** (rate limit +
+  cooldown), dan penanganan `emailSent=false`.
+- Panel Admin tetap bisa memverifikasi akun pending **lama** via WhatsApp,
+  tetapi menolak akun Firebase dan perubahan email Owner Firebase.
+- Migrasi `0015_owner_firebase_verification.sql`; dependency
+  `firebase-admin@14.5.0` (0 vulnerability saat audit).
+- Alur email legacy (Resend/SMTP) dipertahankan hanya untuk akun pending lama.
+
+**Pengujian (lokal, DB berjalan).**
+- `npm run test:server` → **374/374 lulus** (14 tes pendaftaran Firebase).
+- `npm run test:landing` → **173/173**; `npm run test:auth` → **10/10**;
+  `npm run test:verify-email` → **1/1** (jsdom: state, status backend, tombol);
+  `npm run verify:ui` → **SEMUA OK**; `node scripts/sync-shared.mjs --check`
+  → **SEMUA SAMA**; `node scripts/build-hosting.mjs` → sukses.
+- `npm audit --workspace server` → **0 vulnerability**.
+
+**Status.** Kode selesai & teruji lokal dengan adapter Firebase palsu; **belum
+di-commit/dideploy**. Pengiriman email sungguhan memerlukan kredensial Firebase
+di Vercel + konfigurasi Firebase Console (lihat `docs/24`). Jangan deploy
+produksi sebelum alur email diuji dengan kredensial asli.
+
+---
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk

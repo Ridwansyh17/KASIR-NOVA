@@ -15,6 +15,8 @@
     "test:auth": "node --test scripts/test-auth-restore.mjs",
     "test:image": "node --test scripts/test-product-image.mjs",
     "test:qr": "node --test scripts/test-qr-code.mjs",
+    "test:landing": "node scripts/test-landing.mjs",
+    "test:verify-email": "node --test scripts/test-verify-email-page.mjs",
     "sandbox:duitku": "node scripts/sandbox-duitku-e2e.mjs",
     "sync:shared": "node scripts/sync-shared.mjs",
     "db:migrate": "npm run db:migrate --workspace server",
@@ -38,11 +40,14 @@
     "theme:apply-v2": "node scripts/apply-theme-v2.mjs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "overrides": {
     "uuid": "^11.1.1"
   },
   "author": "",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "jsdom": "^30.1.3"
+  }
 }

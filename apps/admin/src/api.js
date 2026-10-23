@@ -252,6 +252,8 @@ export const api = {
   createOwner: (data) =>
     request('/api/platform/owners', { method: 'POST', body: JSON.stringify(data) }),
 
+  verifyOwner: (id) => request(`/api/platform/owners/${id}/verify`, { method: 'POST' }),
+
   updateOwner: (id, data) =>
     request(`/api/platform/owners/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
 

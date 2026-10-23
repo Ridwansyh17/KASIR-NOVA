@@ -70,7 +70,12 @@ for (const app of apps) {
 // ---------------------------------------------------------- Beranda + 404 + aset
 // Beranda root dan halaman 404 memakai path absolut /assets/**, jadi aset brand
 // disalin sekali ke dist/hosting/assets (bukan bergantung pada folder salah satu app).
-const brandAssets = ['logo-kasir-nova.png', 'apple-touch-icon.png', 'favicon-32.png'];
+const brandAssets = [
+  'logo-kasir-nova.png',
+  'logo-kasir-nova-inverse.png',
+  'apple-touch-icon.png',
+  'favicon-32.png',
+];
 const assetDir = join(outDir, 'assets');
 mkdirSync(assetDir, { recursive: true });
 for (const name of brandAssets) {

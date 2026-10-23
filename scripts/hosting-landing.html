@@ -4,206 +4,1415 @@
   Disalin apa adanya oleh scripts/build-hosting.mjs -> dist/hosting/index.html.
   Sengaja mandiri: CSS inline, tanpa dependensi, memakai path ABSOLUT (/assets/...)
   agar tetap benar walau berkas ini disajikan pada path lain (lihat 404.html).
+
+  Ringkasan isi (versi 22 Okt 2026):
+    1. Header navy + logo KASIR NOVA.
+    2. Tiga panel login (Kasir / Pemilik / Platform Admin) -> routing TETAP.
+    3. Section harga paket (Bulanan | Tahunan) -> tombol buka WhatsApp.
+    4. Section fitur unggulan (8 fitur, grid 4 kolom di desktop).
+    5. Panel navy "Hubungi Kami" + footer.
+
+  PENTING: halaman ini HANYA tampilan. Tidak ada aktivasi paket, tidak ada
+  pemanggilan API, tidak ada perubahan autentikasi/session/hak akses.
 -->
 <html lang="id">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#062A66" />
-    <title>KASIR NOVA — Pilih Panel</title>
+    <title>KASIR NOVA — Kasir &amp; Manajemen Bisnis untuk UMKM</title>
     <meta
       name="description"
-      content="KASIR NOVA — platform kasir dan manajemen toko untuk UMKM. Pilih panel: Kasir, Owner, atau Admin Platform."
+      content="KASIR NOVA — Smart POS untuk berbagai jenis usaha. Transaksi, stok, laporan, dan struk. Pilih panel Kasir, Pemilik, atau Admin Platform."
     />
+    <link rel="canonical" href="https://kasir-nova.web.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="KASIR NOVA" />
+    <meta property="og:title" content="KASIR NOVA — Kasir &amp; Manajemen Bisnis untuk UMKM" />
+    <meta
+      property="og:description"
+      content="Satu aplikasi, banyak kemudahan. Kelola bisnis lebih praktis bersama KASIR NOVA."
+    />
+    <meta property="og:url" content="https://kasir-nova.web.app/" />
     <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
     <style>
       :root {
-        --navy: #062a66;
-        --navy-dark: #042650;
-        --blue: #0072f6;
-        --blue-dark: #0050d2;
-        --bg: #f3f7fd;
+        --navy-900: #02102b;
+        --navy-800: #042650;
+        --navy-700: #062a66;
+        --navy-600: #0a3678;
+        --blue-700: #0043b8;
+        --blue-600: #0050d2;
+        --blue-500: #0072f6;
+        --blue-400: #1ba4fe;
+        --blue-200: #cfe3fd;
+        --blue-100: #e6effe;
+        --bg: #f5fafd;
         --card: #ffffff;
-        --line: #dde7f5;
-        --text: #0f1e3d;
-        --muted: #5b6b8c;
+        --text: #0b1b33;
+        --muted: #5b6b85;
+        --line: #e0e7f2;
+        --green: #25d366;
+        --radius: 18px;
+        --shadow-sm: 0 1px 2px rgba(6, 42, 102, 0.06);
+        --shadow: 0 10px 30px rgba(6, 42, 102, 0.08);
+        --shadow-lg: 0 22px 50px rgba(6, 42, 102, 0.16);
+        --container: 1200px;
       }
       * {
         box-sizing: border-box;
       }
+      html {
+        scroll-behavior: smooth;
+      }
       body {
         margin: 0;
         min-height: 100vh;
-        padding: 32px 20px 40px;
-        background: radial-gradient(1200px 600px at 50% -10%, #e8f1ff 0%, var(--bg) 60%);
+        overflow-x: hidden;
+        background: var(--bg);
         color: var(--text);
-        font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+        font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
         -webkit-font-smoothing: antialiased;
+        -webkit-text-size-adjust: 100%;
       }
-      .wrap {
-        max-width: 940px;
+      img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+      a {
+        color: var(--blue-500);
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.25;
+      }
+      p {
+        margin: 0;
+      }
+      .container {
+        width: 100%;
+        max-width: var(--container);
         margin: 0 auto;
+        padding: 0 20px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      :focus-visible {
+        outline: 3px solid var(--blue-400);
+        outline-offset: 2px;
+        border-radius: 8px;
+      }
+
+      /* ---------------------------------------------------------------- Tombol */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 46px;
+        padding: 12px 22px;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease,
+          border-color 0.12s ease;
+      }
+      .btn:hover {
+        transform: translateY(-2px);
+      }
+      .btn:active {
+        transform: translateY(0);
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--blue-500) 0%, var(--blue-600) 100%);
+        color: #fff;
+        box-shadow: 0 8px 20px rgba(0, 114, 246, 0.28);
+      }
+      .btn-primary:hover {
+        box-shadow: 0 12px 26px rgba(0, 114, 246, 0.36);
+      }
+      .btn-outline {
+        background: #fff;
+        color: var(--blue-600);
+        border-color: var(--blue-200);
+        box-shadow: var(--shadow-sm);
+      }
+      .btn-outline:hover {
+        border-color: var(--blue-400);
+        box-shadow: var(--shadow);
+      }
+      .btn-header {
+        background: #fff;
+        color: var(--navy-700);
+        min-height: 42px;
+        padding: 10px 18px;
+        font-size: 14px;
+      }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .btn-header-ghost {
+        background: transparent;
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.45);
+        box-shadow: none;
+      }
+      .btn-header-ghost:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .panel-register {
+        display: inline-block;
+        margin-top: 4px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--blue-600);
+        text-decoration: none;
+      }
+      .panel-register:hover {
+        text-decoration: underline;
+      }
+      .btn-contact {
+        background: linear-gradient(135deg, var(--green) 0%, #128c4a 100%);
+        color: #fff;
+        min-height: 56px;
+        padding: 14px 34px;
+        font-size: 16px;
+        letter-spacing: 0.06em;
+        box-shadow: 0 12px 28px rgba(18, 140, 74, 0.35);
+      }
+      .btn-block {
+        width: 100%;
+      }
+
+      /* ---------------------------------------------------------------- Header */
+      .site-header {
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 60%, var(--navy-900) 100%);
+        color: #fff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 78px;
+        padding-top: 12px;
+        padding-bottom: 12px;
       }
       .brand {
         display: flex;
         align-items: center;
-        gap: 16px;
-        margin-bottom: 8px;
+        gap: 14px;
+        text-decoration: none;
+        color: inherit;
+        min-width: 0;
       }
       .brand img {
-        display: block;
-        width: auto;
-        max-width: 96px;
-        max-height: 96px;
+        width: 52px;
+        height: 52px;
+        flex: 0 0 auto;
+        border-radius: 12px;
       }
-      h1 {
-        margin: 0;
-        font-size: 26px;
-        letter-spacing: 0.02em;
-        color: var(--navy);
-      }
-      .tagline {
-        margin: 4px 0 0;
-        color: var(--muted);
-        font-size: 14px;
-      }
-      .lead {
-        margin: 20px 0 24px;
-        color: var(--muted);
-        font-size: 15px;
-        line-height: 1.6;
-      }
-      .cards {
-        display: grid;
-        gap: 16px;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      }
-      .card {
+      .brand-text {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        padding: 20px;
+        min-width: 0;
+      }
+      .brand-text strong {
+        font-size: 20px;
+        letter-spacing: 0.06em;
+        color: #fff;
+      }
+      .brand-text span {
+        font-size: 12.5px;
+        color: #a9c4ea;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* ---------------------------------------------------------------- Section */
+      .section {
+        padding: 64px 0;
+      }
+      .section-head {
+        max-width: 760px;
+        margin: 0 auto 34px;
+        text-align: center;
+      }
+      .section-eyebrow {
+        display: inline-block;
+        margin-bottom: 10px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: var(--blue-100);
+        color: var(--blue-600);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .section-title {
+        font-size: clamp(22px, 3.2vw, 32px);
+        font-weight: 800;
+        color: var(--blue-500);
+        letter-spacing: -0.01em;
+      }
+      .section-sub {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: clamp(15px, 1.6vw, 17px);
+      }
+
+      /* ----------------------------------------------------- 1. Panel login */
+      .section-login {
+        background: radial-gradient(1100px 520px at 50% -10%, #e4effe 0%, var(--bg) 62%);
+      }
+      .panel-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 22px;
+      }
+      .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 26px 24px 24px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+      }
+      .panel:hover {
+        transform: translateY(-3px);
+        border-color: var(--blue-200);
+        box-shadow: var(--shadow);
+      }
+      .panel-chip {
+        align-self: flex-start;
+        padding: 5px 12px;
+        border-radius: 999px;
+        background: var(--blue-100);
+        color: var(--blue-600);
+        font-size: 11.5px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .panel-title {
+        font-size: 19px;
+        font-weight: 800;
+        color: var(--blue-500);
+      }
+      .panel-desc {
+        flex: 1 1 auto;
+        color: var(--muted);
+        font-size: 14.5px;
+        line-height: 1.65;
+      }
+      .panel .btn {
+        margin-top: 6px;
+      }
+
+      /* -------------------------------------------------- 2. Cara mendaftar */
+      .section-register {
+        background: #fff;
+        border-top: 1px solid var(--line);
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .step {
+        position: relative;
+        padding: 24px 22px 22px;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+      }
+      .step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        margin-bottom: 14px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--blue-500), var(--blue-600));
+        color: #fff;
+        font-size: 16px;
+        font-weight: 800;
+        box-shadow: 0 6px 14px rgba(0, 114, 246, 0.25);
+      }
+      .step-title {
+        margin: 0 0 8px;
+        font-size: 17px;
+        font-weight: 800;
+        color: var(--navy-700);
+      }
+      .step-desc {
+        color: var(--muted);
+        font-size: 14.5px;
+        line-height: 1.65;
+      }
+      .register-cta {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 30px;
+      }
+      .register-note {
+        max-width: 760px;
+        margin: 18px auto 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13.5px;
+        line-height: 1.65;
+      }
+
+      /* ------------------------------------------------------- 3. Harga paket */
+      .section-pricing {
+        background: #fff;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+      .period-toggle {
+        display: flex;
+        gap: 6px;
+        width: max-content;
+        max-width: 100%;
+        margin: 0 auto 36px;
+        padding: 5px;
+        border-radius: 999px;
+        background: var(--blue-100);
+        border: 1px solid var(--blue-200);
+      }
+      .period-toggle button {
+        min-height: 42px;
+        padding: 8px 26px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--navy-700);
+        font: inherit;
+        font-size: 14.5px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
+      }
+      .period-toggle button[aria-pressed='true'] {
+        background: linear-gradient(135deg, var(--blue-500) 0%, var(--blue-600) 100%);
+        color: #fff;
+        box-shadow: 0 6px 16px rgba(0, 114, 246, 0.28);
+      }
+      .pricing-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 22px;
+        align-items: stretch;
+      }
+      .plan {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 26px 22px 24px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.14s ease, box-shadow 0.14s ease;
+      }
+      .plan:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow);
+      }
+      .plan-name {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: var(--navy-700);
+      }
+      .plan-price {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .plan-price strong {
+        font-size: 28px;
+        font-weight: 800;
+        color: var(--blue-500);
+        letter-spacing: -0.01em;
+        line-height: 1.15;
+        word-break: break-word;
+      }
+      .plan-price span {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .plan-alt {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .plan-alt b {
+        color: var(--navy-700);
+        font-weight: 700;
+      }
+      .plan-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+        flex: 1 1 auto;
+      }
+      .plan-list li {
+        display: flex;
+        align-items: flex-start;
+        gap: 9px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--text);
+      }
+      .plan-list svg {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        margin-top: 2px;
+        color: var(--blue-500);
+      }
+      .plan .btn {
+        margin-top: 4px;
+      }
+
+      /* Kartu Business: gradien biru + label rekomendasi */
+      .plan-featured {
+        background: linear-gradient(160deg, var(--blue-400) 0%, var(--blue-500) 45%, var(--blue-700) 100%);
+        border-color: var(--blue-700);
+        color: #fff;
+        box-shadow: var(--shadow-lg);
+      }
+      .plan-featured .plan-name {
+        color: #fff;
+      }
+      .plan-featured .plan-price strong {
+        color: #fff;
+      }
+      .plan-featured .plan-price span,
+      .plan-featured .plan-alt {
+        color: rgba(255, 255, 255, 0.88);
+      }
+      .plan-featured .plan-alt b {
+        color: #fff;
+      }
+      .plan-featured .plan-list li {
+        color: #eaf3ff;
+      }
+      .plan-featured .plan-list svg {
+        color: #bfe0ff;
+      }
+      .plan-featured .btn-outline {
+        background: #fff;
+        color: var(--blue-600);
+        border-color: #fff;
+      }
+      .plan-badge {
+        align-self: center;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: #fff;
+        color: var(--blue-600);
+        font-size: 11.5px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        box-shadow: 0 6px 16px rgba(4, 38, 80, 0.22);
+      }
+
+      /* ------------------------------------------------------ 3. Fitur unggulan */
+      .section-features {
+        background: radial-gradient(1000px 460px at 50% 0%, #eaf3ff 0%, var(--bg) 60%);
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px;
+      }
+      .feature {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 20px 18px;
         background: var(--card);
         border: 1px solid var(--line);
         border-radius: 16px;
-        text-decoration: none;
-        color: inherit;
-        box-shadow: 0 1px 2px rgba(6, 42, 102, 0.06);
-        transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+        box-shadow: var(--shadow-sm);
+        transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
       }
-      .card:hover,
-      .card:focus-visible {
-        transform: translateY(-2px);
-        border-color: var(--blue);
-        box-shadow: 0 10px 24px rgba(6, 42, 102, 0.12);
-        outline: none;
+      .feature:hover {
+        transform: translateY(-3px);
+        border-color: var(--blue-200);
+        box-shadow: var(--shadow);
       }
-      .chip {
-        align-self: flex-start;
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: #e6f0ff;
-        color: var(--blue-dark);
-        font-size: 11px;
+      .feature-icon {
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: var(--blue-100);
+        color: var(--blue-500);
+      }
+      .feature-icon svg {
+        width: 24px;
+        height: 24px;
+      }
+      .feature h3 {
+        font-size: 15.5px;
         font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
+        color: var(--navy-700);
+        margin-bottom: 3px;
       }
-      .card h2 {
-        margin: 0;
-        font-size: 17px;
-        color: var(--navy);
-      }
-      .card p {
-        margin: 0;
-        color: var(--muted);
+      .feature p {
         font-size: 13.5px;
         line-height: 1.55;
-      }
-      .cta {
-        margin-top: auto;
-        padding-top: 8px;
-        color: var(--blue);
-        font-size: 14px;
-        font-weight: 600;
-      }
-      footer {
-        margin-top: 28px;
-        padding-top: 16px;
-        border-top: 1px solid var(--line);
         color: var(--muted);
-        font-size: 12.5px;
-        line-height: 1.6;
       }
-      footer a {
-        color: var(--blue);
+
+      /* ------------------------------------------------------ 4. Hubungi Kami */
+      .contact {
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 55%, var(--navy-900) 100%);
+        color: #fff;
+        padding: 64px 0;
       }
-      @media (max-width: 560px) {
-        body {
-          padding: 24px 16px 32px;
+      .contact-inner {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 28px;
+        align-items: center;
+        text-align: center;
+        justify-items: center;
+      }
+      .contact-brand img {
+        width: 62px;
+        height: 62px;
+        margin: 0 auto 14px;
+        border-radius: 14px;
+      }
+      .contact-brand h2 {
+        font-size: clamp(22px, 3vw, 28px);
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+      .contact-brand p {
+        margin-top: 8px;
+        color: #b7cdec;
+        font-size: 15.5px;
+      }
+      .contact-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        width: 100%;
+        max-width: 560px;
+      }
+      .contact-list li {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 12px 16px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        font-size: 15px;
+      }
+      .contact-list .label {
+        color: #a9c4ea;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .contact-list a {
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+        word-break: break-word;
+      }
+      .contact-list a:hover {
+        text-decoration: underline;
+      }
+      .contact-list .wa-icon {
+        width: 26px;
+        height: 26px;
+        flex: 0 0 auto;
+        color: var(--green);
+      }
+      .contact-cta {
+        justify-self: center;
+      }
+
+      .site-footer {
+        background: var(--navy-900);
+        color: #8ea9d4;
+        padding: 20px 0;
+        font-size: 13px;
+        text-align: center;
+      }
+      .site-footer a {
+        color: #cfe0f7;
+      }
+
+      /* ------------------------------------------------------------ Responsif */
+      /* Breakpoint tidak saling tumpang tindih, sehingga jumlah kolom pasti:
+           panel   : 1 (<720)  -> 2 (720-999)  -> 3 (>=1000)
+           daftar  : 1 (<720)  -> 2 (720-1023) -> 4 (>=1024)
+           harga   : 1 (<680)  -> 2 (680-1139) -> 4 (>=1140)
+           fitur   : 1 (<600)  -> 2 (600-1023) -> 4 (>=1024) */
+      @media (min-width: 600px) {
+        .feature-grid {
+          grid-template-columns: repeat(2, 1fr);
         }
-        h1 {
-          font-size: 22px;
+      }
+      @media (min-width: 680px) {
+        .pricing-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (min-width: 720px) {
+        .panel-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .steps {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (min-width: 1000px) {
+        .panel-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (min-width: 1024px) {
+        .feature-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+        .steps {
+          grid-template-columns: repeat(4, 1fr);
+        }
+        .contact-inner {
+          grid-template-columns: 1.1fr 1.2fr auto;
+          text-align: left;
+          justify-items: start;
+        }
+        .contact-brand img {
+          margin-left: 0;
+        }
+        .contact-list li {
+          justify-content: flex-start;
+        }
+        .contact-cta {
+          justify-self: end;
+        }
+      }
+      @media (min-width: 1140px) {
+        .pricing-grid {
+          grid-template-columns: repeat(4, 1fr);
+        }
+      }
+      /* Satu kolom: batasi lebar kartu agar tetap nyaman dibaca di tablet. */
+      @media (max-width: 719px) {
+        .panel-grid {
+          max-width: 520px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+      }
+      @media (max-width: 679px) {
+        .pricing-grid {
+          max-width: 520px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+      }
+      @media (max-width: 559px) {
+        .section {
+          padding: 46px 0;
+        }
+        .container {
+          padding: 0 16px;
+        }
+        .header-inner {
+          min-height: 68px;
+          flex-wrap: wrap;
         }
         .brand img {
-          max-width: 72px;
-          max-height: 72px;
+          width: 44px;
+          height: 44px;
+        }
+        .brand-text strong {
+          font-size: 17px;
+        }
+        .brand-text span {
+          font-size: 11.5px;
+        }
+        .btn {
+          min-height: 48px;
+        }
+        .period-toggle button {
+          padding: 8px 18px;
+          font-size: 14px;
+        }
+        .plan-price strong {
+          font-size: 25px;
+        }
+        .contact {
+          padding: 48px 0;
+        }
+        .contact-list li {
+          flex-direction: column;
+          gap: 4px;
+          padding: 12px 14px;
+        }
+        .btn-contact {
+          width: 100%;
+          max-width: 420px;
+          font-size: 15px;
+          padding: 14px 20px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .btn,
+        .panel,
+        .plan,
+        .feature {
+          transition: none;
+        }
+        .btn:hover,
+        .panel:hover,
+        .plan:hover,
+        .feature:hover {
+          transform: none;
         }
       }
     </style>
   </head>
   <body>
-    <main class="wrap">
-      <header class="brand">
-        <img src="/assets/logo-kasir-nova.png" alt="Logo KASIR NOVA" />
-        <div>
-          <h1>KASIR NOVA</h1>
-          <p class="tagline">Platform kasir &amp; manajemen toko untuk UMKM</p>
+    <!-- ------------------------------------------------------------- Header -->
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="/">
+          <img src="/assets/logo-kasir-nova-inverse.png" alt="Logo KASIR NOVA" width="52" height="52" />
+          <span class="brand-text">
+            <strong>KASIR NOVA</strong>
+            <span>Smart POS untuk Berbagai Jenis Usaha</span>
+          </span>
+        </a>
+        <div class="header-actions">
+          <a class="btn btn-header btn-header-ghost" href="/owner/?daftar=1">Daftar Gratis</a>
+          <a
+            class="btn btn-header"
+            data-wa="hubungi"
+            href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20ingin%20bertanya%20mengenai%20aplikasi%20KASIR%20NOVA%20dan%20layanan%20yang%20tersedia.%0A%0AMohon%20informasi%20lebih%20lanjut.%0A%0ATerima%20kasih."
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Hubungi Kami
+          </a>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <p class="lead">
-        Pilih panel sesuai peran Anda. Setiap panel meminta login dan hanya menampilkan data
-        yang menjadi hak perannya.
-      </p>
+    <main>
+      <!-- ------------------------------------------------- 1. Panel login -->
+      <section class="section section-login" id="masuk">
+        <div class="container">
+          <div class="section-head">
+            <span class="section-eyebrow">Masuk</span>
+            <h1 class="section-title">Pilih Panel Sesuai Peran Anda</h1>
+            <p class="section-sub">
+              Setiap panel meminta login sendiri dan hanya menampilkan data yang menjadi hak
+              perannya. Belum punya akun?
+              <a href="#daftar">Lihat cara mendaftar</a>.
+            </p>
+          </div>
 
-      <nav class="cards" aria-label="Pilih panel">
-        <a class="card" href="/kasir/">
-          <span class="chip">Kasir</span>
-          <h2>Buka Aplikasi Kasir</h2>
-          <p>
-            Untuk kasir di outlet: transaksi penjualan, cetak struk, kelola produk outlet, dan
-            lihat laporan harian.
+          <nav class="panel-grid" aria-label="Pilih panel">
+            <article class="panel">
+              <span class="panel-chip">Kasir</span>
+              <h2 class="panel-title">Buka Aplikasi Kasir</h2>
+              <p class="panel-desc">
+                Untuk kasir di outlet: transaksi penjualan, cetak struk, kelola produk outlet, dan
+                lihat laporan harian.
+              </p>
+              <a class="btn btn-primary btn-block" href="/kasir/">Masuk Kasir &rarr;</a>
+            </article>
+
+            <article class="panel">
+              <span class="panel-chip">Pemilik</span>
+              <h2 class="panel-title">Pemilik Panel</h2>
+              <p class="panel-desc">
+                Untuk pemilik bisnis: data bisnis &amp; outlet, produk &amp; harga, pengeluaran,
+                laporan keuangan, dan pengaturan langganan.
+              </p>
+              <a class="btn btn-primary btn-block" href="/owner/">Login Pemilik &rarr;</a>
+              <a class="panel-register" href="/owner/?daftar=1">
+                Belum punya akun? Daftar gratis &rarr;
+              </a>
+            </article>
+
+            <article class="panel">
+              <span class="panel-chip">Platform Admin</span>
+              <h2 class="panel-title">Platform Admin</h2>
+              <p class="panel-desc">
+                Untuk pengelola platform: daftar owner &amp; bisnis, paket dan status langganan, serta
+                audit log.
+              </p>
+              <a class="btn btn-primary btn-block" href="/admin/">Masuk Admin &rarr;</a>
+            </article>
+          </nav>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------- 2. Cara mendaftar -->
+      <section class="section section-register" id="daftar">
+        <div class="container">
+          <div class="section-head">
+            <span class="section-eyebrow">Cara Mendaftar</span>
+            <h2 class="section-title">Mulai Gratis dalam 4 Langkah</h2>
+            <p class="section-sub">
+              Tidak perlu transfer di awal. Daftar, verifikasi email Anda, dan nikmati masa coba
+              Gratis 30 hari untuk bisnis pertama Anda.
+            </p>
+          </div>
+
+          <ol class="steps">
+            <li class="step">
+              <span class="step-num" aria-hidden="true">1</span>
+              <h3 class="step-title">Isi form pendaftaran</h3>
+              <p class="step-desc">
+                Klik <strong>Daftar Gratis</strong>, lalu isi nama lengkap, nama bisnis, email,
+                nomor WhatsApp, dan password minimal 8 karakter.
+              </p>
+            </li>
+            <li class="step">
+              <span class="step-num" aria-hidden="true">2</span>
+              <h3 class="step-title">Buka email verifikasi</h3>
+              <p class="step-desc">
+                Firebase akan mengirim tautan verifikasi ke email yang Anda daftarkan. Buka kotak
+                masuk (atau folder Spam/Promosi) untuk menemukan email dari KASIR NOVA.
+              </p>
+            </li>
+            <li class="step">
+              <span class="step-num" aria-hidden="true">3</span>
+              <h3 class="step-title">Klik tautan verifikasi</h3>
+              <p class="step-desc">
+                Klik tautan di email dan tekan <strong>Saya Sudah Verifikasi</strong>. Setelah
+                email terverifikasi, bisnis pertama dan langganan <strong>Gratis 30 hari</strong>
+                langsung dibuat otomatis.
+              </p>
+            </li>
+            <li class="step">
+              <span class="step-num" aria-hidden="true">4</span>
+              <h3 class="step-title">Masuk &amp; mulai jualan</h3>
+              <p class="step-desc">
+                Login ke panel Owner, buat outlet, kasir, dan produk. Upgrade paket kapan saja
+                lewat menu <strong>Langganan</strong>.
+              </p>
+            </li>
+          </ol>
+
+          <div class="register-cta">
+            <a class="btn btn-primary" href="/owner/?daftar=1">Daftar Gratis Sekarang &rarr;</a>
+            <a class="btn btn-outline" href="/owner/">Sudah punya akun? Masuk</a>
+          </div>
+          <p class="register-note">
+            Dengan mendaftar, Anda menyetujui penggunaan email untuk verifikasi akun serta
+            informasi layanan KASIR NOVA.
           </p>
-          <span class="cta">Masuk Kasir &rarr;</span>
-        </a>
+        </div>
+      </section>
 
-        <a class="card" href="/owner/">
-          <span class="chip">Owner</span>
-          <h2>Panel Owner</h2>
-          <p>
-            Untuk pemilik bisnis: data bisnis &amp; outlet, produk &amp; harga, pengeluaran,
-            laporan keuangan, dan pengaturan langganan.
-          </p>
-          <span class="cta">Masuk Owner &rarr;</span>
-        </a>
+      <!-- ------------------------------------------------ 3. Harga paket -->
+      <section class="section section-pricing" id="harga">
+        <div class="container">
+          <div class="section-head">
+            <span class="section-eyebrow">Harga</span>
+            <h2 class="section-title">Pilih Paket Sesuai Kebutuhan Usaha Anda</h2>
+            <p class="section-sub">
+              Satu aplikasi, banyak kemudahan. Kelola bisnis lebih praktis bersama KASIR NOVA.
+            </p>
+          </div>
 
-        <a class="card" href="/admin/">
-          <span class="chip">Admin Platform</span>
-          <h2>Admin Platform</h2>
-          <p>
-            Untuk pengelola platform: daftar owner &amp; bisnis, paket dan status langganan, serta
-            audit log.
-          </p>
-          <span class="cta">Masuk Admin &rarr;</span>
-        </a>
-      </nav>
+          <div class="period-toggle" role="group" aria-label="Pilih periode langganan">
+            <button type="button" data-period="monthly" aria-pressed="true">Bulanan</button>
+            <button type="button" data-period="yearly" aria-pressed="false">Tahunan</button>
+          </div>
 
-      <footer>
-        Aplikasi Android kasir tersedia dalam berkas APK yang dibagikan pemilik bisnis
-        (Firebase App Distribution). Butuh bantuan? Hubungi pengelola platform Anda.
-      </footer>
+          <div class="pricing-grid">
+            <!-- Starter -->
+            <article class="plan" data-plan="starter">
+              <h3 class="plan-name">NOVA STARTER</h3>
+              <div class="plan-price">
+                <strong data-price-primary>Rp49.000</strong>
+                <span data-price-suffix>/bulan</span>
+              </div>
+              <p class="plan-alt" data-price-alt>
+                <b>Rp490.000/tahun</b> untuk paket tahunan
+              </p>
+              <ul class="plan-list">
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> 1 bisnis, 1 outlet</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> 1 akun Owner</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Maksimal 2 akun Kasir</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Transaksi dan produk</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Manajemen stok</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Pendapatan harian</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Laporan transaksi</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Cetak struk</li>
+              </ul>
+              <a
+                class="btn btn-outline btn-block"
+                data-wa="starter"
+                href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20tertarik%20untuk%20berlangganan%20KASIR%20NOVA.%0A%0APaket%3A%20NOVA%20STARTER%0APeriode%3A%20Bulanan%0AHarga%3A%20Rp49.000%0A%0AMohon%20informasi%20mengenai%20proses%20pendaftaran%20dan%20aktivasi%20akun.%0A%0ATerima%20kasih."
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Pilih Starter
+              </a>
+            </article>
+
+            <!-- Business -->
+            <article class="plan plan-featured" data-plan="business">
+              <span class="plan-badge">Paling Direkomendasikan</span>
+              <h3 class="plan-name">NOVA BUSINESS</h3>
+              <div class="plan-price">
+                <strong data-price-primary>Rp99.000</strong>
+                <span data-price-suffix>/bulan</span>
+              </div>
+              <p class="plan-alt" data-price-alt>
+                <b>Rp990.000/tahun</b> untuk paket tahunan
+              </p>
+              <ul class="plan-list">
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Semua fitur Starter</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> 1 bisnis, maksimal 2 outlet</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Maksimal 5 akun Kasir</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Pengeluaran operasional</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Laporan laba rugi</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Rekap metode pembayaran</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Riwayat pergerakan stok</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Ekspor laporan Excel</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Pengaturan pajak dan diskon</li>
+              </ul>
+              <a
+                class="btn btn-outline btn-block"
+                data-wa="business"
+                href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20ingin%20mendaftar%20paket%20NOVA%20BUSINESS.%0A%0APeriode%3A%20Bulanan%0AHarga%3A%20Rp99.000%0A%0AMohon%20informasi%20mengenai%20cara%20pembayaran%20dan%20aktivasi%20layanan.%0A%0ATerima%20kasih."
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Pilih Business
+              </a>
+            </article>
+
+            <!-- Pro -->
+            <article class="plan" data-plan="pro">
+              <h3 class="plan-name">NOVA PRO</h3>
+              <div class="plan-price">
+                <strong data-price-primary>Rp149.000</strong>
+                <span data-price-suffix>/bulan</span>
+              </div>
+              <p class="plan-alt" data-price-alt>
+                <b>Rp1.490.000/tahun</b> untuk paket tahunan
+              </p>
+              <ul class="plan-list">
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Semua fitur Business</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> 1 bisnis, maksimal 5 outlet</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Maksimal 15 akun Kasir</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Monitoring beberapa outlet</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Laporan lintas outlet</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Rekap pendapatan dan pengeluaran</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Ekspor Excel</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Dukungan prioritas</li>
+              </ul>
+              <a
+                class="btn btn-outline btn-block"
+                data-wa="pro"
+                href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20ingin%20mendaftar%20paket%20NOVA%20PRO.%0A%0APeriode%3A%20Bulanan%0AHarga%3A%20Rp149.000%0A%0AMohon%20informasi%20mengenai%20cara%20pembayaran%20dan%20aktivasi%20layanan.%0A%0ATerima%20kasih."
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Pilih Pro
+              </a>
+            </article>
+
+            <!-- Enterprise -->
+            <article class="plan" data-plan="enterprise">
+              <h3 class="plan-name">NOVA ENTERPRISE</h3>
+              <div class="plan-price">
+                <strong>Harga Konsultasi</strong>
+              </div>
+              <p class="plan-alt">Disesuaikan dengan kebutuhan usaha Anda</p>
+              <ul class="plan-list">
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Kustom sesuai kebutuhan</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Banyak outlet dan akun</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Migrasi data</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Integrasi sistem (API)</li>
+                <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6" /></svg> Pendampingan khusus</li>
+              </ul>
+              <a
+                class="btn btn-outline btn-block"
+                data-wa="enterprise"
+                href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20ingin%20berkonsultasi%20mengenai%20paket%20NOVA%20ENTERPRISE%20untuk%20kebutuhan%20bisnis%20saya.%0A%0AMohon%20informasi%20lebih%20lanjut%20mengenai%20harga%2C%20fitur%2C%20dan%20proses%20implementasi.%0A%0ATerima%20kasih."
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Konsultasi Sekarang
+              </a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------------------------- 4. Fitur unggulan -->
+      <section class="section section-features" id="fitur">
+        <div class="container">
+          <div class="section-head">
+            <span class="section-eyebrow">Fitur</span>
+            <h2 class="section-title">Semua yang Anda Butuhkan untuk Mengelola Bisnis</h2>
+            <p class="section-sub">
+              Satu aplikasi untuk transaksi, stok, laporan, dan keuangan usaha Anda.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h2.6l2.5 12.1a1.8 1.8 0 0 0 1.8 1.4h8.2a1.8 1.8 0 0 0 1.8-1.4L21 7H5.5" /></svg>
+              </span>
+              <div>
+                <h3>Transaksi Penjualan</h3>
+                <p>Penjualan cepat di outlet, lengkap dengan rincian item dan pembayaran.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" /><path d="m3 8 9 5 9-5" /><path d="M12 13v8" /></svg>
+              </span>
+              <div>
+                <h3>Manajemen Produk &amp; Stok</h3>
+                <p>Kategori, harga, dan stok per outlet dalam satu tempat.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><rect x="5" y="11" width="3.6" height="7" rx="1" /><rect x="10.2" y="6" width="3.6" height="12" rx="1" /><rect x="15.4" y="13" width="3.6" height="5" rx="1" /></svg>
+              </span>
+              <div>
+                <h3>Laporan Penjualan</h3>
+                <p>Rekap penjualan dan pendapatan harian per outlet.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9V3.5h11V9" /><rect x="3" y="9" width="18" height="7.5" rx="2" /><path d="M7 16.5V21h10v-4.5" /></svg>
+              </span>
+              <div>
+                <h3>Cetak Struk Thermal Bluetooth</h3>
+                <p>Struk langsung tercetak dari perangkat kasir tanpa kabel.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5" /><path d="M3 10.5h18" /><circle cx="16.8" cy="14.8" r="1.2" /></svg>
+              </span>
+              <div>
+                <h3>Pengeluaran Operasional</h3>
+                <p>Catat biaya outlet agar laba usaha lebih jelas.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" /><path d="M14 3v5h5" /><path d="m9.2 12.8 5.6 5.6" /><path d="m14.8 12.8-5.6 5.6" /></svg>
+              </span>
+              <div>
+                <h3>Ekspor Laporan Excel</h3>
+                <p>Unduh laporan transaksi dan keuangan untuk diolah lebih lanjut.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4" /><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0" /><path d="M16.2 5.2a3.4 3.4 0 0 1 0 5.6" /><path d="M17.6 14.6A6.2 6.2 0 0 1 21.4 20" /></svg>
+              </span>
+              <div>
+                <h3>Multi User</h3>
+                <p>Pemilik dan kasir dengan hak akses serta outlet masing-masing.</p>
+              </div>
+            </article>
+
+            <article class="feature">
+              <span class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m19 5-14 14" /><circle cx="7.6" cy="7.6" r="2.6" /><circle cx="16.4" cy="16.4" r="2.6" /></svg>
+              </span>
+              <div>
+                <h3>Pengaturan Pajak &amp; Diskon</h3>
+                <p>Tentukan pajak dan diskon langsung dari pengaturan usaha.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
+
+    <!-- -------------------------------------------------- 4. Hubungi Kami -->
+    <section class="contact" id="hubungi">
+      <div class="container contact-inner">
+        <div class="contact-brand">
+          <img src="/assets/logo-kasir-nova-inverse.png" alt="Logo KASIR NOVA" width="62" height="62" />
+          <h2>KASIR NOVA</h2>
+          <p>Smart POS untuk Berbagai Jenis Usaha.</p>
+        </div>
+
+        <ul class="contact-list">
+          <li>
+            <span class="label">WhatsApp</span>
+            <svg class="wa-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.174.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.05 21.785h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 0 1 6.988 2.896 9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.548 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+            <a
+              href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20ingin%20bertanya%20mengenai%20aplikasi%20KASIR%20NOVA%20dan%20layanan%20yang%20tersedia.%0A%0AMohon%20informasi%20lebih%20lanjut.%0A%0ATerima%20kasih."
+              target="_blank"
+              rel="noopener noreferrer"
+              >081359704766</a
+            >
+          </li>
+          <li>
+            <span class="label">Email</span>
+            <a href="mailto:ridwansyarifuddin110@gmail.com">ridwansyarifuddin110@gmail.com</a>
+          </li>
+          <li>
+            <span class="label">Website</span>
+            <a href="https://kasir-nova.web.app">https://kasir-nova.web.app</a>
+          </li>
+        </ul>
+
+        <a
+          class="btn btn-contact contact-cta"
+          data-wa="hubungi"
+          href="https://wa.me/6281359704766?text=Halo%20Admin%20KASIR%20NOVA%2C%0A%0ASaya%20ingin%20bertanya%20mengenai%20aplikasi%20KASIR%20NOVA%20dan%20layanan%20yang%20tersedia.%0A%0AMohon%20informasi%20lebih%20lanjut.%0A%0ATerima%20kasih."
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.174.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.05 21.785h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884a9.82 9.82 0 0 1 6.988 2.896 9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.548 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          Hubungi Kami
+        </a>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="container">
+        &copy; 2026 KASIR NOVA &mdash; Smart POS untuk Berbagai Jenis Usaha.
+        <a href="mailto:ridwansyarifuddin110@gmail.com">ridwansyarifuddin110@gmail.com</a>
+      </div>
+    </footer>
+
+    <script>
+      /* =====================================================================
+       * KASIR NOVA — landing page.
+       * Halaman ini TIDAK melakukan aktivasi paket, tidak memanggil API, dan
+       * tidak menyentuh autentikasi/session. Satu-satunya interaksi:
+       *  - toggle periode (Bulanan / Tahunan) mengubah harga utama + tautan WA
+       *  - tombol paket membuka WhatsApp dengan pesan yang menyesuaikan
+       *    paket & periode terpilih.
+       * ===================================================================== */
+      (function () {
+        'use strict';
+
+        var WA_NUMBER = '6281359704766';
+
+        var PLANS = {
+          starter: {
+            name: 'NOVA STARTER',
+            monthly: 49000,
+            yearly: 490000,
+            opening: 'Saya tertarik untuk berlangganan KASIR NOVA.',
+            withPackageLine: true,
+            closing: 'Mohon informasi mengenai proses pendaftaran dan aktivasi akun.'
+          },
+          business: {
+            name: 'NOVA BUSINESS',
+            monthly: 99000,
+            yearly: 990000,
+            opening: 'Saya ingin mendaftar paket NOVA BUSINESS.',
+            withPackageLine: false,
+            closing: 'Mohon informasi mengenai cara pembayaran dan aktivasi layanan.'
+          },
+          pro: {
+            name: 'NOVA PRO',
+            monthly: 149000,
+            yearly: 1490000,
+            opening: 'Saya ingin mendaftar paket NOVA PRO.',
+            withPackageLine: false,
+            closing: 'Mohon informasi mengenai cara pembayaran dan aktivasi layanan.'
+          }
+        };
+
+        var ENTERPRISE_MESSAGE = [
+          'Halo Admin KASIR NOVA,',
+          '',
+          'Saya ingin berkonsultasi mengenai paket NOVA ENTERPRISE untuk kebutuhan bisnis saya.',
+          '',
+          'Mohon informasi lebih lanjut mengenai harga, fitur, dan proses implementasi.',
+          '',
+          'Terima kasih.'
+        ].join('\n');
+
+        var CONTACT_MESSAGE = [
+          'Halo Admin KASIR NOVA,',
+          '',
+          'Saya ingin bertanya mengenai aplikasi KASIR NOVA dan layanan yang tersedia.',
+          '',
+          'Mohon informasi lebih lanjut.',
+          '',
+          'Terima kasih.'
+        ].join('\n');
+
+        var period = 'monthly';
+
+        function rupiah(value) {
+          return 'Rp' + String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+
+        function buildPlanMessage(key) {
+          var plan = PLANS[key];
+          if (!plan) return CONTACT_MESSAGE;
+          var yearly = period === 'yearly';
+          var lines = ['Halo Admin KASIR NOVA,', '', plan.opening, ''];
+          if (plan.withPackageLine) lines.push('Paket: ' + plan.name);
+          lines.push('Periode: ' + (yearly ? 'Tahunan' : 'Bulanan'));
+          lines.push('Harga: ' + rupiah(yearly ? plan.yearly : plan.monthly));
+          lines.push('');
+          lines.push(plan.closing);
+          lines.push('');
+          lines.push('Terima kasih.');
+          return lines.join('\n');
+        }
+
+        function waUrl(message) {
+          return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(message);
+        }
+
+        function messageFor(key) {
+          if (key === 'enterprise') return ENTERPRISE_MESSAGE;
+          if (key === 'hubungi') return CONTACT_MESSAGE;
+          return buildPlanMessage(key);
+        }
+
+        function applyPrices() {
+          var yearly = period === 'yearly';
+          var cards = document.querySelectorAll('[data-plan]');
+          for (var i = 0; i < cards.length; i++) {
+            var card = cards[i];
+            var key = card.getAttribute('data-plan');
+            var plan = PLANS[key];
+            if (!plan) continue; // Enterprise: harga konsultasi, tidak ada toggle
+            var primary = card.querySelector('[data-price-primary]');
+            var suffix = card.querySelector('[data-price-suffix]');
+            var alt = card.querySelector('[data-price-alt]');
+            if (primary) {
+              primary.textContent = rupiah(yearly ? plan.yearly : plan.monthly);
+            }
+            if (suffix) {
+              suffix.textContent = yearly ? '/tahun' : '/bulan';
+            }
+            if (alt) {
+              alt.innerHTML = yearly
+                ? '<b>' + rupiah(plan.monthly) + '/bulan</b> untuk paket bulanan'
+                : '<b>' + rupiah(plan.yearly) + '/tahun</b> untuk paket tahunan';
+            }
+          }
+        }
+
+        function applyLinks() {
+          var links = document.querySelectorAll('[data-wa]');
+          for (var i = 0; i < links.length; i++) {
+            var key = links[i].getAttribute('data-wa');
+            links[i].setAttribute('href', waUrl(messageFor(key)));
+          }
+        }
+
+        function setPeriod(next) {
+          period = next === 'yearly' ? 'yearly' : 'monthly';
+          var buttons = document.querySelectorAll('.period-toggle button');
+          for (var i = 0; i < buttons.length; i++) {
+            var active = buttons[i].getAttribute('data-period') === period;
+            buttons[i].setAttribute('aria-pressed', active ? 'true' : 'false');
+          }
+          applyPrices();
+          applyLinks();
+        }
+
+        function init() {
+          var buttons = document.querySelectorAll('.period-toggle button');
+          for (var i = 0; i < buttons.length; i++) {
+            buttons[i].addEventListener('click', function (event) {
+              event.preventDefault();
+              setPeriod(event.currentTarget.getAttribute('data-period'));
+            });
+          }
+          // Keamanan: tautan WhatsApp selalu membuka tab baru tanpa akses
+          // window.opener. engineered by <a target="_blank" rel="noopener noreferrer">.
+          setPeriod('monthly');
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init);
+        } else {
+          init();
+        }
+      })();
+    </script>
   </body>
 </html>

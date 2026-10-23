@@ -54,6 +54,31 @@ export const durationToMs = (duration) => {
 /** Umur refresh token (milidetik) sesuai konfigurasi env. */
 export const refreshTokenExpiryMs = () => durationToMs(env.jwt.refreshExpiresIn);
 
+const EMAIL_VERIFY_PURPOSE = 'firebase_email_verification';
+
+/**
+ * Tanda tangan state halaman verifikasi email (bukan access token).
+ * State membawa id Owner, ditandatangani, dan kedaluwarsa; tidak memberi sesi
+ * dashboard. Aktifasi tetap menunggu `emailVerified` dari Firebase Admin SDK.
+ */
+export const signEmailVerificationState = (ownerId) =>
+  jwt.sign(
+    { sub: ownerId, purpose: EMAIL_VERIFY_PURPOSE },
+    env.jwt.accessSecret,
+    { expiresIn: '30d' }
+  );
+
+/** Verifikasi state halaman email; lempar error bila tidak valid/kedaluwarsa. */
+export const verifyEmailVerificationState = (state) => {
+  const decoded = jwt.verify(state, env.jwt.accessSecret);
+  if (decoded.purpose !== EMAIL_VERIFY_PURPOSE || !decoded.sub) {
+    const err = new Error('State verifikasi email tidak valid');
+    err.name = 'JsonWebTokenError';
+    throw err;
+  }
+  return { ownerId: String(decoded.sub) };
+};
+
 export default {
   signAccessToken,
   verifyAccessToken,
@@ -61,4 +86,6 @@ export default {
   hashRefreshToken,
   durationToMs,
   refreshTokenExpiryMs,
+  signEmailVerificationState,
+  verifyEmailVerificationState,
 };

@@ -47,7 +47,14 @@ refresh_tokens (sesi, per peran)
 | password_hash | TEXT | scrypt |
 | full_name, phone | TEXT | |
 | status | TEXT | `active`/`suspended` |
-| created_by | UUID | FK `platform_admins.id` (audit) |
+| email_verified_at | TIMESTAMPTZ | NULL = menunggu verifikasi email; default `now()` untuk owner lama/buatan Admin (tanpa alur verifikasi) |
+| email_verification_token_hash | TEXT | Alur email legacy; SHA-256 token, NULL pada pendaftaran Firebase |
+| email_verification_expires_at | TIMESTAMPTZ | Alur email lama; kedaluwarsa tautan (default 24 jam) |
+| pending_business_name | TEXT | nama bisnis dari form daftar; dipakai saat email terverifikasi (atau verifikasi manual akun lama) lalu dikosongkan |
+| created_by | UUID | FK `platform_admins.id` (audit); NULL untuk pendaftaran mandiri |
+| firebase_uid | TEXT | UID Firebase Authentication; unik (partial index), NULL untuk akun lama/buatan Admin |
+| email_verification_method | TEXT | `manual` (default, akun lama/Admin) atau `firebase` (pendaftaran mandiri) |
+| firebase_verification_sent_at | TIMESTAMPTZ | Waktu email verifikasi Firebase terakhir diminta (dasar cooldown kirim ulang) |
 | created_at | TIMESTAMPTZ | |
 
 ### `businesses`

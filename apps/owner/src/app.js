@@ -5,7 +5,15 @@
  * aktif -> lihat detail bisnis, langganan, dan kelola outlet. Semua otorisasi
  * & isolasi tenant tetap ditegakkan server; UI ini hanya alat bantu.
  */
-import { api, login, logout, restoreSession, tokenStore, ApiError } from './api.js';
+import {
+  api,
+  login,
+  logout,
+  restoreSession,
+  tokenStore,
+  ApiError,
+  registerOwner,
+} from './api.js';
 import './pw-toggle.js';
 import { renderPrintReport, PRINT_STATUS_LABELS } from './report-print.js';
 
@@ -178,20 +186,153 @@ const guard = async (fn) => {
 };
 
 // ---------------------------------------------------------------- Login ----
+const showLoginForm = (email) => {
+  hide($('register-form'));
+  show($('login-form'));
+  if (email) $('login-email').value = email;
+};
+
+const showRegisterForm = () => {
+  $('register-form').reset();
+  hide($('register-error'));
+  hide($('register-success'));
+  hide($('whatsapp-wrap'));
+  hide($('login-form'));
+  show($('register-form'));
+};
+
+const showLoginNotice = (message, linkHref, linkText = 'Chat Admin via WhatsApp') => {
+  const el = $('login-notice');
+  el.textContent = message;
+  if (linkHref) {
+    const link = document.createElement('a');
+    link.href = linkHref;
+    link.className = 'link-btn';
+    link.textContent = ` ${linkText}`;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    el.append(link);
+  }
+  show(el);
+};
+
+const showLoginError = (message) => {
+  const el = $('login-error');
+  el.textContent = message;
+  show(el);
+};
+
+/**
+ * Buka halaman verifikasi email Firebase. State disimpan lokal agar halaman
+ * tetap bisa dipakai bila pengguna membuka ulang tab (state juga ada di URL).
+ */
+const openEmailVerification = (state, email, emailSent = true) => {
+  try {
+    localStorage.setItem('nova_owner_verify_state', state);
+    if (email) localStorage.setItem('nova_owner_verify_email', email);
+  } catch {
+    /* storage tidak tersedia — URL tetap membawa state */
+  }
+  const target = window.location.pathname.startsWith('/owner')
+    ? '/owner/verify-email'
+    : './verify-email';
+  window.location.href = `${target}?state=${encodeURIComponent(state)}${emailSent ? '' : '&sent=0'}`;
+};
+
+const markWhatsappPending = (url) => {
+  const wrap = $('whatsapp-wrap');
+  if (!url) {
+    hide(wrap);
+    return;
+  }
+  $('whatsapp-verify-link').href = url;
+  show(wrap);
+};
+
 $('login-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('login-error'));
+  hide($('login-notice'));
+  const email = $('login-email').value.trim();
   const button = event.submitter ?? $('login-form').querySelector('button[type=submit]');
   button.disabled = true;
   try {
-    await login($('login-email').value.trim(), $('login-password').value);
+    await login(email, $('login-password').value);
     $('login-password').value = '';
     await fetchCurrentUser();
     hide($('login-view'));
     show($('app-view'));
     await loadBusinesses();
   } catch (err) {
-    const el = $('login-error');
+    showLoginError(describeError(err));
+    if (
+      err instanceof ApiError &&
+      err.status === 403 &&
+      ['account_not_verified', 'email_not_verified'].includes(err.details?.code)
+    ) {
+      $('login-email').value = email;
+      if (err.details?.verificationMethod === 'email' && err.details?.verificationState) {
+        openEmailVerification(err.details.verificationState, err.details.email ?? email);
+        return;
+      }
+      markWhatsappPending(err.details?.whatsappUrl);
+    }
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$('show-register-btn').addEventListener('click', () => {
+  hide($('login-error'));
+  hide($('login-notice'));
+  hide($('whatsapp-wrap'));
+  showRegisterForm();
+});
+
+$('show-login-btn').addEventListener('click', () => {
+  hide($('login-error'));
+  hide($('login-notice'));
+  hide($('whatsapp-wrap'));
+  showLoginForm();
+});
+
+$('register-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  hide($('register-error'));
+  hide($('register-success'));
+
+  const password = $('register-password').value;
+  if (password !== $('register-password-confirm').value) {
+    const el = $('register-error');
+    el.textContent = 'Password dan ulangi password tidak sama.';
+    show(el);
+    return;
+  }
+
+  const payload = {
+    fullName: $('register-name').value.trim(),
+    businessName: $('register-business').value.trim(),
+    email: $('register-email').value.trim(),
+    phone: $('register-phone').value.trim(),
+    password,
+  };
+
+  const button = event.submitter ?? $('register-form').querySelector('button[type=submit]');
+  button.disabled = true;
+  try {
+    const result = await registerOwner(payload);
+    if (result.verificationState) {
+      openEmailVerification(
+        result.verificationState,
+        result.email ?? payload.email,
+        result.emailSent !== false
+      );
+      return;
+    }
+    showLoginForm(payload.email);
+    showLoginNotice(result.message);
+  } catch (err) {
+    const el = $('register-error');
     el.textContent = describeError(err);
     show(el);
   } finally {
@@ -199,9 +340,29 @@ $('login-form').addEventListener('submit', async (event) => {
   }
 });
 
+const cleanAuthParams = () => {
+  const url = new URL(window.location.href);
+  let changed = false;
+  if (url.searchParams.has('daftar')) {
+    url.searchParams.delete('daftar');
+    changed = true;
+  }
+  if (changed) {
+    window.history.replaceState(
+      null,
+      '',
+      url.pathname + (url.search ? url.search : '') + url.hash
+    );
+  }
+};
+
 $('logout-btn').addEventListener('click', async () => {
   await logout();
   hide($('app-view'));
+  showLoginForm();
+  hide($('login-error'));
+  hide($('login-notice'));
+  hide($('whatsapp-wrap'));
   show($('login-view'));
 });
 
@@ -3565,6 +3726,13 @@ const handlePaymentReturn = () => {
  * langsung membuka dashboard tanpa login ulang.
  */
 const boot = async () => {
+  const params = new URLSearchParams(window.location.search);
+  const wantsRegister = params.get('daftar') === '1';
+
+  if (wantsRegister) showRegisterForm();
+  else showLoginForm();
+  cleanAuthParams();
+
   if (!tokenStore.hasSession) {
     show($('login-view'));
     return;
@@ -3579,15 +3747,16 @@ const boot = async () => {
     $('current-user').textContent = `${user.fullName} (${user.email})`;
     hide($('login-view'));
     show($('app-view'));
+    hide($('login-error'));
+    hide($('login-notice'));
+    hide($('whatsapp-wrap'));
     await loadBusinesses();
     handlePaymentReturn();
   } catch (err) {
     // Sesi tidak dapat diverifikasi (mis. jaringan). Token TIDAK dihapus;
     // tampilkan login disertai pesan agar penyebabnya jelas.
     show($('login-view'));
-    const el = $('login-error');
-    el.textContent = describeError(err);
-    show(el);
+    showLoginError(describeError(err));
   }
 };
 

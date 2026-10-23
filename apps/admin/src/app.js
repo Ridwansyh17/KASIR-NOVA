@@ -58,6 +58,13 @@ const fmtDate = (iso) => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('id-ID');
 };
 
+const waNumber = (phone) => {
+  let digits = String(phone ?? '').replace(/\D/g, '');
+  if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
+  else if (digits.startsWith('8')) digits = `62${digits}`;
+  return digits;
+};
+
 const fmtIDR = (sen) => `Rp ${((Number(sen) ?? 0) / 100).toLocaleString('id-ID')}`;
 
 const describeError = (err) => {
@@ -211,15 +218,37 @@ const renderOwners = (items) => {
       o.status === 'active'
         ? '<span class="badge ok">aktif</span>'
         : '<span class="badge off">nonaktif</span>';
+    const verified = Boolean(o.email_verified_at);
+    const emailPending = !verified && Boolean(o.firebase_linked);
+    const verifyBadge = verified
+      ? '<span class="badge ok">terverifikasi</span>'
+      : emailPending
+        ? '<span class="badge warn">menunggu email</span>'
+        : '<span class="badge warn">menunggu</span>';
     const toggleLabel = o.status === 'active' ? 'Nonaktifkan' : 'Aktifkan';
+    const pending = o.pending_business_name
+      ? `<div class="muted small">Bisnis: ${escapeHtml(o.pending_business_name)}</div>`
+      : '';
+    const wa = waNumber(o.phone);
+    const waLink =
+      wa && !o.firebase_linked
+        ? `<a class="btn small" href="https://wa.me/${wa}" target="_blank" rel="noopener">WA</a>`
+        : '';
+    const verifyBtn =
+      verified || o.firebase_linked
+        ? ''
+        : `<button class="btn small primary" data-action="verify" data-id="${o.id}">Verifikasi</button>`;
 
     tr.innerHTML = `
-      <td>${escapeHtml(o.full_name)}</td>
+      <td>${escapeHtml(o.full_name)}${pending}</td>
       <td>${escapeHtml(o.email)}</td>
       <td>${escapeHtml(o.phone ?? '—')}</td>
       <td>${statusBadge}</td>
+      <td>${verifyBadge}</td>
       <td class="muted">${escapeHtml(fmtDate(o.created_at))}</td>
       <td class="right actions">
+        ${verifyBtn}
+        ${waLink}
         <button class="btn small" data-action="edit" data-id="${o.id}">Ubah</button>
         <button class="btn small" data-action="toggle" data-id="${o.id}">${toggleLabel}</button>
         <button class="btn small" data-action="reset" data-id="${o.id}">Reset sandi</button>
@@ -262,6 +291,22 @@ $('owners-body').addEventListener('click', async (event) => {
   if (!owner) return;
 
   if (action === 'edit') return openEditModal(owner);
+
+  if (action === 'verify') {
+    const business = owner.pending_business_name
+      ? ` Bisnis "${owner.pending_business_name}" akan dibuat.`
+      : '';
+    if (!confirm(`Verifikasi ${owner.email}?${business} Masa coba Gratis 30 hari akan dimulai.`))
+      return;
+    try {
+      const result = await guard(() => api.verifyOwner(id));
+      alertBox('alert-owners', result?.message ?? 'Owner berhasil diverifikasi.', 'ok');
+      await loadOwners();
+    } catch (err) {
+      alertBox('alert-owners', describeError(err), 'error');
+    }
+    return;
+  }
 
   if (action === 'toggle') {
     const next = owner.status === 'active' ? 'suspended' : 'active';

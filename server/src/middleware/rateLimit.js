@@ -27,6 +27,56 @@ export const loginLimiter = rateLimit({
 });
 
 /**
+ * Limiter pendaftaran Owner mandiri: 5 akun / jam / IP.
+ * Mencegah pembuatan akun massal; bukan pengganti verifikasi email.
+ */
+export const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message:
+        'Terlalu banyak pendaftaran dari IP ini. Coba lagi dalam 1 jam.',
+    },
+  },
+});
+
+/**
+ * Limiter kirim ulang verifikasi email (legacy + Firebase): 3 / 15 menit / IP.
+ * Server juga memberlakukan cooldown per akun untuk mencegah spam.
+ */
+export const resendVerificationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message:
+        'Terlalu banyak permintaan kirim ulang. Coba lagi dalam 15 menit.',
+    },
+  },
+});
+
+/**
+ * Limiter cek status verifikasi email: cukup longgar agar tombol "Saya sudah
+ * verifikasi" bisa dicoba beberapa kali, tetapi tetap membatasi enumerasi.
+ */
+export const verificationStatusLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: {
+      message: 'Terlalu banyak pemeriksaan status. Coba lagi beberapa saat lagi.',
+    },
+  },
+});
+
+/**
  * Limiter login PIN kasir: backstop IP (max 20/15 mnt). Pelindung utama tetap
  * lockout per-kasir di server (5x salah -> 15 menit, 10x -> status locked).
  * Batas IP sengaja lebih longgar agar tidak memperlambat percobaan yang

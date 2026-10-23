@@ -78,13 +78,15 @@ run('node', ['scripts/clean-test-fixtures.mjs'], SERVER);
   console.log(`--- 2/8 Uji backend: ${code === 0 ? 'LULUS' : `GAGAL (${code})`}`);
 }
 
-console.log('\n=== 3/8 Verifikasi UI statis + bundel hosting ===');
+console.log('\n=== 3/8 Verifikasi UI statis + landing + halaman verifikasi email ===');
 const b = run('node', ['scripts/build-hosting.mjs']);
 const v = run('node', ['scripts/verify-ui.mjs']);
+const l = run('node', ['scripts/test-landing.mjs']);
+const e = run('node', ['scripts/test-verify-email-page.mjs']);
 {
-  const code = Math.max(b, v);
-  rows.push({ name: '3/8 Verifikasi UI statis', code });
-  console.log(`--- 3/8 Verifikasi UI statis: ${code === 0 ? 'LULUS' : `GAGAL (${code})`}`);
+  const code = Math.max(b, v, l, e);
+  rows.push({ name: '3/8 Verifikasi UI statis + landing + verifikasi email', code });
+  console.log(`--- 3/8 Verifikasi UI statis + landing + verifikasi email: ${code === 0 ? 'LULUS' : `GAGAL (${code})`}`);
 }
 
 console.log('\n=== 4/8 Sesi & pemulihan login ===');

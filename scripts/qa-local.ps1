@@ -5,7 +5,7 @@
   Tahapan (sama seperti docs/32 & docs/33 §8):
     1) Salinan berkas bersama   (node scripts/sync-shared.mjs --check)
     2) Uji backend              (clean-test-fixtures + node --test tests/**)
-    3) Verifikasi UI statis     (build-hosting + verify-ui)
+    3) Verifikasi UI statis     (build-hosting + verify-ui + test-landing + test-verify-email)
     4) Sesi & pemulihan login   (node --test scripts/test-auth-restore.mjs)
     5) Smart Product Image      (node --test scripts/test-product-image.mjs)
     6) Kode QR QRIS             (node --test scripts/test-qr-code.mjs)
@@ -55,14 +55,18 @@ node scripts/clean-test-fixtures.mjs
 node --test "tests/**/*.test.js"
 $backendCode = $LASTEXITCODE
 Pop-Location
-Record '2/8 Uji backend (321 diharapkan)' $backendCode
+Record '2/8 Uji backend (374 diharapkan)' $backendCode
 
-Write-Host "`n=== 3/8 Verifikasi UI statis + bundel hosting ==="
+Write-Host "`n=== 3/8 Verifikasi UI statis + landing + verifikasi email ==="
 node scripts/build-hosting.mjs
 $buildCode = $LASTEXITCODE
 node scripts/verify-ui.mjs
 $uiCode = $LASTEXITCODE
-Record '3/8 Verifikasi UI statis' ([Math]::Max($buildCode, $uiCode))
+node scripts/test-landing.mjs
+$landingCode = $LASTEXITCODE
+node --test scripts/test-verify-email-page.mjs
+$verifyEmailCode = $LASTEXITCODE
+Record '3/8 Verifikasi UI statis + landing + verifikasi email' ([Math]::Max([Math]::Max([Math]::Max($buildCode, $uiCode), $landingCode), $verifyEmailCode))
 
 Write-Host "`n=== 4/8 Sesi & pemulihan login ==="
 node --test scripts/test-auth-restore.mjs

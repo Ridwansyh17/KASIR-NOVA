@@ -71,6 +71,9 @@ app.use('/api/payments', paymentCallbackRouter);
 // Di produksi frontend disajikan Firebase Hosting (backend tidak melayani file),
 // KECUALI bila SERVE_STATIC=true (mis. host yang menyajikan app+API same-origin).
 if (!env.isProduction || env.serveStatic) {
+  app.get(['/owner/verify-email', '/owner/verify-email/'], (req, res) =>
+    res.sendFile(join(__dirname, '../../apps/owner/verify-email.html'))
+  );
   app.use('/admin', express.static(join(__dirname, '../../apps/admin')));
   app.use('/owner', express.static(join(__dirname, '../../apps/owner')));
   app.use('/kasir', express.static(join(__dirname, '../../apps/kasir')));

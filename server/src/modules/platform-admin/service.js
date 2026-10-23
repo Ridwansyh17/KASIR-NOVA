@@ -12,8 +12,11 @@ import { query, withTransaction } from '../../config/db.js';
 import { hashPassword } from '../../utils/hash.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
+import { createBusinessInTransaction } from '../owner/service.js';
 
-const OWNER_COLUMNS = `id, email, full_name, phone, status, created_by, created_at, updated_at, deleted_at`;
+const OWNER_COLUMNS = `id, email, full_name, phone, status, created_by, created_at, updated_at, deleted_at,
+  email_verified_at, pending_business_name, email_verification_method,
+  (firebase_uid IS NOT NULL) AS firebase_linked`;
 
 // Bentuk owner yang aman dicatat ke audit (tanpa password_hash).
 const auditShape = (o) =>
@@ -109,6 +112,70 @@ export const createOwner = async ({ email, password, fullName, phone, actor, ip 
   }
 };
 
+/**
+ * Verifikasi manual akun Owner pending lama (alur WhatsApp) oleh Admin Platform.
+ * Atomik: tandai terverifikasi + buat bisnis pertama + langganan Gratis.
+ */
+export const verifyOwner = async (id, actor, ip) => {
+  return withTransaction(async (client) => {
+    const { rows: currentRows } = await client.query(
+      `SELECT ${OWNER_COLUMNS} FROM owners
+        WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+      [id]
+    );
+    const owner = currentRows[0];
+    if (!owner) throw new NotFoundError('Owner tidak ditemukan');
+    if (owner.email_verified_at) {
+      throw new ConflictError('Owner sudah terverifikasi');
+    }
+    if (owner.firebase_linked) {
+      throw new ConflictError(
+        'Owner ini wajib menyelesaikan verifikasi email Firebase. Verifikasi manual tidak diizinkan.'
+      );
+    }
+
+    let business = null;
+    if (owner.pending_business_name) {
+      business = await createBusinessInTransaction(client, {
+        ownerId: owner.id,
+        name: owner.pending_business_name,
+        actor,
+        ip,
+      });
+    }
+
+    const { rows } = await client.query(
+      `UPDATE owners
+          SET email_verified_at = now(),
+              email_verification_token_hash = NULL,
+              email_verification_expires_at = NULL,
+              pending_business_name = NULL
+        WHERE id = $1
+        RETURNING ${OWNER_COLUMNS}`,
+      [id]
+    );
+
+    await writeAudit({
+      client,
+      actorRole: actor.role,
+      actorId: actor.id,
+      businessId: business?.id ?? null,
+      action: 'owner.whatsapp_verified',
+      entityType: 'owner',
+      entityId: owner.id,
+      before: { email_verified_at: null, pending_business_name: owner.pending_business_name },
+      after: {
+        email_verified_at: rows[0].email_verified_at,
+        verified_via: 'whatsapp',
+        business_id: business?.id ?? null,
+      },
+      ip,
+    });
+
+    return { owner: rows[0], business };
+  });
+};
+
 /** Ubah data owner (email / full_name / phone). */
 export const updateOwner = async (id, patch, actor, ip) => {
   try {
@@ -119,6 +186,15 @@ export const updateOwner = async (id, patch, actor, ip) => {
       );
       const before = currentRows[0];
       if (!before) throw new NotFoundError('Owner tidak ditemukan');
+      if (
+        before.firebase_linked &&
+        patch.email !== undefined &&
+        String(patch.email).toLowerCase() !== String(before.email).toLowerCase()
+      ) {
+        throw new ConflictError(
+          'Email Owner terhubung Firebase tidak dapat diubah dari panel ini.'
+        );
+      }
 
       const fields = [];
       const values = [];
@@ -272,6 +348,7 @@ export default {
   listOwners,
   getOwner,
   createOwner,
+  verifyOwner,
   updateOwner,
   setOwnerStatus,
   resetOwnerPassword,

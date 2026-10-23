@@ -46,9 +46,9 @@ https://kasir-nova.web.app  (Firebase Hosting — statis)
 
 | Berkas | Isi |
 |---|---|
-| `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite subpath SPA, header keamanan + cache (tanpa `/api/**` saat ini) |
+| `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite subpath SPA + `/owner/verify-email`, header keamanan + cache (tanpa `/api/**` saat ini) |
 | `scripts/build-hosting.mjs` | salin 3 app ke `dist/hosting`, tulis beranda + 404, dan suntik `NOVA_API_BASE` (**default URL backend produksi**; `--same-origin` untuk base kosong) |
-| `scripts/hosting-landing.html` | sumber beranda root (`/`) — pemilih panel Kasir/Owner/Admin |
+| `scripts/hosting-landing.html` | sumber beranda root (`/`) — panel login Kasir/Owner/Admin, CTA **Daftar Gratis** (`/owner/?daftar=1`), harga paket (bulanan/tahunan → WhatsApp), fitur unggulan, dan kontak |
 | `scripts/hosting-404.html` | sumber halaman 404 (disajikan Firebase untuk path tak dikenal, status 404) |
 | `apps/<app>/config.js` | default dev (`NOVA_API_BASE` kosong = origin sama) |
 | `.firebaserc` | lokal (di-`.gitignore`), berisi `kasir-nova` |
@@ -80,11 +80,24 @@ firebase deploy --only hosting
 > Dijaga otomatis oleh `scripts/verify-ui.mjs` (menolak base kosong) dan langkah
 > **26b** `scripts/e2e-online.mjs` di produksi.
 
+Halaman verifikasi email Owner disajikan dari
+`/owner/verify-email` → `/owner/verify-email.html` (rewrite **sebelum**
+`/owner/**`). Halaman ini memakai `./src/verify-email.js` dan `./config.js`;
+jangan hapus rewrite tersebut atau tautan Firebase akan jatuh ke dashboard
+Owner.
+
 ## 3b. Beranda root & halaman 404
 
-- `/` menyajikan `dist/hosting/index.html` — **beranda pemilih panel** (Kasir,
-  Owner, Admin Platform) dengan aset brand di `/assets/**` (disalin dari
-  `apps/kasir/assets`). Tidak ada lagi redirect `301 → /kasir`.
+- `/` menyajikan `dist/hosting/index.html` — **beranda publik** dengan aset
+  brand di `/assets/**` (disalin dari `apps/kasir/assets`): panel login Kasir,
+  Owner, dan Admin Platform + CTA pendaftaran Owner; daftar harga paket yang dapat diganti
+  bulanan/tahunan (tombol membuka WhatsApp); delapan fitur unggulan; serta
+  panel kontak. Halaman ini **hanya tampilan** — tidak memanggil API dan tidak
+  mengubah autentikasi. Tidak ada lagi redirect `301 → /kasir`.
+- Halaman beranda diuji otomatis oleh `scripts/test-landing.mjs`
+  (`npm run test:landing`, 173 pemeriksaan: struktur, routing tiga panel, cara mendaftar,
+  pesan WhatsApp tiap paket/periode, tanpa panggilan jaringan, dan audit tata
+  letak responsif).
 - Path yang tidak ada disajikan `dist/hosting/404.html` dengan **status 404**
   (bukan halaman "Page Not Found" bawaan Firebase). Halaman ini menampilkan path
   yang salah dan menautkan ketiga panel.

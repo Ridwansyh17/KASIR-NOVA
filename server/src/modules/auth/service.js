@@ -8,16 +8,23 @@
  * mengaktifkan platform_admin & owner; Fase 5 menambahkan 'cashier'
  * (tabel `cashiers`) tanpa mengubah alur di sini.
  */
+import { randomBytes, createHash } from 'node:crypto';
+import env from '../../config/env.js';
 import { query, withTransaction } from '../../config/db.js';
 import { hashPassword, verifyPassword, verifyPin } from '../../utils/hash.js';
+import { isMailConfigured, sendOwnerVerificationEmail } from '../../utils/mailer.js';
+import { createBusinessInTransaction } from '../owner/service.js';
 import { writeAudit } from '../audit/service.js';
 import {
   signAccessToken,
   generateRefreshToken,
   hashRefreshToken,
   refreshTokenExpiryMs,
+  signEmailVerificationState,
+  verifyEmailVerificationState,
 } from '../../utils/token.js';
-import { AppError, UnauthorizedError } from '../../middleware/error.js';
+import { getFirebaseAdapter } from '../../utils/firebase.js';
+import { AppError, UnauthorizedError, ForbiddenError } from '../../middleware/error.js';
 
 /**
  * Peta peran -> tabel pengguna yang didukung.
@@ -46,8 +53,9 @@ const DUMMY_HASH = `scrypt:32768:8:1:${'00'.repeat(32)}:${'00'.repeat(64)}`;
 export const getUserById = async (role, id) => {
   const store = USER_STORES[role];
   if (!store) return null;
+  const verifiedColumn = role === 'owner' ? ', email_verified_at' : '';
   const { rows } = await query(
-    `SELECT id, email, full_name, status FROM ${store.table} WHERE id = $1`,
+    `SELECT id, email, full_name, status${verifiedColumn} FROM ${store.table} WHERE id = $1`,
     [id]
   );
   return rows[0] ?? null;
@@ -57,14 +65,54 @@ export const getUserById = async (role, id) => {
 const findUserWithSecret = async (role, email) => {
   const store = USER_STORES[role];
   if (!store) return null;
+  // Hanya tabel owners yang memiliki status verifikasi + data pendaftaran.
+  const verifiedColumn =
+    role === 'owner'
+      ? ', email_verified_at, phone, pending_business_name, firebase_uid, email_verification_method'
+      : '';
   const { rows } = await query(
-    `SELECT id, email, password_hash, full_name, status
+    `SELECT id, email, password_hash, full_name, status${verifiedColumn}
        FROM ${store.table}
       WHERE lower(email) = lower($1)
       LIMIT 1`,
     [email]
   );
   return rows[0] ?? null;
+};
+
+const hashVerificationToken = (token) => createHash('sha256').update(token).digest('hex');
+const newVerificationToken = () => randomBytes(32).toString('hex');
+const verificationUrl = (token) =>
+  `${env.app.publicUrl}/api/auth/verify-email?token=${encodeURIComponent(token)}`;
+
+/** Normalisasi nomor Indonesia ke format WhatsApp (62… tanpa tanda +). */
+const normalizeWhatsapp = (phone) => {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  if (digits.startsWith('8')) return `62${digits}`;
+  return digits;
+};
+
+/** Tautan chat ke Admin Platform untuk pengajuan verifikasi akun. */
+const adminWhatsappUrl = ({ id, fullName, email, businessName }) => {
+  const lines = [
+    'Halo Admin KASIR NOVA,',
+    '',
+    `Saya ${fullName} ingin memverifikasi akun Owner.`,
+    `Email: ${email}`,
+    businessName ? `Bisnis: ${businessName}` : null,
+    id ? `ID pendaftaran: ${id}` : null,
+    '',
+    'Mohon dibantu mengaktifkan bisnis dan masa coba Gratis 30 hari. Terima kasih.',
+  ].filter((line) => line !== null);
+  return `https://wa.me/${env.app.supportWhatsapp}?text=${encodeURIComponent(lines.join('\n'))}`;
+};
+
+/** Pastikan email siap dipakai sebelum mengirim tautan (khusus alur email). */
+const ensureRegistrationOpen = () => {
+  if (env.isProduction && !isMailConfigured()) {
+    throw new AppError('Pendaftaran belum dibuka (email belum dikonfigurasi).', 503);
+  }
 };
 
 /**
@@ -140,6 +188,55 @@ export const login = async ({ role, email, password, ip, userAgent }) => {
   if (user.status !== 'active') {
     throw new AppError('Akun Anda dinonaktifkan. Hubungi administrator.', 403);
   }
+  // Owner pendaftaran mandiri baru wajib lolos verifikasi email. Sebelum
+  // menolak, cek status terbaru ke Firebase Admin SDK (bukan klaim frontend):
+  // bila pemilik sudah mengklik tautan, aktivasi langsung diselesaikan.
+  if (role === 'owner' && !user.email_verified_at) {
+    if (user.firebase_uid) {
+      const firebase = getFirebaseAdapter();
+      const firebaseUser = await firebase.getUser(user.firebase_uid);
+      if (firebaseUser.emailVerified) {
+        const activated = await activateOwnerFromFirebase({
+          ownerId: user.id,
+          ip,
+          source: 'login',
+        });
+        user.email_verified_at = new Date();
+        if (!activated.verified) throw new AppError('Verifikasi email gagal diproses.', 409);
+      }
+    }
+
+    if (!user.email_verified_at && user.firebase_uid) {
+      throw new AppError(
+        'Akun menunggu verifikasi email. Buka tautan verifikasi yang dikirim Firebase.',
+        403,
+        {
+          code: 'email_not_verified',
+          verificationMethod: 'email',
+          email: user.email,
+          verificationState: signEmailVerificationState(user.id),
+        }
+      );
+    }
+
+    if (!user.email_verified_at) {
+      // Akun pending lama (alur WhatsApp) tetap dapat diselesaikan Admin.
+      throw new AppError(
+        'Akun menunggu verifikasi Admin. Hubungi Admin melalui WhatsApp agar bisnis Anda diaktifkan.',
+        403,
+        {
+          code: 'account_not_verified',
+          verificationMethod: 'whatsapp',
+          whatsappUrl: adminWhatsappUrl({
+            id: user.id,
+            fullName: user.full_name,
+            email: user.email,
+            businessName: user.pending_business_name,
+          }),
+        }
+      );
+    }
+  }
 
   const { accessToken, refreshToken } = await issueTokens({
     role,
@@ -153,6 +250,512 @@ export const login = async ({ role, email, password, ip, userAgent }) => {
     refreshToken,
     user: { id: user.id, email: user.email, fullName: user.full_name, role },
   };
+};
+
+/**
+ * URL halaman verifikasi email (continueUrl Firebase). State ditandatangani
+ * dan TIDAK memberi sesi dashboard; ia hanya mengidentifikasi pendaftaran.
+ */
+const verificationPageUrl = (state) => {
+  const configured = /^https?:\/\//i.test(env.firebase.verificationContinueUrl)
+    ? env.firebase.verificationContinueUrl
+    : `${env.app.ownerPanelUrl}/verify-email`;
+  const url = new URL(configured);
+  url.searchParams.set('state', state);
+  return url.toString();
+};
+
+class VerificationStateError extends AppError {
+  constructor() {
+    super('Tautan verifikasi tidak valid atau sudah kedaluwarsa.', 400, {
+      code: 'invalid_verification_state',
+    });
+  }
+}
+
+const ownerIdFromState = (state) => {
+  try {
+    return verifyEmailVerificationState(state).ownerId;
+  } catch {
+    throw new VerificationStateError();
+  }
+};
+
+const findOwnerForVerification = async (ownerId) => {
+  const { rows } = await query(
+    `SELECT id, email, full_name, email_verified_at, pending_business_name,
+            firebase_uid, firebase_verification_sent_at,
+            email_verification_method
+       FROM owners
+      WHERE id = $1 AND deleted_at IS NULL`,
+    [ownerId]
+  );
+  return rows[0] ?? null;
+};
+
+/**
+ * Aktifkan Owner setelah Firebase menyatakan emailVerified = true.
+ * Atomik: update status + buat bisnis + langganan Gratis + audit.
+ * Idempoten: pemanggilan kedua tidak membuat bisnis duplikat.
+ */
+const activateOwnerFromFirebase = async ({ ownerId, ip, source = 'verification' }) => {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, email, full_name, email_verified_at, pending_business_name,
+              firebase_uid, email_verification_method
+         FROM owners
+        WHERE id = $1 AND deleted_at IS NULL
+        FOR UPDATE`,
+      [ownerId]
+    );
+    const owner = rows[0];
+    if (!owner) throw new AppError('Pendaftaran Owner tidak ditemukan.', 404);
+    if (owner.email_verified_at) {
+      return {
+        verified: true,
+        alreadyVerified: true,
+        email: owner.email,
+        businessId: null,
+      };
+    }
+    if (!owner.firebase_uid) {
+      throw new AppError('Akun ini bukan pendaftaran Firebase.', 409, {
+        code: 'not_firebase_registration',
+      });
+    }
+
+    let business = null;
+    if (owner.pending_business_name) {
+      const existing = await client.query(
+        `SELECT id FROM businesses WHERE owner_id = $1 AND deleted_at IS NULL LIMIT 1`,
+        [owner.id]
+      );
+      business = existing.rows[0]
+        ? { id: existing.rows[0].id }
+        : await createBusinessInTransaction(client, {
+            ownerId: owner.id,
+            name: owner.pending_business_name,
+            actor: { role: 'owner', id: owner.id },
+            ip,
+          });
+    }
+
+    await client.query(
+      `UPDATE owners
+          SET email_verified_at = now(),
+              pending_business_name = NULL,
+              firebase_verification_sent_at = NULL,
+              email_verification_token_hash = NULL,
+              email_verification_expires_at = NULL
+        WHERE id = $1`,
+      [owner.id]
+    );
+
+    await writeAudit({
+      client,
+      actorRole: 'owner',
+      actorId: owner.id,
+      businessId: business?.id ?? null,
+      action: 'owner.email_verified',
+      entityType: 'owner',
+      entityId: owner.id,
+      after: {
+        email: owner.email,
+        method: 'firebase',
+        source,
+        business_id: business?.id ?? null,
+      },
+      ip,
+    });
+
+    return {
+      verified: true,
+      alreadyVerified: false,
+      email: owner.email,
+      businessId: business?.id ?? null,
+    };
+  });
+};
+
+/**
+ * Pendaftaran Owner mandiri — verifikasi email via Firebase Authentication.
+ *
+ * Password tetap di-hash di PostgreSQL (scrypt). Firebase hanya diberi email
+ * untuk mengirim tautan verifikasi; tidak ada password yang dikirim ke Firebase
+ * dan tidak ada akun ganda di PostgreSQL.
+ */
+export const registerOwner = async ({
+  fullName,
+  businessName,
+  email,
+  password,
+  phone,
+  ip,
+}) => {
+  const firebase = getFirebaseAdapter();
+  if (!firebase.isConfigured()) {
+    throw new AppError(
+      'Pendaftaran belum dibuka (Firebase Authentication belum dikonfigurasi).',
+      503,
+      { code: 'firebase_not_configured' }
+    );
+  }
+
+  const passwordHash = await hashPassword(password);
+  const whatsapp = normalizeWhatsapp(phone);
+
+  let firebaseUser;
+  try {
+    firebaseUser = await firebase.createUser({ email, displayName: fullName });
+  } catch (err) {
+    if (err?.code === 'auth/email-already-exists') {
+      throw new AppError('Email sudah terdaftar. Silakan masuk atau gunakan email lain.', 409, {
+        fields: [{ path: 'email', message: 'Email sudah terdaftar' }],
+      });
+    }
+    throw err;
+  }
+
+  let owner;
+  try {
+    owner = await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO owners
+           (email, password_hash, full_name, phone, status, created_by,
+            email_verified_at, email_verification_method, firebase_uid,
+            pending_business_name)
+         VALUES ($1, $2, $3, $4, 'active', NULL, NULL, 'firebase', $5, $6)
+         RETURNING id, email, full_name`,
+        [email, passwordHash, fullName, whatsapp, firebaseUser.uid, businessName]
+      );
+      const created = rows[0];
+      await writeAudit({
+        client,
+        actorRole: 'owner',
+        actorId: created.id,
+        action: 'owner.register',
+        entityType: 'owner',
+        entityId: created.id,
+        after: {
+          email: created.email,
+          full_name: created.full_name,
+          phone: whatsapp,
+          business_name: businessName,
+          email_verified: false,
+          verification_method: 'firebase',
+        },
+        ip,
+      });
+      return created;
+    });
+  } catch (err) {
+    // Jangan meninggalkan user Firebase yatim bila DB menolak pendaftaran.
+    await firebase.deleteUser(firebaseUser.uid).catch((cleanupErr) => {
+      console.error('[auth] gagal membersihkan user Firebase:', cleanupErr?.message ?? 'unknown');
+    });
+    if (err?.code === '23505') {
+      throw new AppError('Email sudah terdaftar. Silakan masuk atau gunakan email lain.', 409, {
+        fields: [{ path: 'email', message: 'Email sudah terdaftar' }],
+      });
+    }
+    throw err;
+  }
+
+  const verificationState = signEmailVerificationState(owner.id);
+  let emailSent = false;
+  try {
+    await firebase.sendVerificationEmail({
+      uid: firebaseUser.uid,
+      continueUrl: verificationPageUrl(verificationState),
+    });
+    await query(
+      `UPDATE owners SET firebase_verification_sent_at = now() WHERE id = $1`,
+      [owner.id]
+    );
+    emailSent = true;
+  } catch (err) {
+    // Pendaftaran tetap tersimpan agar tidak membuat akun ganda saat pengguna
+    // mengulang form; pengguna bisa memakai tombol "Kirim ulang email".
+    console.error('[auth] gagal mengirim email verifikasi Firebase:', err?.message ?? 'unknown');
+  }
+
+  return {
+    owner: { id: owner.id, email: owner.email, fullName: owner.full_name },
+    email: owner.email,
+    emailSent,
+    verificationMethod: 'email',
+    verificationState,
+    message: emailSent
+      ? 'Pendaftaran berhasil. Kami telah mengirim tautan verifikasi ke email Anda.'
+      : 'Pendaftaran berhasil, tetapi email verifikasi belum terkirim. Gunakan tombol Kirim ulang email.',
+  };
+};
+
+/** Status pendaftaran Firebase berdasarkan state (tanpa mengubah data). */
+export const getOwnerFirebaseVerificationStatus = async ({ state }) => {
+  const owner = await findOwnerForVerification(ownerIdFromState(state));
+  if (!owner) throw new AppError('Pendaftaran Owner tidak ditemukan.', 404);
+
+  const cooldownMs = env.firebase.resendCooldownSeconds * 1000;
+  const sentAt = owner.firebase_verification_sent_at
+    ? new Date(owner.firebase_verification_sent_at).getTime()
+    : 0;
+  const retryAfterSeconds =
+    sentAt && Date.now() - sentAt < cooldownMs
+      ? Math.max(1, Math.ceil((cooldownMs - (Date.now() - sentAt)) / 1000))
+      : 0;
+
+  return {
+    email: owner.email,
+    verified: Boolean(owner.email_verified_at),
+    verificationMethod: owner.email_verification_method,
+    canResend: !owner.email_verified_at && Boolean(owner.firebase_uid),
+    retryAfterSeconds,
+  };
+};
+
+/**
+ * "Saya sudah verifikasi": backend memeriksa status terbaru ke Firebase Admin
+ * SDK. Bila `idToken` tersedia, token diverifikasi lebih dulu dan uid harus
+ * sama. Status dari browser tidak pernah dipercaya.
+ */
+export const verifyOwnerFirebase = async ({ state, idToken, ip }) => {
+  const owner = await findOwnerForVerification(ownerIdFromState(state));
+  if (!owner) throw new AppError('Pendaftaran Owner tidak ditemukan.', 404);
+  if (owner.email_verified_at) {
+    return {
+      verified: true,
+      alreadyVerified: true,
+      email: owner.email,
+      message: 'Email sudah terverifikasi. Silakan masuk ke panel Owner.',
+    };
+  }
+  if (!owner.firebase_uid || owner.email_verification_method !== 'firebase') {
+    throw new AppError('Akun ini bukan pendaftaran Firebase.', 409, {
+      code: 'not_firebase_registration',
+    });
+  }
+
+  const firebase = getFirebaseAdapter();
+  if (idToken) {
+    const decoded = await firebase.verifyIdToken(idToken);
+    if (decoded.uid !== owner.firebase_uid) {
+      throw new AppError('Identitas Firebase tidak cocok dengan pendaftaran.', 403, {
+        code: 'firebase_identity_mismatch',
+      });
+    }
+    if (decoded.email && decoded.email.toLowerCase() !== owner.email.toLowerCase()) {
+      throw new AppError('Email Firebase tidak cocok dengan pendaftaran.', 409, {
+        code: 'firebase_email_mismatch',
+      });
+    }
+  }
+
+  const firebaseUser = await firebase.getUser(owner.firebase_uid);
+  if (firebaseUser.email && firebaseUser.email.toLowerCase() !== owner.email.toLowerCase()) {
+    throw new AppError('Email Firebase tidak cocok dengan pendaftaran.', 409, {
+      code: 'firebase_email_mismatch',
+    });
+  }
+  if (!firebaseUser.emailVerified) {
+    return {
+      verified: false,
+      email: owner.email,
+      message: 'Email belum diverifikasi. Buka tautan di email Anda lalu coba lagi.',
+    };
+  }
+
+  const result = await activateOwnerFromFirebase({ ownerId: owner.id, ip, source: 'verification' });
+  return {
+    ...result,
+    message: 'Email berhasil diverifikasi. Silakan masuk ke panel Owner.',
+  };
+};
+
+/** Kirim ulang email verifikasi Firebase dengan batas cooldown per akun. */
+export const resendOwnerFirebaseVerification = async ({ state, ip }) => {
+  const owner = await findOwnerForVerification(ownerIdFromState(state));
+  if (!owner) throw new AppError('Pendaftaran Owner tidak ditemukan.', 404);
+  if (owner.email_verified_at) {
+    return { sent: false, verified: true, message: 'Email sudah terverifikasi.' };
+  }
+  if (!owner.firebase_uid || owner.email_verification_method !== 'firebase') {
+    throw new AppError('Akun ini bukan pendaftaran Firebase.', 409, {
+      code: 'not_firebase_registration',
+    });
+  }
+
+  const firebase = getFirebaseAdapter();
+  const firebaseUser = await firebase.getUser(owner.firebase_uid);
+  if (firebaseUser.emailVerified) {
+    const result = await activateOwnerFromFirebase({ ownerId: owner.id, ip, source: 'resend' });
+    return { sent: false, ...result, message: 'Email sudah terverifikasi. Silakan masuk.' };
+  }
+
+  const cooldownMs = env.firebase.resendCooldownSeconds * 1000;
+  const sentAt = owner.firebase_verification_sent_at
+    ? new Date(owner.firebase_verification_sent_at).getTime()
+    : 0;
+  if (sentAt && Date.now() - sentAt < cooldownMs) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((cooldownMs - (Date.now() - sentAt)) / 1000));
+    throw new AppError('Tunggu sebentar sebelum meminta email verifikasi lagi.', 429, {
+      retryAfterSeconds,
+    });
+  }
+
+  await firebase.sendVerificationEmail({
+    uid: owner.firebase_uid,
+    continueUrl: verificationPageUrl(state),
+  });
+  await query(
+    `UPDATE owners SET firebase_verification_sent_at = now() WHERE id = $1`,
+    [owner.id]
+  );
+  await writeAudit({
+    actorRole: 'owner',
+    actorId: owner.id,
+    action: 'owner.email_verification_resent',
+    entityType: 'owner',
+    entityId: owner.id,
+    after: { method: 'firebase' },
+    ip,
+  });
+
+  return {
+    sent: true,
+    verified: false,
+    message: 'Email verifikasi baru telah dikirim. Periksa kotak masuk dan folder spam.',
+  };
+};
+
+/**
+ * Verifikasi email dari tautan. Atomik: tandai terverifikasi + buat bisnis
+ * pertama + langganan Gratis + audit dalam satu transaksi.
+ */
+export const verifyOwnerEmail = async ({ token, ip }) => {
+  const tokenHash = hashVerificationToken(token);
+
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, email, full_name, email_verified_at,
+              email_verification_expires_at, pending_business_name
+         FROM owners
+        WHERE email_verification_token_hash = $1
+          AND email_verification_method = 'manual'
+          AND deleted_at IS NULL
+        FOR UPDATE`,
+      [tokenHash]
+    );
+    const owner = rows[0];
+    if (!owner) {
+      throw new AppError('Tautan verifikasi tidak valid atau sudah dipakai.', 400);
+    }
+    if (!owner.email_verification_expires_at || new Date(owner.email_verification_expires_at) < new Date()) {
+      throw new AppError('Tautan verifikasi sudah kedaluwarsa. Minta tautan baru.', 400);
+    }
+
+    await client.query(
+      `UPDATE owners
+          SET email_verified_at = now(),
+              email_verification_token_hash = NULL,
+              email_verification_expires_at = NULL,
+              pending_business_name = NULL
+        WHERE id = $1`,
+      [owner.id]
+    );
+
+    let business = null;
+    if (owner.pending_business_name) {
+      business = await createBusinessInTransaction(client, {
+        ownerId: owner.id,
+        name: owner.pending_business_name,
+        actor: { role: 'owner', id: owner.id },
+        ip,
+      });
+    }
+
+    await writeAudit({
+      client,
+      actorRole: 'owner',
+      actorId: owner.id,
+      businessId: business?.id ?? null,
+      action: 'owner.email_verified',
+      entityType: 'owner',
+      entityId: owner.id,
+      after: { email: owner.email, business_name: owner.pending_business_name },
+      ip,
+    });
+
+    return {
+      verified: true,
+      email: owner.email,
+      businessId: business?.id ?? null,
+      message: 'Email berhasil diverifikasi. Silakan masuk ke panel Owner.',
+    };
+  });
+};
+
+/**
+ * Kirim ulang tautan verifikasi. Respons selalu generik agar tidak menjadi
+ * alat enumerasi email. Token lama diganti (tautan lama tidak berlaku).
+ */
+export const resendOwnerVerification = async ({ email, ip }) => {
+  ensureRegistrationOpen();
+
+  const token = newVerificationToken();
+  const tokenHash = hashVerificationToken(token);
+  const expiresAt = new Date(
+    Date.now() + env.app.emailVerificationTtlHours * 60 * 60 * 1000
+  );
+
+  const owner = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `SELECT id, email, full_name, email_verified_at
+         FROM owners
+        WHERE lower(email) = lower($1)
+          AND email_verification_method = 'manual'
+          AND deleted_at IS NULL
+        FOR UPDATE`,
+      [email]
+    );
+    const found = rows[0];
+    if (!found || found.email_verified_at) return null;
+
+    await client.query(
+      `UPDATE owners
+          SET email_verification_token_hash = $1,
+              email_verification_expires_at = $2
+        WHERE id = $3`,
+      [tokenHash, expiresAt, found.id]
+    );
+    return found;
+  });
+
+  const generic = {
+    message:
+      'Jika email terdaftar dan belum diverifikasi, tautan verifikasi baru telah dikirim.',
+  };
+  if (!owner) return generic;
+
+  let mail = null;
+  try {
+    mail = await sendOwnerVerificationEmail({
+      to: owner.email,
+      fullName: owner.full_name,
+      verifyUrl: verificationUrl(token),
+      expiresHours: env.app.emailVerificationTtlHours,
+    });
+  } catch (err) {
+    // Jangan bocorkan keberadaan akun lewat status HTTP; kegagalan sudah
+    // dicatat oleh modul mailer.
+    console.error('[auth] gagal mengirim ulang verifikasi:', err?.message ?? 'unknown');
+    return generic;
+  }
+
+  if (!env.isProduction && mail?.delivered === false) {
+    return { ...generic, devVerificationUrl: verificationUrl(token) };
+  }
+  return generic;
 };
 
 /**
@@ -299,13 +902,20 @@ export const refresh = async ({ refreshToken }) => {
     const store = USER_STORES[record.user_role];
     if (!store) throw new UnauthorizedError('Peran tidak dikenal');
 
+    const verifiedColumn = record.user_role === 'owner' ? ', email_verified_at' : '';
     const { rows: userRows } = await client.query(
-      `SELECT id, email, full_name, status FROM ${store.table} WHERE id = $1`,
+      `SELECT id, email, full_name, status${verifiedColumn}
+         FROM ${store.table} WHERE id = $1`,
       [record.user_id]
     );
     const account = userRows[0];
     if (!account) throw new UnauthorizedError('Akun tidak ditemukan');
     if (account.status !== 'active') throw new UnauthorizedError('Akun Anda dinonaktifkan');
+    if (record.user_role === 'owner' && !account.email_verified_at) {
+      throw new ForbiddenError(
+        'Akun menunggu verifikasi email. Buka tautan verifikasi Firebase.'
+      );
+    }
 
     // Rotasi atomik di dalam transaksi yang sama
     await client.query('UPDATE refresh_tokens SET revoked_at = now() WHERE id = $1', [
@@ -447,5 +1057,9 @@ export default {
   isRoleSupported,
   revokeAllSessions,
   changePassword,
+  registerOwner,
+  getOwnerFirebaseVerificationStatus,
+  verifyOwnerFirebase,
+  resendOwnerFirebaseVerification,
   SUPPORTED_ROLES,
 };

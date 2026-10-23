@@ -8,7 +8,7 @@ satu database PostgreSQL terpusat**.
 
 | Tool | Versi | Catatan |
 |---|---|---|
-| Node.js | >= 20 (v24.20.0 di mesin ini) | |
+| Node.js | >= 22 (v26.4.0 di mesin ini) | Firebase Admin SDK 14 |
 | npm | >= 10 (11.19.0) | npm workspaces |
 | PostgreSQL | 16.1 | Terinstall di `D:\postgresql-16.1-1-windows-x64-full` |
 
@@ -42,6 +42,14 @@ Edit `server\.env` bila perlu (DATABASE_URL sudah sesuai untuk dev).
 > ingin menguji pembayaran langganan. Biarkan kosong untuk menonaktifkannya —
 > server tetap berjalan dan endpoint pembayaran menjawab 503. Kredensial
 > **tidak boleh** di-commit. Rincian: `docs/38-pembayaran-langganan-gateway.md`.
+>
+> **Verifikasi pendaftaran Owner memakai Firebase Authentication (email).**
+> Isi `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
+> `FIREBASE_PRIVATE_KEY` (atau `FIREBASE_SERVICE_ACCOUNT_JSON`) dan
+> `FIREBASE_WEB_API_KEY`, lalu aktifkan Email/Password + template verifikasi di
+> Firebase Console. Tanpa konfigurasi ini pendaftaran menjawab **503**;
+> login Admin/Kasir dan Owner lama tetap berjalan. `SUPPORT_WHATSAPP` hanya
+> untuk akun pending lama. Rincian: `docs/24-vercel-serverless.md`.
 
 ### 3. Install dependency & migrasi
 
@@ -326,9 +334,15 @@ roadmap fase.
   jalan; mode produksi terkunci kunci pengaman `PAYMENT_ALLOW_PRODUCTION`.
   Lingkup **hanya langganan** — pembayaran penjualan kasir tetap manual.
   Rincian & cara uji sandbox: `docs/38-pembayaran-langganan-gateway.md`.
-  Alur pelanggan baru dari akun sampai langganan aktif (akun Owner dibuat Admin
-  Platform, bisnis baru otomatis dapat paket **Gratis** 30 hari, lalu upgrade
-  self-service): `docs/39-cara-pelanggan-baru-mendaftar-langganan.md`.
+  Alur pelanggan baru dari akun sampai langganan aktif: `docs/39-cara-pelanggan-baru-mendaftar-langganan.md`.
+- **Pendaftaran Owner mandiri + verifikasi email Firebase (23 Okt 2026)**:
+  calon Owner mendaftar dari panel Owner (`/owner/?daftar=1`) atau CTA **Daftar
+  Gratis** di beranda. Firebase mengirim tautan verifikasi; password tetap
+  di-hash scrypt di server. Setelah email terverifikasi, server dalam satu
+  transaksi membuat **bisnis pertama + langganan Gratis 30 hari**. Login
+  sebelum verifikasi ditolak **403** (`email_not_verified`) dan diarahkan ke
+  `/owner/verify-email`; endpoint daftar dibatasi 5/jam/IP. Migrasi
+  `0013`–`0015`; rincian `docs/39` & `docs/08`.
 - **Navigasi samping + ganti sandi sendiri + tombol lihat sandi (20 Okt 2026,
   live)**: ketiga panel web memakai **sidebar** (desktop 252 px; ≤ 900 px
   off-canvas dengan hamburger/overlay — `shared/sidebar.css`,

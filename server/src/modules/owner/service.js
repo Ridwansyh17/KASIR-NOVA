@@ -23,6 +23,42 @@ export const listBusinesses = async (ownerId) => {
   return rows;
 };
 
+/**
+ * Buat bisnis + langganan default di dalam transaksi milik pemanggil.
+ * Dipakai `createBusiness` (panel Owner), verifikasi pendaftaran mandiri,
+ * dan verifikasi Admin via WhatsApp (bisnis pertama + langganan Gratis atomik).
+ */
+export const createBusinessInTransaction = async (
+  client,
+  { ownerId, name, businessType, currency, timezone, actor, ip }
+) => {
+  const { rows } = await client.query(
+    `INSERT INTO businesses (owner_id, name, business_type, currency, timezone, status)
+     VALUES ($1, $2, $3, COALESCE($4, 'IDR'), COALESCE($5, 'Asia/Jakarta'), 'active')
+     RETURNING ${BUSINESS_COLUMNS}`,
+    [ownerId, name, businessType ?? null, currency ?? null, timezone ?? null]
+  );
+  const business = rows[0];
+
+  // Keputusan pemilik (OPSI A): bisnis baru otomatis diberi langganan
+  // plan default, dalam transaksi yang sama dengan pembuatan bisnis.
+  await createDefaultSubscription(client, business.id);
+
+  await writeAudit({
+    client,
+    actorRole: actor.role,
+    actorId: actor.id,
+    businessId: business.id,
+    action: 'business.create',
+    entityType: 'business',
+    entityId: business.id,
+    after: { name: business.name, business_type: business.business_type },
+    ip,
+  });
+
+  return business;
+};
+
 /** Buat bisnis baru + langganan default Gratis (satu transaksi database). */
 export const createBusiness = async ({
   ownerId,
@@ -33,33 +69,17 @@ export const createBusiness = async ({
   actor,
   ip,
 }) => {
-  return withTransaction(async (client) => {
-    const { rows } = await client.query(
-      `INSERT INTO businesses (owner_id, name, business_type, currency, timezone, status)
-       VALUES ($1, $2, $3, COALESCE($4, 'IDR'), COALESCE($5, 'Asia/Jakarta'), 'active')
-       RETURNING ${BUSINESS_COLUMNS}`,
-      [ownerId, name, businessType ?? null, currency ?? null, timezone ?? null]
-    );
-    const business = rows[0];
-
-    // Keputusan pemilik (OPSI A): bisnis baru otomatis diberi langganan
-    // plan default, dalam transaksi yang sama dengan pembuatan bisnis.
-    await createDefaultSubscription(client, business.id);
-
-    await writeAudit({
-      client,
-      actorRole: actor.role,
-      actorId: actor.id,
-      businessId: business.id,
-      action: 'business.create',
-      entityType: 'business',
-      entityId: business.id,
-      after: { name: business.name, business_type: business.business_type },
+  return withTransaction((client) =>
+    createBusinessInTransaction(client, {
+      ownerId,
+      name,
+      businessType,
+      currency,
+      timezone,
+      actor,
       ip,
-    });
-
-    return business;
-  });
+    })
+  );
 };
 
 /** Ubah data bisnis milik owner. */
