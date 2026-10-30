@@ -301,10 +301,10 @@ export const api = {
   getBusinessSubscription: (businessId) =>
     request(`/api/platform/businesses/${businessId}/subscription`),
 
-  assignSubscription: (businessId, planId) =>
+  assignSubscription: (businessId, planId, billingPeriod = 'monthly') =>
     request(`/api/platform/businesses/${businessId}/subscription`, {
       method: 'POST',
-      body: JSON.stringify({ planId }),
+      body: JSON.stringify({ planId, billingPeriod }),
     }),
 
   setSubscriptionStatus: (businessId, status) =>

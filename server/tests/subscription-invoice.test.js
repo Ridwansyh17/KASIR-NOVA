@@ -49,6 +49,7 @@ let planOk;
 let planBesar;
 let planKecil;
 let planGratis;
+let planTahunan;
 
 const calls = { createInvoice: [], checkStatus: [] };
 let statusResponse = {
@@ -181,6 +182,11 @@ before(async () => {
   planBesar = await insertPlan(`Paket Uji 50rb ${SUF}`, PRICE_BESAR);
   planKecil = await insertPlan(`Paket Uji 5rb ${SUF}`, PRICE_KECIL);
   planGratis = await insertPlan(`Paket Uji Gratis ${SUF}`, 0);
+  planTahunan = await insertPlan(`Paket Uji Tahunan ${SUF}`, PRICE_OK);
+  await query('UPDATE subscription_plans SET price_yearly = $2 WHERE id = $1', [
+    planTahunan,
+    PRICE_OK * 10,
+  ]);
 
   setProviderForTests(fakeProvider);
 });
@@ -191,7 +197,7 @@ after(async () => {
   await cleanupOwner(EMAIL_LAIN);
   await query(`DELETE FROM audit_logs WHERE business_id = $1`, [businessId]).catch(() => {});
   await query(`DELETE FROM subscription_plans WHERE id = ANY($1::uuid[])`, [
-    [planOk, planBesar, planKecil, planGratis],
+    [planOk, planBesar, planKecil, planGratis, planTahunan],
   ]);
   await request.stop();
 });
@@ -446,6 +452,56 @@ test('sync pada tagihan yang sudah lunas tidak memanggil gateway lagi', async ()
   assert.strictEqual(res.status, 200);
   assert.strictEqual(res.body.checked, false);
   assert.strictEqual(calls.checkStatus.length, before, 'tanpa panggilan gateway tambahan');
+});
+
+test('paket tahunan: tagihan 10x bulanan, aktif 365 hari, harga kesepakatan dipakai ulang', async () => {
+  const opsi = await request.get(subPath(businessId, '/plans'), auth(token));
+  const p = opsi.body.plans.find((item) => item.id === planTahunan);
+  assert.ok(p);
+  assert.strictEqual(p.price_monthly, PRICE_OK);
+  assert.strictEqual(p.price_yearly, PRICE_OK * 10);
+  assert.ok(p.billing_periods.includes('yearly'));
+
+  const created = await createInvoice(token, businessId, {
+    planId: planTahunan,
+    billingPeriod: 'yearly',
+    paymentMethod: 'BC',
+  });
+  assert.strictEqual(created.status, 201);
+  const inv = created.body.invoice;
+  assert.strictEqual(inv.billing_period, 'yearly');
+  assert.strictEqual(inv.amount, PRICE_OK * 10);
+
+  const res = await sendCallback(
+    signedCallback({ orderId: inv.order_id, amountIdr: inv.amount / 100 })
+  );
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.body.status, 'lunas');
+
+  const { rows } = await query(
+    `SELECT billing_period, price_amount, started_at, expires_at
+       FROM subscriptions WHERE business_id = $1 AND status = 'active'`,
+    [businessId]
+  );
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].billing_period, 'yearly');
+  assert.strictEqual(Number(rows[0].price_amount), PRICE_OK * 10);
+  const spread = new Date(rows[0].expires_at) - new Date(rows[0].started_at);
+  assert.ok(Math.abs(spread - 365 * 24 * 60 * 60 * 1000) < 5000, 'aktif 365 hari');
+
+  // Perubahan harga paket oleh Admin tidak boleh otomatis mengubah tagihan
+  // perpanjangan untuk paket + periode yang sudah disepakati.
+  await query('UPDATE subscription_plans SET price_yearly = $2 WHERE id = $1', [
+    planTahunan,
+    PRICE_OK * 20,
+  ]);
+  const renewal = await createInvoice(token, businessId, {
+    planId: planTahunan,
+    billingPeriod: 'yearly',
+    paymentMethod: 'BC',
+  });
+  assert.strictEqual(renewal.status, 201);
+  assert.strictEqual(renewal.body.invoice.amount, PRICE_OK * 10);
 });
 
 test('riwayat tagihan: filter status & paginasi', async () => {

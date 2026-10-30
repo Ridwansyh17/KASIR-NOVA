@@ -50,6 +50,7 @@ export const createInvoice = async (req, res, next) => {
     const result = await service.createInvoiceForPlan({
       businessId: req.params.businessId,
       planId: req.body.planId,
+      billingPeriod: req.body.billingPeriod,
       paymentMethod: req.body.paymentMethod,
       actor: req.user,
       ip: req.ip,

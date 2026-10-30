@@ -1619,6 +1619,45 @@ produksi: `/api/health` 200, `/api/auth/registration-plans` 200,
 
 ---
 
+## 30 Okt 2026 — Paket NOVA final: landing → pendaftaran → approval → langganan
+
+**Keputusan harga final (sen).** NOVA STARTER Rp49.000/bulan atau Rp490.000/tahun;
+NOVA BUSINESS Rp99.000/bulan atau Rp990.000/tahun; NOVA PRO Rp149.000/bulan atau
+Rp1.490.000/tahun; NOVA ENTERPRISE harga konsultasi. Tahunan = 10× bulanan
+(2 bulan gratis). Tidak ada harga lain.
+
+**Implementasi.**
+- Migrasi `0017_nova_packages.sql`: `slug`, `price_monthly`, `price_yearly`,
+  `is_custom_price`, `is_public` pada paket; trigger sinkron `price` legacy;
+  seed 4 paket NOVA; paket default "Gratis" tidak publik.
+- `subscriptions`: `billing_period`, `price_amount` (snapshot kesepakatan).
+  `owner_registrations`: `billing_period`, `agreed_price`.
+  `subscription_invoices`: `billing_period`.
+- Landing: 4 kartu harga final, toggle **Bulanan/Tahunan**, tombol **PILIH
+  PAKET** membawa slug + periode ke `/owner/?daftar=1…`; Enterprise
+  **HUBUNGI ADMIN** via WhatsApp `6281359704766`.
+- Form Owner mengingat pilihan paket/periode (URL + sessionStorage), mengirim
+  `billingPeriod`, dan menampilkan harga/masa trial. Approval Center Admin
+  menampilkan periode + harga; approval membuat trial 30 hari.
+- Tagihan online memakai harga bulanan/tahunan; perpanjangan paket+periode yang
+  sama memakai snapshot harga kesepakatan. Admin dapat mengelola slug/harga
+  bulanan/tahunan/publik/custom dan memasang langganan dengan periode.
+
+**Pengujian (lokal, DB berjalan).**
+- `node --test tests/self-registration.test.js tests/subscription-invoice.test.js`
+  → **30/30 lulus** (termasuk pendaftaran tahunan, paket tersembunyi ditolak,
+  tagihan tahunan 365 hari, dan snapshot harga tidak berubah saat harga paket
+  diubah Admin).
+- `npm run test:landing` → **170/170 lulus**.
+- Verifikasi penuh `test:server`, `verify:ui`, `test:auth`, `test:image`,
+  `test:qr` dijalankan sebelum commit/deploy.
+
+**Status.** Selesai di lokal; **belum di-commit dan belum dideploy**. Migrasi
+`0017` belum diterapkan ke Neon produksi. Jangan deploy sebelum seluruh
+pemeriksaan lulus dan backup produksi dibuat.
+
+---
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk

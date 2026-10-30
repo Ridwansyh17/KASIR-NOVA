@@ -34,13 +34,16 @@ import {
 } from '../../payments/index.js';
 import { stripSignature } from '../../payments/duitku.js';
 
-const INVOICE_COLUMNS = `id, business_id, plan_id, subscription_id, order_id, amount, status,
+const INVOICE_COLUMNS = `id, business_id, plan_id, subscription_id, order_id, amount, billing_period, status,
   provider, payment_method, provider_reference, va_number, qr_string, payment_url,
   expires_at, paid_at, failed_at, attempts, created_by, created_at, updated_at`;
 
 const JOINED_COLUMNS = `i.${INVOICE_COLUMNS.split(',').map((c) => c.trim()).join(', i.')},
-  p.name AS plan_name, p.price AS plan_price, p.duration_days AS plan_duration_days,
-  p.max_outlets AS plan_max_outlets, p.max_cashiers AS plan_max_cashiers`;
+  p.name AS plan_name, p.slug AS plan_slug, p.price AS plan_price,
+  p.price_monthly AS plan_price_monthly, p.price_yearly AS plan_price_yearly,
+  p.duration_days AS plan_duration_days,
+  p.max_outlets AS plan_max_outlets, p.max_cashiers AS plan_max_cashiers,
+  p.is_custom_price AS plan_is_custom_price`;
 
 /** sen -> rupiah bulat; null bila bukan kelipatan 100 (tidak bisa dibebankan). */
 const senToRupiah = (sen) => {
@@ -93,6 +96,7 @@ const invoiceDto = (row) => {
     order_id: row.order_id,
     status: row.status,
     amount: Number(row.amount),
+    billing_period: row.billing_period ?? 'monthly',
     provider: row.provider,
     payment_method: row.payment_method,
     payment_method_label: info.label ?? row.payment_method,
@@ -110,10 +114,20 @@ const invoiceDto = (row) => {
     plan: {
       id: row.plan_id,
       name: row.plan_name ?? null,
-      price: row.plan_price !== undefined ? Number(row.plan_price) : null,
+      slug: row.plan_slug ?? null,
+      price:
+        row.plan_price_monthly !== undefined && row.plan_price_monthly !== null
+          ? Number(row.plan_price_monthly)
+          : row.plan_price !== undefined
+            ? Number(row.plan_price)
+            : null,
+      price_monthly:
+        row.plan_price_monthly !== undefined ? Number(row.plan_price_monthly) : null,
+      price_yearly: row.plan_price_yearly !== undefined ? Number(row.plan_price_yearly) : null,
       duration_days: row.plan_duration_days ?? null,
       max_outlets: row.plan_max_outlets ?? null,
       max_cashiers: row.plan_max_cashiers ?? null,
+      is_custom_price: Boolean(row.plan_is_custom_price),
     },
   };
 };
@@ -127,22 +141,40 @@ const invoiceDto = (row) => {
  */
 export const listPurchasablePlans = async () => {
   const { rows } = await query(
-    `SELECT id, name, max_outlets, max_cashiers, price, duration_days, features, is_default
+    `SELECT id, name, slug, max_outlets, max_cashiers, price, price_monthly, price_yearly,
+            duration_days, features, is_default, is_custom_price
        FROM subscription_plans
       WHERE is_active = true
-      ORDER BY price ASC, name ASC`
+      ORDER BY COALESCE(price_monthly, price) ASC, name ASC`
   );
-  return rows.map((p) => ({
-    id: p.id,
-    name: p.name,
-    max_outlets: p.max_outlets,
-    max_cashiers: p.max_cashiers,
-    price: Number(p.price),
-    duration_days: p.duration_days,
-    features: p.features,
-    is_default: p.is_default,
-    purchasable: Number(p.price) > 0 && senToRupiah(p.price) !== null,
-  }));
+  return rows.map((p) => {
+    const monthly = Number(p.price_monthly ?? p.price);
+    const yearly = p.price_yearly === null || p.price_yearly === undefined
+      ? null
+      : Number(p.price_yearly);
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      max_outlets: p.max_outlets,
+      max_cashiers: p.max_cashiers,
+      price: monthly,
+      price_monthly: monthly,
+      price_yearly: yearly,
+      duration_days: p.duration_days,
+      features: p.features,
+      is_default: p.is_default,
+      is_custom_price: p.is_custom_price,
+      billing_periods: [
+        ...(monthly > 0 ? ['monthly'] : []),
+        ...(yearly && yearly > 0 ? ['yearly'] : []),
+      ],
+      purchasable:
+        !p.is_custom_price &&
+        ((monthly > 0 && senToRupiah(monthly) !== null) ||
+          (yearly !== null && yearly > 0 && senToRupiah(yearly) !== null)),
+    };
+  });
 };
 
 /** Ringkasan checkout: daftar paket + status gateway + kanal aktif. */
@@ -199,7 +231,14 @@ export const getInvoice = async ({ businessId, invoiceId }) =>
  * Buat (atau pakai ulang) tagihan untuk sebuah paket lalu minta nomor
  * pembayaran ke gateway.
  */
-export const createInvoiceForPlan = async ({ businessId, planId, paymentMethod, actor, ip }) => {
+export const createInvoiceForPlan = async ({
+  businessId,
+  planId,
+  billingPeriod = 'monthly',
+  paymentMethod,
+  actor,
+  ip,
+}) => {
   const method = String(paymentMethod ?? '').trim().toUpperCase();
   const allowed = activeChannels().map((c) => c.code);
   if (!allowed.includes(method)) {
@@ -215,14 +254,53 @@ export const createInvoiceForPlan = async ({ businessId, planId, paymentMethod, 
   const provider = requireProvider();
   const cfg = env.payments;
 
+  const period = billingPeriod === 'yearly' ? 'yearly' : 'monthly';
+
   const { rows: planRows } = await query(
-    `SELECT id, name, price, duration_days, is_active FROM subscription_plans WHERE id = $1`,
+    `SELECT id, name, price, price_monthly, price_yearly, duration_days, is_active,
+            is_custom_price
+       FROM subscription_plans WHERE id = $1`,
     [planId]
   );
   const plan = planRows[0];
   if (!plan || !plan.is_active) throw new NotFoundError('Paket tidak ditemukan atau nonaktif');
+  if (plan.is_custom_price) {
+    throw new AppError(
+      'Paket Enterprise tidak dapat ditagih otomatis. Hubungi Admin KASIR NOVA.',
+      422,
+      { fields: [{ path: 'planId', message: 'Paket Enterprise melalui Admin' }] }
+    );
+  }
 
-  const amountRupiah = senToRupiah(plan.price);
+  const listedPrice =
+    period === 'yearly' ? plan.price_yearly : plan.price_monthly ?? plan.price;
+
+  // Harga yang sudah disepakati pada langganan berjalan dipakai kembali untuk
+  // paket & periode yang sama. Perubahan harga paket oleh Admin tidak otomatis
+  // mengubah tagihan perpanjangan pelanggan tersebut.
+  const { rows: subRows } = await query(
+    `SELECT plan_id, billing_period, price_amount
+       FROM subscriptions
+      WHERE business_id = $1 AND status = 'active'
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1`,
+    [businessId]
+  );
+  const current = subRows[0];
+  const useAgreedPrice =
+    current &&
+    current.plan_id === plan.id &&
+    current.billing_period === period &&
+    Number(current.price_amount) > 0;
+
+  const amountSen = useAgreedPrice ? Number(current.price_amount) : listedPrice;
+  if (amountSen === null || amountSen === undefined) {
+    throw new AppError('Paket ini belum menyediakan harga untuk periode dipilih.', 422, {
+      fields: [{ path: 'billingPeriod', message: 'Harga periode belum tersedia' }],
+    });
+  }
+
+  const amountRupiah = senToRupiah(amountSen);
   if (amountRupiah === null) {
     throw new AppError('Harga paket tidak dapat ditagih (harus kelipatan Rp 1)', 422);
   }
@@ -260,11 +338,11 @@ export const createInvoiceForPlan = async ({ businessId, planId, paymentMethod, 
        FROM subscription_invoices i
        JOIN subscription_plans p ON p.id = i.plan_id
       WHERE i.business_id = $1 AND i.status = 'pending'
-        AND i.plan_id = $2 AND i.payment_method = $3
+        AND i.plan_id = $2 AND i.payment_method = $3 AND i.billing_period = $4
         AND (i.expires_at IS NULL OR i.expires_at > now())
       ORDER BY i.created_at DESC
       LIMIT 1`,
-    [businessId, plan.id, method]
+    [businessId, plan.id, method, period]
   );
   if (existing[0]) return { invoice: invoiceDto(existing[0]), reused: true };
 
@@ -284,11 +362,21 @@ export const createInvoiceForPlan = async ({ businessId, planId, paymentMethod, 
       );
       const { rows } = await client.query(
         `INSERT INTO subscription_invoices
-           (business_id, plan_id, order_id, amount, status, provider, payment_method,
-            expires_at, created_by)
-         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
+           (business_id, plan_id, order_id, amount, billing_period, status, provider,
+            payment_method, expires_at, created_by)
+         VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7, $8, $9)
          RETURNING ${INVOICE_COLUMNS}`,
-        [businessId, plan.id, orderId, plan.price, provider.name, method, expiresAt, actor?.id ?? null]
+        [
+          businessId,
+          plan.id,
+          orderId,
+          amountSen,
+          period,
+          provider.name,
+          method,
+          expiresAt,
+          actor?.id ?? null,
+        ]
       );
       await writeAudit({
         client,
@@ -301,7 +389,8 @@ export const createInvoiceForPlan = async ({ businessId, planId, paymentMethod, 
         after: {
           order_id: orderId,
           plan_id: plan.id,
-          amount: Number(plan.price),
+          amount: Number(amountSen),
+          billing_period: period,
           provider: provider.name,
           payment_method: method,
         },
@@ -421,11 +510,17 @@ const applyPaidInvoice = async ({ invoiceId, paymentInfo = {}, ip = null, source
 
     // Masa berlaku dihitung dari sekarang (pola sama dengan `assignSubscription`
     // milik Admin Platform) — bukan ditambahkan ke sisa masa langganan lama.
+    const period = invoice.billing_period === 'yearly' ? 'yearly' : 'monthly';
+    const durationDays = period === 'yearly' ? 365 : plan.duration_days;
+
     const { rows: subRows } = await client.query(
-      `INSERT INTO subscriptions (business_id, plan_id, status, started_at, expires_at, auto_renew)
-       VALUES ($1, $2, 'active', now(), now() + make_interval(days => $3), false)
-       RETURNING id, business_id, plan_id, status, started_at, expires_at, auto_renew`,
-      [invoice.business_id, invoice.plan_id, plan.duration_days]
+      `INSERT INTO subscriptions
+         (business_id, plan_id, status, billing_period, price_amount,
+          started_at, expires_at, auto_renew)
+       VALUES ($1, $2, 'active', $3, $4, now(), now() + make_interval(days => $5), false)
+       RETURNING id, business_id, plan_id, status, billing_period, price_amount,
+                 started_at, expires_at, auto_renew`,
+      [invoice.business_id, invoice.plan_id, period, invoice.amount, durationDays]
     );
 
     const { rows: updRows } = await client.query(
@@ -450,6 +545,7 @@ const applyPaidInvoice = async ({ invoiceId, paymentInfo = {}, ip = null, source
       after: {
         plan_id: invoice.plan_id,
         plan_name: plan.name,
+        billing_period: period,
         status: 'active',
         invoice_id: invoice.id,
         order_id: invoice.order_id,

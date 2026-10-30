@@ -17,12 +17,13 @@ import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
 
-const SUBSCRIPTION_COLUMNS = `id, business_id, plan_id, status, started_at, expires_at, auto_renew, created_at, updated_at`;
+const SUBSCRIPTION_COLUMNS = `id, business_id, plan_id, status, billing_period, price_amount,
+  started_at, expires_at, auto_renew, created_at, updated_at`;
 
 /** Buat langganan default untuk bisnis baru (dalam transaksi bisnis). */
 export const createDefaultSubscription = async (client, businessId) => {
   const { rows } = await client.query(
-    `SELECT id, duration_days FROM subscription_plans
+    `SELECT id, duration_days, price, price_monthly FROM subscription_plans
       WHERE is_default = true AND is_active = true LIMIT 1`
   );
   const plan = rows[0];
@@ -31,10 +32,12 @@ export const createDefaultSubscription = async (client, businessId) => {
   }
 
   const { rows: subRows } = await client.query(
-    `INSERT INTO subscriptions (business_id, plan_id, status, started_at, expires_at, auto_renew)
-     VALUES ($1, $2, 'active', now(), now() + make_interval(days => $3), false)
+    `INSERT INTO subscriptions
+       (business_id, plan_id, status, billing_period, price_amount,
+        started_at, expires_at, auto_renew)
+     VALUES ($1, $2, 'active', 'monthly', $3, now(), now() + make_interval(days => $4), false)
      RETURNING ${SUBSCRIPTION_COLUMNS}`,
-    [businessId, plan.id, plan.duration_days]
+    [businessId, plan.id, plan.price_monthly ?? plan.price ?? 0, plan.duration_days]
   );
   return subRows[0];
 };
@@ -46,20 +49,27 @@ export const createDefaultSubscription = async (client, businessId) => {
  */
 export const createTrialSubscription = async (
   client,
-  { businessId, planId, trialDays = 30 }
+  { businessId, planId, trialDays = 30, billingPeriod = 'monthly', priceAmount = null }
 ) => {
   const { rows: planRows } = await client.query(
-    `SELECT id, name, duration_days FROM subscription_plans WHERE id = $1`,
+    `SELECT id, name, duration_days, price, price_monthly, price_yearly
+       FROM subscription_plans WHERE id = $1`,
     [planId]
   );
   const plan = planRows[0];
   if (!plan) throw new NotFoundError('Paket pilihan tidak ditemukan');
 
+  const period = billingPeriod === 'yearly' ? 'yearly' : 'monthly';
+  const agreedPrice =
+    priceAmount ?? (period === 'yearly' ? plan.price_yearly : plan.price_monthly ?? plan.price);
+
   const { rows } = await client.query(
-    `INSERT INTO subscriptions (business_id, plan_id, status, started_at, expires_at, auto_renew)
-     VALUES ($1, $2, 'active', now(), now() + make_interval(days => $3), false)
+    `INSERT INTO subscriptions
+       (business_id, plan_id, status, billing_period, price_amount,
+        started_at, expires_at, auto_renew)
+     VALUES ($1, $2, 'active', $3, $4, now(), now() + make_interval(days => $5), false)
      RETURNING ${SUBSCRIPTION_COLUMNS}`,
-    [businessId, plan.id, trialDays]
+    [businessId, plan.id, period, agreedPrice ?? 0, trialDays]
   );
   return { subscription: rows[0], plan };
 };
@@ -110,7 +120,7 @@ export const enforceCashierQuota = async (client, businessId) => {
 
 const latestSubscription = async (client, businessId) => {
   const { rows } = await client.query(
-    `SELECT s.id AS sub_id, s.status, s.expires_at,
+    `SELECT s.id AS sub_id, s.status, s.expires_at, s.billing_period, s.price_amount,
             p.max_outlets, p.max_cashiers
        FROM subscriptions s
        JOIN subscription_plans p ON p.id = s.plan_id
@@ -144,9 +154,11 @@ export const enforceSubscriptionActive = async (client, businessId) => {
 /** Pemetaan langganan TERBARU + paketnya untuk dilihat Owner/Admin. */
 export const getSubscriptionView = async (businessId) => {
   const { rows } = await query(
-    `SELECT s.id, s.business_id, s.status, s.started_at, s.expires_at, s.auto_renew,
-            p.id AS plan_id, p.name AS plan_name, p.max_outlets, p.max_cashiers,
-            p.price, p.duration_days, p.features, p.is_default
+    `SELECT s.id, s.business_id, s.status, s.billing_period, s.price_amount,
+            s.started_at, s.expires_at, s.auto_renew,
+            p.id AS plan_id, p.name AS plan_name, p.slug, p.max_outlets, p.max_cashiers,
+            p.price, p.price_monthly, p.price_yearly, p.duration_days, p.features,
+            p.is_default, p.is_custom_price
        FROM subscriptions s
        JOIN subscription_plans p ON p.id = s.plan_id
       WHERE s.business_id = $1
@@ -162,6 +174,8 @@ export const getSubscriptionView = async (businessId) => {
       id: row.id,
       business_id: row.business_id,
       status: row.status,
+      billing_period: row.billing_period,
+      price_amount: Number(row.price_amount),
       started_at: row.started_at,
       expires_at: row.expires_at,
       auto_renew: row.auto_renew,
@@ -169,12 +183,16 @@ export const getSubscriptionView = async (businessId) => {
     plan: {
       id: row.plan_id,
       name: row.plan_name,
+      slug: row.slug,
       max_outlets: row.max_outlets,
       max_cashiers: row.max_cashiers,
       price: row.price,
+      price_monthly: row.price_monthly,
+      price_yearly: row.price_yearly,
       duration_days: row.duration_days,
       features: row.features,
       is_default: row.is_default,
+      is_custom_price: row.is_custom_price,
     },
   };
 };
@@ -184,7 +202,13 @@ export const getSubscriptionView = async (businessId) => {
  * Langganan aktif lama diganti statusnya menjadi 'expired' (riwayat tetap),
  * lalu dibuat baris aktif baru mulai hari ini.
  */
-export const assignSubscription = async (businessId, planId, actor, ip) => {
+export const assignSubscription = async (
+  businessId,
+  planId,
+  actor,
+  ip,
+  { billingPeriod = 'monthly' } = {}
+) => {
   return withTransaction(async (client) => {
     const biz = await client.query(
       `SELECT id FROM businesses WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
@@ -193,7 +217,8 @@ export const assignSubscription = async (businessId, planId, actor, ip) => {
     if (!biz.rows[0]) throw new NotFoundError('Bisnis tidak ditemukan');
 
     const plan = await client.query(
-      `SELECT id, name, duration_days FROM subscription_plans
+      `SELECT id, name, duration_days, price, price_monthly, price_yearly
+         FROM subscription_plans
         WHERE id = $1 AND is_active = true`,
       [planId]
     );
@@ -213,11 +238,20 @@ export const assignSubscription = async (businessId, planId, actor, ip) => {
       );
     }
 
+    const period = billingPeriod === 'yearly' ? 'yearly' : 'monthly';
+    const selectedPlan = plan.rows[0];
+    const priceAmount =
+      period === 'yearly'
+        ? selectedPlan.price_yearly
+        : selectedPlan.price_monthly ?? selectedPlan.price;
+
     const { rows } = await client.query(
-      `INSERT INTO subscriptions (business_id, plan_id, status, started_at, expires_at, auto_renew)
-       VALUES ($1, $2, 'active', now(), now() + make_interval(days => $3), false)
+      `INSERT INTO subscriptions
+         (business_id, plan_id, status, billing_period, price_amount,
+          started_at, expires_at, auto_renew)
+       VALUES ($1, $2, 'active', $3, $4, now(), now() + make_interval(days => $5), false)
        RETURNING ${SUBSCRIPTION_COLUMNS}`,
-      [businessId, plan.rows[0].id, plan.rows[0].duration_days]
+      [businessId, selectedPlan.id, period, priceAmount ?? 0, selectedPlan.duration_days]
     );
 
     await writeAudit({
@@ -229,7 +263,12 @@ export const assignSubscription = async (businessId, planId, actor, ip) => {
       entityType: 'subscription',
       entityId: rows[0].id,
       before: { plan_id: beforePlanId, status: beforeStatus },
-      after: { plan_id: rows[0].plan_id, status: rows[0].status },
+      after: {
+        plan_id: rows[0].plan_id,
+        status: rows[0].status,
+        billing_period: rows[0].billing_period,
+        price_amount: Number(rows[0].price_amount),
+      },
       ip,
     });
 

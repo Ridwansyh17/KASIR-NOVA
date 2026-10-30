@@ -61,11 +61,11 @@ before(async () => {
 
   const plan = await query(
     `SELECT id FROM subscription_plans
-      WHERE is_active = true
-      ORDER BY is_default DESC, name ASC
+      WHERE is_active = true AND is_public = true AND is_custom_price = false
+      ORDER BY CASE WHEN slug = 'nova-starter' THEN 0 ELSE 1 END, price_monthly ASC
       LIMIT 1`
   );
-  assert.ok(plan.rows[0], 'butuh minimal satu subscription_plans aktif (jalankan seed/migrasi)');
+  assert.ok(plan.rows[0], 'butuh minimal satu paket publik (jalankan migrasi)');
   planId = plan.rows[0].id;
 
   const admin = await query(
@@ -95,6 +95,23 @@ test('paket publik pendaftaran aktif tanpa memuat data pembayaran', async () => 
   assert.ok(plan, 'paket pilihan tersedia');
   assert.strictEqual(plan.price, undefined, 'harga tidak ditampilkan saat pendaftaran');
   assert.strictEqual(plan.invoice, undefined);
+});
+
+test('paket tersembunyi/non-publik tidak bisa dipakai mendaftar', async () => {
+  const hidden = await query(
+    `SELECT id FROM subscription_plans
+      WHERE is_active = true AND is_public = false
+      ORDER BY is_custom_price ASC, price_monthly ASC NULLS FIRST
+      LIMIT 1`
+  );
+  assert.ok(hidden.rows[0], 'migrasi menyediakan paket default non-publik');
+  const res = await register(EMAIL_C, 'Toko Paket Tersembunyi', {
+    planId: hidden.rows[0].id,
+  });
+  assert.strictEqual(res.status, 422);
+  assert.match(res.body.error.message, /tidak tersedia/i);
+  const owner = await query('SELECT id FROM owners WHERE email = $1', [EMAIL_C]);
+  assert.strictEqual(owner.rowCount, 0, 'pendaftaran gagal tidak membuat akun');
 });
 
 test('pendaftaran membuat akun draft + nomor registrasi tanpa bisnis/langganan', async () => {
@@ -259,6 +276,48 @@ test('Admin menolak dengan alasan; Owner tidak bisa login dan tidak bisa disetuj
 
   const biz = await query('SELECT id FROM businesses WHERE owner_id = $1', [ownerBId]);
   assert.strictEqual(biz.rowCount, 0, 'penolakan tidak membuat bisnis');
+});
+
+test('pendaftaran tahunan menyimpan paket, periode, dan harga kesepakatan', async () => {
+  const plan = await query(
+    `SELECT id, price_yearly FROM subscription_plans
+      WHERE slug = 'nova-business' AND is_active = true`
+  );
+  assert.ok(plan.rows[0], 'paket NOVA BUSINESS harus tersedia');
+  const yearlyPlanId = plan.rows[0].id;
+  const yearlyPrice = Number(plan.rows[0].price_yearly);
+  assert.ok(yearlyPrice > 0);
+
+  const reg = await register(EMAIL_C, 'Toko Tahunan', {
+    planId: yearlyPlanId,
+    billingPeriod: 'yearly',
+  });
+  assert.strictEqual(reg.status, 201);
+  assert.strictEqual(reg.body.registration.billing_period, 'yearly');
+  assert.strictEqual(reg.body.registration.agreed_price, yearlyPrice);
+  assert.strictEqual(reg.body.registration.plan.id, yearlyPlanId);
+
+  await request.post('/api/auth/request-approval', {
+    registrationState: reg.body.registrationState,
+  });
+  const approve = await request.post(
+    `/api/platform/approvals/${reg.body.registration.id}/approve`,
+    {},
+    auth(adminToken)
+  );
+  assert.strictEqual(approve.status, 200);
+
+  const sub = await query(
+    `SELECT s.billing_period, s.price_amount, s.started_at, s.expires_at
+       FROM subscriptions s
+       JOIN businesses b ON b.id = s.business_id
+      WHERE b.owner_id = $1 AND s.status = 'active'`,
+    [reg.body.owner.id]
+  );
+  assert.strictEqual(sub.rows[0].billing_period, 'yearly');
+  assert.strictEqual(Number(sub.rows[0].price_amount), yearlyPrice);
+  const spread = new Date(sub.rows[0].expires_at) - new Date(sub.rows[0].started_at);
+  assert.ok(Math.abs(spread - 30 * DAY_MS) < 5000, 'trial tetap 30 hari sejak approval');
 });
 
 test('tanpa state valid, permintaan approval ditolak', async () => {

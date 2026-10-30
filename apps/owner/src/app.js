@@ -35,6 +35,7 @@ const state = {
   formPhotoCurrent: '', // foto produk tersimpan saat modal dibuka (blok gambar otomatis)
   registrationPlans: [],
   registrationState: null,
+  registrationChoice: null,
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -206,24 +207,63 @@ const renderRegistrationPlans = () => {
   }
   select.append(new Option('Pilih paket…', ''));
   for (const plan of state.registrationPlans) {
+    const price = plan.price_monthly ? ` — ${fmtIDR(plan.price_monthly)}/bulan` : '';
     select.append(
       new Option(
-        `${plan.name} — maks ${plan.max_outlets} outlet / ${plan.max_cashiers} kasir`,
+        `${plan.name}${price} — maks ${plan.max_outlets} outlet / ${plan.max_cashiers} kasir`,
         plan.id
       )
     );
   }
 };
 
+const selectedRegistrationPlan = () =>
+  state.registrationPlans.find((plan) => plan.id === $('register-plan').value) ?? null;
+
+const renderRegisterPlanInfo = () => {
+  const plan = selectedRegistrationPlan();
+  const periodEl = $('register-period');
+  const yearlyOption = periodEl.querySelector('option[value="yearly"]');
+  const canYearly = Boolean(plan?.price_yearly && Number(plan.price_yearly) > 0);
+  if (yearlyOption) yearlyOption.disabled = !canYearly;
+  if (canYearly === false && periodEl.value === 'yearly') periodEl.value = 'monthly';
+
+  const period = periodEl.value === 'yearly' ? 'yearly' : 'monthly';
+  const amount =
+    period === 'yearly' ? Number(plan?.price_yearly ?? 0) : Number(plan?.price_monthly ?? 0);
+  const info = $('register-plan-info');
+  if (!plan) {
+    info.textContent = '';
+    return;
+  }
+  info.textContent = `${fmtIDR(amount)} / ${period === 'yearly' ? 'tahun' : 'bulan'}. Masa gratis 30 hari dimulai setelah Admin menyetujui.`;
+};
+
+const applyRegistrationChoice = () => {
+  const choice = state.registrationChoice;
+  if (!choice) {
+    renderRegisterPlanInfo();
+    return;
+  }
+  if (choice.slug) {
+    const match = state.registrationPlans.find((plan) => plan.slug === choice.slug);
+    if (match) $('register-plan').value = match.id;
+  }
+  if (choice.period) $('register-period').value = choice.period;
+  renderRegisterPlanInfo();
+};
+
 const loadRegistrationPlans = async () => {
-  if (state.registrationPlans.length) return;
-  try {
-    const result = await registrationPlans();
-    state.registrationPlans = result.items ?? [];
-  } catch {
-    state.registrationPlans = [];
+  if (!state.registrationPlans.length) {
+    try {
+      const result = await registrationPlans();
+      state.registrationPlans = result.items ?? [];
+    } catch {
+      state.registrationPlans = [];
+    }
   }
   renderRegistrationPlans();
+  applyRegistrationChoice();
 };
 
 const showRegisterForm = () => {
@@ -275,6 +315,14 @@ const showApprovalPending = (registration, registrationState) => {
     ['Nama Bisnis', registration?.business_name],
     ['Nomor Registrasi', registration?.registration_number],
     ['Paket Pilihan', registration?.plan?.name],
+    [
+      'Periode',
+      registration?.billing_period === 'yearly' ? 'Tahunan' : registration?.billing_period ? 'Bulanan' : null,
+    ],
+    [
+      'Harga setelah masa gratis',
+      registration?.agreed_price ? fmtIDR(registration.agreed_price) : null,
+    ],
   ].filter(([, value]) => value);
   details.innerHTML = rows
     .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
@@ -387,6 +435,9 @@ $('show-login-btn').addEventListener('click', () => {
 $('approval-login-btn').addEventListener('click', () => showLoginForm());
 $('request-approval-btn').addEventListener('click', requestAdminApproval);
 
+$('register-plan').addEventListener('change', renderRegisterPlanInfo);
+$('register-period').addEventListener('change', renderRegisterPlanInfo);
+
 $('register-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('register-error'));
@@ -406,6 +457,7 @@ $('register-form').addEventListener('submit', async (event) => {
     email: $('register-email').value.trim(),
     phone: $('register-phone').value.trim(),
     planId: $('register-plan').value,
+    billingPeriod: $('register-period').value,
     password,
   };
 
@@ -413,6 +465,11 @@ $('register-form').addEventListener('submit', async (event) => {
   button.disabled = true;
   try {
     const result = await registerOwner(payload);
+    try {
+      sessionStorage.removeItem(REGISTRATION_CHOICE_KEY);
+    } catch {
+      // storage tidak tersedia; tidak menghalangi pendaftaran
+    }
     showApprovalPending(result.registration, result.registrationState);
   } catch (err) {
     const el = $('register-error');
@@ -426,9 +483,11 @@ $('register-form').addEventListener('submit', async (event) => {
 const cleanAuthParams = () => {
   const url = new URL(window.location.href);
   let changed = false;
-  if (url.searchParams.has('daftar')) {
-    url.searchParams.delete('daftar');
-    changed = true;
+  for (const key of ['daftar', 'paket', 'periode']) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
   }
   if (changed) {
     window.history.replaceState(
@@ -572,8 +631,10 @@ const renderSubscription = (view) => {
   $('sub-plan').textContent = `${pl.name} ${pl.is_default ? '(default)' : ''}`;
   $('sub-max-outlets').textContent = pl.max_outlets;
   $('sub-max-cashiers').textContent = pl.max_cashiers;
-  $('sub-price').textContent = fmtIDR(pl.price);
+  const periode = st.billing_period === 'yearly' ? 'tahun' : 'bulan';
+  $('sub-price').textContent = `${fmtIDR(st.price_amount ?? pl.price)} / ${periode}`;
   $('sub-expires').textContent = fmtDate(st.expires_at);
+  state.subscriptionView = view;
 };
 
 // ------------------------------------- Pembayaran langganan (gateway) --------
@@ -598,6 +659,7 @@ const INVOICE_STATUS_TEXT = {
 state.payGateway = null; // ringkasan gateway dari server (tanpa rahasia apa pun)
 state.payPlans = [];
 state.payInvoice = null; // tagihan yang sedang ditampilkan di modal
+state.subscriptionView = null;
 
 const invoiceStatusBadge = (status) => {
   const cls = status === 'paid' ? 'ok' : status === 'pending' ? '' : 'off';
@@ -698,10 +760,23 @@ const refreshSubscriptionOnly = async () => {
   await loadSubscriptionInvoices();
 };
 
+const selectedPayPlan = () =>
+  state.payPlans.find((p) => p.id === $('pay-plan').value) ?? null;
+
 const renderPayPlanInfo = () => {
-  const plan = state.payPlans.find((p) => p.id === $('pay-plan').value);
+  const plan = selectedPayPlan();
+  const periodEl = $('pay-period');
+  const yearlyOption = periodEl.querySelector('option[value="yearly"]');
+  const canYearly = Boolean(plan?.price_yearly && Number(plan.price_yearly) > 0);
+  if (yearlyOption) yearlyOption.disabled = !canYearly;
+  if (!canYearly && periodEl.value === 'yearly') periodEl.value = 'monthly';
+
+  const period = periodEl.value === 'yearly' ? 'yearly' : 'monthly';
+  const amount =
+    period === 'yearly' ? Number(plan?.price_yearly ?? 0) : Number(plan?.price_monthly ?? plan?.price ?? 0);
+  const duration = period === 'yearly' ? 365 : plan?.duration_days ?? 30;
   $('pay-plan-info').textContent = plan
-    ? `Maksimal ${plan.max_outlets} outlet & ${plan.max_cashiers} kasir, aktif ${plan.duration_days} hari sejak pembayaran berhasil.`
+    ? `${fmtIDR(amount)} / ${period === 'yearly' ? 'tahun' : 'bulan'} • maksimal ${plan.max_outlets} outlet & ${plan.max_cashiers} kasir • aktif ${duration} hari sejak pembayaran berhasil.`
     : '';
 };
 
@@ -714,12 +789,19 @@ const renderPayForm = () => {
     const opt = document.createElement('option');
     opt.value = p.id;
     opt.disabled = !p.purchasable;
-    opt.textContent = `${p.name} — ${fmtIDR(p.price)} / ${p.duration_days} hari${
+    opt.textContent = `${p.name} — ${fmtIDR(p.price_monthly ?? p.price)} / bulan${
       p.purchasable ? '' : ' (tidak bisa ditagih)'
     }`;
     sel.appendChild(opt);
   }
-  if (bisaDibeli[0]) sel.value = bisaDibeli[0].id;
+  const current = state.subscriptionView;
+  if (current?.plan?.id && state.payPlans.some((p) => p.id === current.plan.id && p.purchasable)) {
+    sel.value = current.plan.id;
+    $('pay-period').value = current.subscription?.billing_period === 'yearly' ? 'yearly' : 'monthly';
+  } else if (bisaDibeli[0]) {
+    sel.value = bisaDibeli[0].id;
+    $('pay-period').value = 'monthly';
+  }
   renderPayPlanInfo();
 
   const wrap = $('pay-channels');
@@ -815,7 +897,8 @@ const renderPayInstruction = () => {
   const inv = state.payInvoice;
   if (!inv) return;
 
-  $('pay-invoice-meta').textContent = `${inv.plan?.name ?? 'Paket'} • ${fmtIDR(
+  const periode = inv.billing_period === 'yearly' ? 'Tahunan' : 'Bulanan';
+  $('pay-invoice-meta').textContent = `${inv.plan?.name ?? 'Paket'} (${periode}) • ${fmtIDR(
     inv.amount
   )} • ${inv.payment_method_label ?? inv.payment_method} • No. pesanan ${inv.order_id}`;
 
@@ -864,6 +947,7 @@ const createPayInvoice = async () => {
   hide(errEl);
 
   const planId = $('pay-plan').value;
+  const billingPeriod = $('pay-period').value;
   const method = document.querySelector('input[name=pay-channel]:checked')?.value;
   if (!planId || !method) {
     errEl.textContent = 'Pilih paket dan metode pembayaran terlebih dahulu.';
@@ -876,7 +960,7 @@ const createPayInvoice = async () => {
   btn.textContent = 'Menghubungi gateway…';
   try {
     const hasil = await guard(() =>
-      api.createSubscriptionInvoice(b.id, { planId, paymentMethod: method })
+      api.createSubscriptionInvoice(b.id, { planId, billingPeriod, paymentMethod: method })
     );
     if (!hasil) return; // sesi berakhir
     state.payInvoice = hasil.invoice;
@@ -938,6 +1022,7 @@ $('sub-invoice-refresh').addEventListener('click', () => {
   loadSubscriptionInvoices().catch((err) => alertBox(describeError(err), 'error'));
 });
 $('pay-plan').addEventListener('change', renderPayPlanInfo);
+$('pay-period').addEventListener('change', renderPayPlanInfo);
 $('pay-cancel').addEventListener('click', closePayModal);
 $('pay-close').addEventListener('click', closePayModal);
 $('pay-modal').addEventListener('click', (event) => {
@@ -3808,9 +3893,36 @@ const handlePaymentReturn = () => {
  * sebelum memutuskan layar mana yang tampil, sehingga sesi yang masih valid
  * langsung membuka dashboard tanpa login ulang.
  */
+const REGISTRATION_CHOICE_KEY = 'nova_registration_choice';
+
+const readRegistrationChoice = () => {
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get('paket');
+  const periode = params.get('periode');
+  if (slug) {
+    const choice = {
+      slug,
+      period: periode === 'tahunan' ? 'yearly' : 'monthly',
+    };
+    try {
+      sessionStorage.setItem(REGISTRATION_CHOICE_KEY, JSON.stringify(choice));
+    } catch {
+      // mode privat / storage penuh: pilihan tetap dipakai dari URL
+    }
+    return choice;
+  }
+  try {
+    const saved = sessionStorage.getItem(REGISTRATION_CHOICE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+};
+
 const boot = async () => {
   const params = new URLSearchParams(window.location.search);
   const wantsRegister = params.get('daftar') === '1';
+  state.registrationChoice = readRegistrationChoice();
 
   if (wantsRegister) showRegisterForm();
   else showLoginForm();

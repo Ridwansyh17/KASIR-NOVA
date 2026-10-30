@@ -86,7 +86,8 @@ Query: `status` (`pending` default, `history`, `all`, atau status tertentu),
       "registration_number": "REG-20261029-AB12CD34",
       "business_name": "Toko Budi",
       "owner": { "full_name": "Budi", "email": "budi@toko.id", "phone": "62812…" },
-      "plan": { "id": "uuid", "name": "Paket Bulanan", "max_outlets": 1 },
+      "plan": { "id": "uuid", "name": "NOVA STARTER", "slug": "nova-starter", "max_outlets": 1 },
+      "billing_period": "yearly", "agreed_price": 49000000,
       "requested_at": "2026-…", "trial_started_at": null, "trial_ends_at": null
     }
   ],
@@ -97,9 +98,11 @@ Query: `status` (`pending` default, `history`, `all`, atau status tertentu),
 ### POST `/approvals/:id/approve`
 
 Menyetujui pendaftaran berstatus `pending`. Dalam satu transaksi: membuat bisnis,
-memasang **paket pilihan selama 30 hari** mulai `now()` server, mengisi
+memasang **paket + periode pilihan selama trial 30 hari** mulai `now()` server,
+menyimpan snapshot `agreed_price` ke `subscriptions.price_amount`, mengisi
 `owners.email_verified_at`, menyimpan jejak approval/trial, dan menulis audit
-`owner.registration_approved`.
+`owner.registration_approved`. Tanggal trial selalu 30 hari, terlepas dari
+periode langganan berbayar yang dipilih.
 
 - `200` → `{ registration, business, alreadyApproved: false, message }`
 - `200 alreadyApproved: true` bila dipanggil ulang (idempoten).

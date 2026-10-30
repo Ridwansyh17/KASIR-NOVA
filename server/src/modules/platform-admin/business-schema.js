@@ -9,6 +9,11 @@ export const businessParamSchema = z.object({
 
 export const assignSubscriptionSchema = z.object({
   planId: z.string().uuid('ID paket tidak valid'),
+  billingPeriod: z
+    .enum(['monthly', 'yearly'], {
+      errorMap: () => ({ message: "Periode harus 'monthly' atau 'yearly'" }),
+    })
+    .default('monthly'),
 });
 
 export const subscriptionStatusSchema = z.object({

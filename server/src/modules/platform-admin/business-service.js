@@ -67,8 +67,8 @@ export const getBusiness = async (id) => {
 export const viewSubscription = async (businessId) => getSubscriptionView(businessId);
 
 /** Admin memasang paket langganan suatu bisnis. */
-export const assignPlan = async (businessId, planId, actor, ip) =>
-  assignSubscription(businessId, planId, actor, ip);
+export const assignPlan = async (businessId, planId, actor, ip, options = {}) =>
+  assignSubscription(businessId, planId, actor, ip, options);
 
 /** Admin mengubah status langganan aktif suatu bisnis. */
 export const changeSubscriptionStatus = async (businessId, status, actor, ip) =>

@@ -36,7 +36,8 @@ export const assignSubscription = async (req, res, next) => {
       req.params.businessId,
       req.body.planId,
       req.user,
-      req.ip
+      req.ip,
+      { billingPeriod: req.body.billingPeriod }
     );
     res.json(result);
   } catch (err) {

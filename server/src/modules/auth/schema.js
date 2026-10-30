@@ -73,6 +73,9 @@ export const registerOwnerSchema = z.object({
   password,
   phone: whatsappPhone,
   planId: z.string().uuid('Paket pilihan tidak valid'),
+  billingPeriod: z.enum(['monthly', 'yearly'], {
+    errorMap: () => ({ message: "Periode harus 'monthly' atau 'yearly'" }),
+  }).default('monthly'),
 });
 
 const registrationState = z

@@ -21,7 +21,7 @@ export const TRIAL_DAYS = 30;
 
 const REGISTRATION_COLUMNS = `
   r.id, r.owner_id, r.registration_number, r.business_name, r.plan_id,
-  r.status, r.requested_at, r.request_count, r.whatsapp_requested_at,
+  r.billing_period, r.agreed_price, r.status, r.requested_at, r.request_count, r.whatsapp_requested_at,
   r.approved_at, r.approved_by, r.rejected_at, r.rejected_by,
   r.rejection_reason, r.business_id, r.trial_started_at, r.trial_ends_at,
   r.created_at, r.updated_at`;
@@ -29,8 +29,9 @@ const REGISTRATION_COLUMNS = `
 const registrationSelect = (where = '') => `
   SELECT ${REGISTRATION_COLUMNS},
          o.full_name AS owner_name, o.email AS owner_email, o.phone AS owner_phone,
-         p.name AS plan_name, p.max_outlets, p.max_cashiers, p.price,
-         p.duration_days, p.features,
+         p.name AS plan_name, p.slug AS plan_slug, p.max_outlets, p.max_cashiers,
+         p.price, p.price_monthly, p.price_yearly, p.duration_days, p.features,
+         p.is_custom_price,
          b.name AS created_business_name,
          admin.full_name AS approved_by_name
     FROM owner_registrations r
@@ -47,6 +48,8 @@ export const shapeRegistration = (row) => {
     owner_id: row.owner_id,
     registration_number: row.registration_number,
     business_name: row.business_name,
+    billing_period: row.billing_period,
+    agreed_price: Number(row.agreed_price ?? 0),
     status: row.status,
     requested_at: row.requested_at,
     request_count: row.request_count,
@@ -72,11 +75,15 @@ export const shapeRegistration = (row) => {
       ? {
           id: row.plan_id,
           name: row.plan_name,
+          slug: row.plan_slug,
           max_outlets: row.max_outlets,
           max_cashiers: row.max_cashiers,
           price: row.price,
+          price_monthly: row.price_monthly,
+          price_yearly: row.price_yearly,
           duration_days: row.duration_days,
           features: row.features,
+          is_custom_price: row.is_custom_price,
         }
       : undefined,
     business: row.created_business_name ? { name: row.created_business_name } : undefined,
@@ -100,17 +107,18 @@ const newRegistrationNumber = () => {
  */
 export const createDraftRegistration = async (
   client,
-  { ownerId, businessName, planId }
+  { ownerId, businessName, planId, billingPeriod = 'monthly', agreedPrice = 0 }
 ) => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const registrationNumber = newRegistrationNumber();
     try {
       const { rows } = await client.query(
         `INSERT INTO owner_registrations
-           (owner_id, registration_number, business_name, plan_id, status)
-         VALUES ($1, $2, $3, $4, 'draft')
+           (owner_id, registration_number, business_name, plan_id, billing_period,
+            agreed_price, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'draft')
          RETURNING ${REGISTRATION_COLUMNS.replaceAll('r.', '')}`,
-        [ownerId, registrationNumber, businessName, planId]
+        [ownerId, registrationNumber, businessName, planId, billingPeriod, agreedPrice]
       );
       return rows[0];
     } catch (err) {
@@ -148,6 +156,7 @@ export const buildApprovalWhatsappUrl = (registration) => {
     `Nama Bisnis: ${registration.business_name}`,
     `Nomor Registrasi: ${registration.registration_number}`,
     `Paket Pilihan: ${registration.plan?.name ?? registration.plan_name ?? ''}`,
+    `Periode: ${registration.billing_period === 'yearly' ? 'Tahunan' : 'Bulanan'}`,
     '',
     'Mohon dilakukan pengecekan dan persetujuan akun saya.',
     '',
@@ -311,7 +320,12 @@ export const approveRegistration = async (id, actor, ip) => {
       name: registration.business_name,
       actor,
       ip,
-      initialSubscription: { planId: registration.plan_id, trialDays: TRIAL_DAYS },
+      initialSubscription: {
+        planId: registration.plan_id,
+        trialDays: TRIAL_DAYS,
+        billingPeriod: registration.billing_period,
+        priceAmount: registration.agreed_price,
+      },
     });
 
     const subRows = await client.query(
@@ -352,6 +366,8 @@ export const approveRegistration = async (id, actor, ip) => {
         owner_id: owner.id,
         business_id: business.id,
         plan_id: registration.plan_id,
+        billing_period: registration.billing_period,
+        agreed_price: Number(registration.agreed_price),
         trial_started_at: trial.started_at,
         trial_ends_at: trial.expires_at,
       },

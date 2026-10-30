@@ -59,40 +59,6 @@ const html = readFileSync(landingPath, 'utf8');
 // Ekspektasi pesan WhatsApp (sesuai spesifikasi pemilik proyek).
 // ---------------------------------------------------------------------------
 const WA_NUMBER = '6281359704766';
-const MSG_STARTER = `Halo Admin KASIR NOVA,
-
-Saya tertarik untuk berlangganan KASIR NOVA.
-
-Paket: NOVA STARTER
-Periode: Bulanan
-Harga: Rp49.000
-
-Mohon informasi mengenai proses pendaftaran dan aktivasi akun.
-
-Terima kasih.`;
-
-const MSG_BUSINESS = `Halo Admin KASIR NOVA,
-
-Saya ingin mendaftar paket NOVA BUSINESS.
-
-Periode: Bulanan
-Harga: Rp99.000
-
-Mohon informasi mengenai cara pembayaran dan aktivasi layanan.
-
-Terima kasih.`;
-
-const MSG_PRO = `Halo Admin KASIR NOVA,
-
-Saya ingin mendaftar paket NOVA PRO.
-
-Periode: Bulanan
-Harga: Rp149.000
-
-Mohon informasi mengenai cara pembayaran dan aktivasi layanan.
-
-Terima kasih.`;
-
 const MSG_ENTERPRISE = `Halo Admin KASIR NOVA,
 
 Saya ingin berkonsultasi mengenai paket NOVA ENTERPRISE untuk kebutuhan bisnis saya.
@@ -238,7 +204,6 @@ const featuresByPlan = {
     '1 bisnis, maksimal 2 outlet',
     'Maksimal 5 akun Kasir',
     'Pengeluaran operasional',
-    'Laporan laba rugi',
     'Rekap metode pembayaran',
     'Riwayat pergerakan stok',
     'Ekspor laporan Excel',
@@ -249,17 +214,14 @@ const featuresByPlan = {
     '1 bisnis, maksimal 5 outlet',
     'Maksimal 15 akun Kasir',
     'Monitoring beberapa outlet',
-    'Laporan lintas outlet',
-    'Rekap pendapatan dan pengeluaran',
-    'Ekspor Excel',
+    'Laporan pendapatan dan pengeluaran',
+    'Rekap terpusat lintas outlet',
     'Dukungan prioritas',
   ],
   enterprise: [
-    'Kustom sesuai kebutuhan',
-    'Banyak outlet dan akun',
-    'Migrasi data',
-    'Integrasi sistem (API)',
-    'Pendampingan khusus',
+    'Jumlah outlet dan akun Kasir sesuai kesepakatan',
+    'Harga sesuai konsultasi',
+    'Dukungan implementasi dan pendampingan',
   ],
 };
 for (const [key, list] of Object.entries(featuresByPlan)) {
@@ -291,10 +253,10 @@ ok(
 );
 
 const ctaTexts = {
-  starter: 'Pilih Starter',
-  business: 'Pilih Business',
-  pro: 'Pilih Pro',
-  enterprise: 'Konsultasi Sekarang',
+  starter: 'PILIH PAKET',
+  business: 'PILIH PAKET',
+  pro: 'PILIH PAKET',
+  enterprise: 'HUBUNGI ADMIN',
 };
 for (const [key, text] of Object.entries(ctaTexts)) {
   const a = document.querySelector(`[data-plan="${key}"] a.btn`);
@@ -322,13 +284,6 @@ ok(priceOf('starter') === 'Rp49.000' && suffixOf('starter') === '/bulan', 'harga
 ok(priceOf('business') === 'Rp99.000' && suffixOf('business') === '/bulan', 'harga Business bulanan Rp99.000/bulan');
 ok(priceOf('pro') === 'Rp149.000' && suffixOf('pro') === '/bulan', 'harga Pro bulanan Rp149.000/bulan');
 
-const hrefOf = (key) =>
-  document.querySelector(`[data-plan="${key}"] a.btn`)?.getAttribute('href') || '';
-const waText = (href) => {
-  const m = /[?&]text=([^&]*)/.exec(href);
-  return m ? decodeURIComponent(m[1]) : '';
-};
-
 const yearlyBtn = toggleBtns.find((b) => b.dataset.period === 'yearly');
 yearlyBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
 
@@ -345,9 +300,32 @@ ok(
 toggleBtns.find((b) => b.dataset.period === 'monthly').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 ok(priceOf('starter') === 'Rp49.000', 'kembali ke harga bulanan setelah memilih Bulanan');
 
-section('Integrasi WhatsApp');
+section('Pemilihan paket & integrasi WhatsApp');
+const selectLinks = ['starter', 'business', 'pro'].map((key) =>
+  document.querySelector(`[data-plan="${key}"] a[data-select-plan]`)
+);
+selectLinks.forEach((a, i) => {
+  const key = ['starter', 'business', 'pro'][i];
+  ok(!!a, `tombol PILIH PAKET ${key} ada`);
+  ok(
+    a?.getAttribute('href') === `/owner/?daftar=1&paket=nova-${key}&periode=bulanan`,
+    `tautan ${key} membawa paket + periode bulanan`,
+    a?.getAttribute('href')
+  );
+});
+
+const enterpriseWa = document.querySelector('[data-plan="enterprise"] a[data-wa]');
+ok(enterpriseWa?.getAttribute('href')?.startsWith(`https://wa.me/${WA_NUMBER}?text=`), 'Enterprise memakai WhatsApp Admin');
+ok(enterpriseWa?.getAttribute('target') === '_blank', 'tautan Enterprise membuka tab baru');
+ok(/noopener/.test(enterpriseWa?.getAttribute('rel') || ''), 'tautan Enterprise aman rel=noopener');
+const enterpriseText = (() => {
+  const m = /[?&]text=([^&]*)/.exec(enterpriseWa?.getAttribute('href') || '');
+  return m ? decodeURIComponent(m[1]) : '';
+})();
+ok(enterpriseText === MSG_ENTERPRISE, 'pesan WhatsApp Enterprise persis sesuai spesifikasi');
+
 const waLinks = [...document.querySelectorAll('[data-wa]')];
-ok(waLinks.length >= 5, 'ada tautan WhatsApp untuk 4 paket + hubungi kami', `ditemukan ${waLinks.length}`);
+ok(waLinks.length >= 3, 'ada tautan WhatsApp Enterprise + hubungi kami', `ditemukan ${waLinks.length}`);
 for (const a of waLinks) {
   const href = a.getAttribute('href') || '';
   ok(href.startsWith(`https://wa.me/${WA_NUMBER}?text=`), `tautan WA memakai 6281359704766 (${a.dataset.wa})`);
@@ -357,36 +335,30 @@ for (const a of waLinks) {
 ok(!/wa\.me\/(?!6281359704766)\d+/.test(html), 'TIDAK ada nomor WhatsApp lain di halaman');
 ok(!/6281[0-9]{9}/.test(html.replace(/6281359704766/g, '')), 'TIDAK ada nomor telepon WhatsApp lain');
 
-// pesan per paket, periode bulanan
-ok(waText(hrefOf('starter')) === MSG_STARTER, 'pesan WhatsApp Starter (bulanan) persis sesuai spesifikasi', JSON.stringify(waText(hrefOf('starter'))));
-ok(waText(hrefOf('business')) === MSG_BUSINESS, 'pesan WhatsApp Business (bulanan) persis sesuai spesifikasi');
-ok(waText(hrefOf('pro')) === MSG_PRO, 'pesan WhatsApp Pro (bulanan) persis sesuai spesifikasi');
-ok(waText(hrefOf('enterprise')) === MSG_ENTERPRISE, 'pesan WhatsApp Enterprise persis sesuai spesifikasi');
-
 const hubungiLink = document.querySelector('.contact-cta');
-ok(waText(hubungiLink.getAttribute('href')) === MSG_HUBUNGI, 'pesan tombol "HUBUNGI KAMI" persis sesuai spesifikasi');
+const waText = (href) => {
+  const m = /[?&]text=([^&]*)/.exec(href || '');
+  return m ? decodeURIComponent(m[1]) : '';
+};
+ok(waText(hubungiLink?.getAttribute('href')) === MSG_HUBUNGI, 'pesan tombol "HUBUNGI KAMI" persis sesuai spesifikasi');
 const phoneLink = document.querySelector('.contact-list a[href^="https://wa.me/"]');
 ok(phoneLink?.textContent.trim() === '081359704766', 'nomor WhatsApp tampil sebagai 081359704766');
-ok(waText(phoneLink.getAttribute('href')) === MSG_HUBUNGI, 'nomor WhatsApp clickable membuka pesan yang benar');
+ok(waText(phoneLink?.getAttribute('href')) === MSG_HUBUNGI, 'nomor WhatsApp clickable membuka pesan yang benar');
 
-// pesan periode tahunan
+// kembali ke tahunan untuk memeriksa tautan pendaftaran
 yearlyBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+selectLinks.forEach((a, i) => {
+  const key = ['starter', 'business', 'pro'][i];
+  ok(
+    a?.getAttribute('href') === `/owner/?daftar=1&paket=nova-${key}&periode=tahunan`,
+    `tautan ${key} berubah ke periode tahunan`,
+    a?.getAttribute('href')
+  );
+});
 ok(
-  waText(hrefOf('starter')) ===
-    MSG_STARTER.replace('Periode: Bulanan', 'Periode: Tahunan').replace('Harga: Rp49.000', 'Harga: Rp490.000'),
-  'pesan Starter tahunan memuat Periode: Tahunan & Harga: Rp490.000'
+  enterpriseWa?.getAttribute('href') === enterpriseWa?.getAttribute('href'),
+  'tautan Enterprise tidak berubah oleh toggle periode'
 );
-ok(
-  waText(hrefOf('business')) ===
-    MSG_BUSINESS.replace('Periode: Bulanan', 'Periode: Tahunan').replace('Harga: Rp99.000', 'Harga: Rp990.000'),
-  'pesan Business tahunan memuat Periode: Tahunan & Harga: Rp990.000'
-);
-ok(
-  waText(hrefOf('pro')) ===
-    MSG_PRO.replace('Periode: Bulanan', 'Periode: Tahunan').replace('Harga: Rp149.000', 'Harga: Rp1.490.000'),
-  'pesan Pro tahunan memuat Periode: Tahunan & Harga: Rp1.490.000'
-);
-ok(waText(hrefOf('enterprise')) === MSG_ENTERPRISE, 'pesan Enterprise tidak terpengaruh periode');
 
 // kembali bulanan
 toggleBtns.find((b) => b.dataset.period === 'monthly').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));

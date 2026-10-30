@@ -21,6 +21,11 @@ export const invoiceParamSchema = z.object({
 
 export const createInvoiceSchema = z.object({
   planId: uuid('paket'),
+  billingPeriod: z
+    .enum(['monthly', 'yearly'], {
+      errorMap: () => ({ message: "Periode harus 'monthly' atau 'yearly'" }),
+    })
+    .default('monthly'),
   paymentMethod: z
     .string()
     .trim()

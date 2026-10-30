@@ -206,15 +206,19 @@ Callback:
 
 ## 7. Aturan yang ditegakkan server
 
-1. **Nominal tidak pernah dari klien.** `plan.price` (sen) → rupiah bulat
-   (`sen % 100 === 0`) → dikirim ke gateway sebagai `paymentAmount`.
+1. **Nominal tidak pernah dari klien.** Server memilih `plan.price_yearly`
+   (periode `yearly`) atau `price_monthly`; bila langganan aktif memakai
+   paket+periode yang sama, snapshot `subscriptions.price_amount` dipertahankan
+   agar harga kesepakatan tidak berubah otomatis. Nominal sen → rupiah bulat
+   (`sen % 100 === 0`) → `paymentAmount`.
 2. **Idempoten.** Tagihan `pending` dengan paket+kanal sama & belum kedaluwarsa
    dipakai ulang (tanpa memanggil gateway lagi). Satu tagihan pending per bisnis
    (index unik parsial); tagihan pending lain dibatalkan saat membuat yang baru.
 3. **Aktivasi** memakai pola `assignSubscription`: langganan aktif lama →
-   `expired`, lalu baris aktif baru `expires_at = now() + duration_days`,
-   `auto_renew = false` — semuanya **dalam satu transaksi DB** dengan
-   `SELECT … FOR UPDATE` pada bisnis, tagihan, dan langganan aktif.
+   `expired`, lalu baris aktif baru `expires_at = now() + 30 hari` (bulanan)
+   atau **365 hari** (tahunan), menyimpan `billing_period` + `price_amount`
+   snapshot tagihan, `auto_renew = false` — semuanya **dalam satu transaksi DB**
+   dengan `SELECT … FOR UPDATE` pada bisnis, tagihan, dan langganan aktif.
 4. **Uang yang sudah masuk tetap dihormati**: bila Owner membuat tagihan baru
    (tagihan lama `canceled`) lalu membayar tagihan lama, callback tetap
    melunasi + mengaktifkan.

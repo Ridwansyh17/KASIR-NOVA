@@ -57,14 +57,16 @@ refresh_tokens (sesi, per peran)
 | firebase_verification_sent_at | TIMESTAMPTZ | **Legacy** kolom Firebase; tidak dipakai |
 | created_at | TIMESTAMPTZ | |
 
-### `owner_registrations` (migrasi `0016`, 29 Okt 2026)
+### `owner_registrations` (migrasi `0016`, diperluas `0017`, 30 Okt 2026)
 | Kolom | Tipe | Keterangan |
 | --- | --- | --- |
 | id | UUID PK | |
 | owner_id | UUID FK → owners | **UNIQUE** — satu pendaftaran per Owner |
 | registration_number | TEXT UNIQUE | `REG-YYYYMMDD-XXXXXXXX` (acak, tidak mudah ditebak) |
 | business_name | TEXT | Nama bisnis saat mendaftar |
-| plan_id | UUID FK → subscription_plans | Paket pilihan; divalidasi paket aktif |
+| plan_id | UUID FK → subscription_plans | Paket publik pilihan; divalidasi aktif + `is_public` + bukan custom |
+| billing_period | TEXT | `monthly`/`yearly`; pilihan dari landing ikut tersimpan |
+| agreed_price | BIGINT (sen) | **Snapshot** harga paket+periode saat mendaftar |
 | status | TEXT | `draft` → `pending` → `approved`/`rejected` |
 | request_count | INTEGER | Jumlah permintaan approval (idempoten) |
 | requested_at | TIMESTAMPTZ | Waktu permintaan approval pertama |
@@ -240,6 +242,8 @@ refresh_tokens (sesi, per peran)
 ### `subscriptions`
 | id, business_id, plan_id FK, status (`active`/`past_due`/`expired`), started_at, expires_at, auto_renew BOOL |
 | business_id FK → businesses | ON DELETE CASCADE |
+| billing_period | TEXT `monthly`/`yearly` (migrasi `0017`) |
+| price_amount | BIGINT (sen) — snapshot harga kesepakatan; perpanjangan paket+periode yang sama memakai nilai ini, bukan harga paket terbaru |
 
 > Diimplementasikan dengan **index unik parsial**
 > `ON subscriptions(business_id) WHERE status='active'` ⇒ hanya 1 langganan
@@ -248,11 +252,17 @@ refresh_tokens (sesi, per peran)
 
 ### `subscription_plans`
 | id, name (UNIQUE), max_outlets, max_cashiers, price BIGINT (sen), duration_days, features JSONB, is_active BOOL, is_default BOOL |
+| slug | TEXT UNIQUE — tautan stabil landing (`nova-starter`, `nova-business`, `nova-pro`, `nova-enterprise`) |
+| price_monthly | BIGINT (sen), sinkron dengan `price` legacy lewat trigger `nova_sync_plan_columns` |
+| price_yearly | BIGINT (sen), tahunan = 10× bulanan (2 bulan gratis); `NULL` untuk paket konsultasi |
+| is_custom_price | BOOL — Enterprise: harga sesuai konsultasi, tidak bisa didaftarkan mandiri |
+| is_public | BOOL — hanya paket publik non-custom yang tampil di pendaftaran Owner |
 
 > Index unik parsial `ON subscription_plans(is_default) WHERE is_default` ⇒
 > paling banyak **satu** paket default. Plan default (awal: "Gratis") disemai
 > sebagai data referensi operasional di migrasi `0004`; bisnis baru otomatis
-> diberi langganan plan default (keputusan Opsi A).
+> diberi langganan plan default (keputusan Opsi A). Migrasi `0017` menandai
+> paket default itu **tidak publik** dan menyemai empat paket NOVA final.
 
 ### `subscription_invoices` (migrasi `0010`, 17 Okt 2026)
 | Kolom | Tipe | Keterangan |
@@ -260,6 +270,7 @@ refresh_tokens (sesi, per peran)
 | id | UUID PK | |
 | business_id | UUID FK → businesses, CASCADE | tenant pemilik tagihan |
 | plan_id | UUID FK → subscription_plans, RESTRICT | paket yang dibeli |
+| billing_period | TEXT `monthly`/`yearly` (migrasi `0017`) | periode tagihan; nominal tahunan = `price_yearly` |
 | subscription_id | UUID FK → subscriptions, SET NULL | langganan hasil pembayaran |
 | order_id | TEXT UNIQUE | nomor pesanan kita (≤50 char) |
 | amount | BIGINT (sen) | **snapshot** harga paket saat tagihan dibuat |

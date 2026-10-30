@@ -47,6 +47,8 @@ export const createBusinessInTransaction = async (
       businessId: business.id,
       planId: initialSubscription.planId,
       trialDays: initialSubscription.trialDays ?? 30,
+      billingPeriod: initialSubscription.billingPeriod ?? 'monthly',
+      priceAmount: initialSubscription.priceAmount ?? null,
     });
   } else {
     // Keputusan pemilik (OPSI A): bisnis baru otomatis diberi langganan

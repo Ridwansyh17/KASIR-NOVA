@@ -221,16 +221,35 @@ export const registerOwner = async ({
   password,
   phone,
   planId,
+  billingPeriod = 'monthly',
   ip,
 }) => {
   const planRows = await query(
-    `SELECT id, name FROM subscription_plans
-      WHERE id = $1 AND is_active = true`,
+    `SELECT id, name, slug, price, price_monthly, price_yearly, is_custom_price
+       FROM subscription_plans
+      WHERE id = $1 AND is_active = true AND is_public = true`,
     [planId]
   );
-  if (!planRows.rows[0]) {
+  const plan = planRows.rows[0];
+  if (!plan) {
     throw new AppError('Paket pilihan tidak tersedia.', 422, {
       fields: [{ path: 'planId', message: 'Paket pilihan tidak tersedia' }],
+    });
+  }
+  if (plan.is_custom_price) {
+    throw new AppError(
+      'Paket Enterprise didaftarkan melalui Admin KASIR NOVA. Silakan hubungi Admin.',
+      422,
+      { fields: [{ path: 'planId', message: 'Paket Enterprise harus melalui Admin' }] }
+    );
+  }
+
+  const period = billingPeriod === 'yearly' ? 'yearly' : 'monthly';
+  const agreedPrice =
+    period === 'yearly' ? plan.price_yearly : plan.price_monthly ?? plan.price;
+  if (agreedPrice === null || agreedPrice === undefined || (period === 'yearly' && agreedPrice <= 0)) {
+    throw new AppError('Paket ini belum menyediakan harga tahunan.', 422, {
+      fields: [{ path: 'billingPeriod', message: 'Harga tahunan belum tersedia' }],
     });
   }
 
@@ -254,6 +273,8 @@ export const registerOwner = async ({
         ownerId: created.id,
         businessName,
         planId,
+        billingPeriod: period,
+        agreedPrice,
       });
 
       await writeAudit({
@@ -269,7 +290,9 @@ export const registerOwner = async ({
           phone: whatsapp,
           business_name: businessName,
           plan_id: planId,
-          plan_name: planRows.rows[0].name,
+          plan_name: plan.name,
+          billing_period: period,
+          agreed_price: agreedPrice,
           registration_number: draft.registration_number,
           approval_status: 'draft',
         },
@@ -295,7 +318,10 @@ export const registerOwner = async ({
         owner_name: owner.full_name,
         owner_email: owner.email,
         owner_phone: whatsapp,
-        plan_name: planRows.rows[0].name,
+        plan_name: plan.name,
+        plan_slug: plan.slug,
+        price_monthly: plan.price_monthly,
+        price_yearly: plan.price_yearly,
       }),
       status: 'draft',
     },
@@ -310,10 +336,11 @@ export const registerOwner = async ({
  */
 export const listRegistrationPlans = async () => {
   const { rows } = await query(
-    `SELECT id, name, max_outlets, max_cashiers, duration_days, features
+    `SELECT id, name, slug, max_outlets, max_cashiers, duration_days, features,
+            price_monthly, price_yearly, is_custom_price
        FROM subscription_plans
-      WHERE is_active = true
-      ORDER BY is_default DESC, name ASC`
+      WHERE is_active = true AND is_public = true AND is_custom_price = false
+      ORDER BY price_monthly ASC, name ASC`
   );
   return rows;
 };

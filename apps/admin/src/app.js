@@ -381,6 +381,8 @@ const renderApprovals = (items) => {
             : '<span class="badge">draft</span>';
     const owner = item.owner ?? {};
     const plan = item.plan ?? {};
+    const periode = item.billing_period === 'yearly' ? 'Tahunan' : 'Bulanan';
+    const harga = item.agreed_price ? ` • ${fmtIDR(item.agreed_price)}` : '';
     const actions =
       item.status === 'pending'
         ? `<button class="btn small primary" data-approval-action="approve" data-id="${item.id}">Setujui</button>
@@ -394,7 +396,8 @@ const renderApprovals = (items) => {
         <div class="muted small">${escapeHtml(owner.email ?? '')}</div></td>
       <td>${escapeHtml(item.business_name)}</td>
       <td>${escapeHtml(item.registration_number)}</td>
-      <td>${escapeHtml(plan.name ?? '—')}</td>
+      <td>${escapeHtml(plan.name ?? '—')}
+        <div class="muted small">${escapeHtml(periode)}${escapeHtml(harga)}</div></td>
       <td class="muted">${escapeHtml(fmtDate(item.requested_at))}</td>
       <td>${statusBadge}</td>
       <td class="right actions">${actions}</td>`;
@@ -433,9 +436,11 @@ const openApprovalModal = (action, item) => {
     ? 'Setujui Pendaftaran'
     : 'Tolak Pendaftaran';
   const planName = item.plan?.name && item.plan.name !== '—' ? item.plan.name : null;
+  const periode = item.billing_period === 'yearly' ? 'Tahunan' : 'Bulanan';
+  const harga = item.agreed_price ? `, ${fmtIDR(item.agreed_price)}` : '';
   $('approval-modal-text').textContent = approving
     ? `Setujui ${item.owner?.full_name ?? 'Owner'} / ${item.business_name}? ` +
-      (planName ? `Paket: ${planName}. ` : '') +
+      (planName ? `Paket: ${planName} (${periode}${harga}). ` : '') +
       'Masa gratis 30 hari dimulai sekarang.'
     : `Tolak pendaftaran ${item.business_name}? Bisnis dan langganan tidak dibuat.`;
   $('approval-modal-error').classList.add('hidden');
@@ -606,12 +611,17 @@ const renderPlans = (items) => {
   }
   for (const p of items) {
     const tr = document.createElement('tr');
+    const monthly = p.price_monthly ?? p.price;
     tr.innerHTML = `
-      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td>
+        <strong>${escapeHtml(p.name)}</strong>
+        ${p.is_public ? '' : '<div class="muted small">tidak publik</div>'}
+      </td>
+      <td><code>${escapeHtml(p.slug ?? '—')}</code></td>
       <td>${p.max_outlets}</td>
       <td>${p.max_cashiers}</td>
-      <td>${escapeHtml(fmtIDR(p.price))}</td>
-      <td>${p.duration_days}</td>
+      <td>${p.is_custom_price ? '<span class="badge">konsultasi</span>' : escapeHtml(fmtIDR(monthly))}</td>
+      <td>${p.price_yearly != null ? escapeHtml(fmtIDR(p.price_yearly)) : '—'}</td>
       <td>${p.is_default ? '<span class="badge ok">default</span>' : '—'}</td>
       <td>${p.is_active ? '<span class="badge ok">aktif</span>' : '<span class="badge off">nonaktif</span>'}</td>
       <td class="right actions">
@@ -634,7 +644,14 @@ $('new-plan-btn').addEventListener('click', () => {
   $('plan-modal-title').textContent = 'Paket Baru';
   $('plan-form').reset();
   $('plan-id').value = '';
+  $('plan-slug').value = '';
+  $('plan-price-monthly').value = 0;
+  $('plan-price-yearly').value = '';
+  $('plan-duration').value = 30;
+  $('plan-features').value = '';
   $('plan-active').checked = true;
+  $('plan-public').checked = true;
+  $('plan-custom-price').checked = false;
   hide($('plan-form-error'));
   show($('plan-modal'));
 });
@@ -650,12 +667,19 @@ $('plans-body').addEventListener('click', async (event) => {
     $('plan-modal-title').textContent = 'Ubah Paket';
     $('plan-id').value = plan.id;
     $('plan-name').value = plan.name ?? '';
+    $('plan-slug').value = plan.slug ?? '';
     $('plan-max-outlets').value = plan.max_outlets ?? 1;
     $('plan-max-cashiers').value = plan.max_cashiers ?? 1;
-    $('plan-price').value = plan.price ?? 0;
+    $('plan-price-monthly').value = plan.price_monthly ?? plan.price ?? 0;
+    $('plan-price-yearly').value = plan.price_yearly ?? '';
     $('plan-duration').value = plan.duration_days ?? 30;
+    $('plan-features').value = Array.isArray(plan.features?.highlights)
+      ? plan.features.highlights.join('\n')
+      : '';
     $('plan-default').checked = Boolean(plan.is_default);
     $('plan-active').checked = Boolean(plan.is_active);
+    $('plan-public').checked = Boolean(plan.is_public);
+    $('plan-custom-price').checked = Boolean(plan.is_custom_price);
     hide($('plan-form-error'));
     show($('plan-modal'));
     return;
@@ -677,14 +701,26 @@ $('plan-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('plan-form-error'));
   const id = $('plan-id').value;
+  const monthly = Number($('plan-price-monthly').value);
+  const yearlyRaw = $('plan-price-yearly').value.trim();
+  const highlights = $('plan-features')
+    .value.split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
   const payload = {
     name: $('plan-name').value.trim(),
+    slug: $('plan-slug').value.trim() || undefined,
     maxOutlets: Number($('plan-max-outlets').value),
     maxCashiers: Number($('plan-max-cashiers').value),
-    price: Number($('plan-price').value),
+    price: monthly,
+    priceMonthly: monthly,
+    priceYearly: yearlyRaw ? Number(yearlyRaw) : null,
     durationDays: Number($('plan-duration').value),
+    features: highlights.length ? { highlights } : {},
     isDefault: $('plan-default').checked,
     isActive: $('plan-active').checked,
+    isPublic: $('plan-public').checked,
+    isCustomPrice: $('plan-custom-price').checked,
   };
   try {
     if (id) {
@@ -791,7 +827,8 @@ const openSubModal = async (businessId) => {
   for (const p of (plansBody?.items ?? [])) {
     const opt = document.createElement('option');
     opt.value = p.id;
-    opt.textContent = `${p.name} (${p.max_outlets} outlet, ${p.max_cashiers} kasir)${p.is_default ? ' — default' : ''}`;
+    const price = p.is_custom_price ? 'konsultasi' : fmtIDR(p.price_monthly ?? p.price);
+    opt.textContent = `${p.name} — ${price}/bulan (${p.max_outlets} outlet, ${p.max_cashiers} kasir)${p.is_default ? ' — default' : ''}`;
     select.appendChild(opt);
   }
   if (plansBody?.items?.length) select.selectedIndex = 0;
@@ -801,6 +838,7 @@ const openSubModal = async (businessId) => {
     const viewBody = await guard(() => api.getBusinessSubscription(businessId));
     $('sub-current').textContent = `Saat ini: ${viewBody?.plan?.name ?? '—'} — status ${viewBody?.subscription?.status ?? '—'} · sampai ${fmtDate(viewBody?.subscription?.expires_at)}`;
     $('sub-status-select').value = viewBody?.subscription?.status ?? 'active';
+    $('sub-period-select').value = viewBody?.subscription?.billing_period === 'yearly' ? 'yearly' : 'monthly';
   } catch (err) {
     if (err.status === 404) {
       $('sub-current').textContent = 'Bisnis belum memiliki langganan.';
@@ -818,8 +856,9 @@ $('biz-body').addEventListener('click', async (event) => {
 
 $('sub-assign').addEventListener('click', async () => {
   const planId = $('sub-plan-select').value;
+  const billingPeriod = $('sub-period-select').value;
   try {
-    await guard(() => api.assignSubscription(currentSubBusinessId, planId));
+    await guard(() => api.assignSubscription(currentSubBusinessId, planId, billingPeriod));
     alertBox('alert-biz', 'Paket langganan berhasil dipasang.', 'ok');
     hide($('sub-modal'));
     await loadBusinesses();

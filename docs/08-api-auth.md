@@ -32,12 +32,19 @@
 
 ## GET `/api/auth/registration-plans` *(publik)*
 
-Daftar paket aktif yang dapat dipilih saat pendaftaran. Harga langganan tidak
-ditampilkan karena pendaftaran **tidak memungut biaya**.
+Daftar paket yang dapat dipilih saat pendaftaran: **aktif, publik, dan bukan
+paket harga konsultasi**. Paket default internal ("Gratis") dan Enterprise tidak
+ditawarkan di sini. Harga langganan tidak dipungut saat mendaftar; trial 30 hari
+dimulai setelah Admin menyetujui.
 
 ```json
-{ "items": [ { "id": "uuid", "name": "Paket Bulanan", "max_outlets": 2, "max_cashiers": 3, "duration_days": 30, "features": {} } ] }
+{ "items": [ { "id": "uuid", "name": "NOVA STARTER", "slug": "nova-starter",
+  "max_outlets": 1, "max_cashiers": 2, "duration_days": 30,
+  "price_monthly": 4900000, "price_yearly": 49000000,
+  "features": {} } ] }
 ```
+
+Harga dalam **sen** (Rp49.000 = `4900000`).
 
 ---
 
@@ -56,12 +63,15 @@ dibuat saat Admin menyetujui.
   "email": "pemilik@toko.id",
   "phone": "0812xxxxxxx",
   "password": "rahasia-min-8",
-  "planId": "<uuid paket aktif>"
+  "planId": "<uuid paket publik>",
+  "billingPeriod": "monthly"
 }
 ```
 
 `phone` **wajib** dan dinormalisasi ke format `62…`. `planId` wajib dan harus
-paket aktif.
+paket **aktif + publik + bukan custom** (paket tersembunyi/Enterprise ditolak
+422). `billingPeriod` opsional: `monthly` (default) atau `yearly`; server
+menghitung dan menyimpan `agreed_price` dari harga paket, bukan dari klien.
 
 **201 Created**
 ```json
@@ -72,7 +82,9 @@ paket aktif.
     "status": "draft",
     "registration_number": "REG-20261029-AB12CD34",
     "business_name": "Toko Budi",
-    "plan": { "id": "uuid", "name": "Paket Bulanan" }
+    "billing_period": "monthly",
+    "agreed_price": 4900000,
+    "plan": { "id": "uuid", "name": "NOVA STARTER", "slug": "nova-starter" }
   },
   "registrationState": "<JWT state pendaftaran>",
   "message": "Pendaftaran berhasil. Silakan minta persetujuan Admin."
@@ -112,8 +124,8 @@ tautan WhatsApp Admin. Permintaan berulang tidak membuat baris pendaftaran baru.
 }
 ```
 
-Template WhatsApp memuat nama Owner, nama bisnis, nomor registrasi, dan paket
-pilihan. Nomor Admin berasal dari `SUPPORT_WHATSAPP`.
+Template WhatsApp memuat nama Owner, nama bisnis, nomor registrasi, paket,
+periode, dan harga kesepakatan. Nomor Admin berasal dari `SUPPORT_WHATSAPP`.
 
 | Status | Arti |
 |---|---|

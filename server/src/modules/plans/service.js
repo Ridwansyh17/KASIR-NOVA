@@ -9,15 +9,21 @@ import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
 
-const PLAN_COLUMNS = `id, name, max_outlets, max_cashiers, price, duration_days, features, is_active, is_default, created_at, updated_at`;
+const PLAN_COLUMNS = `id, name, slug, max_outlets, max_cashiers, price, price_monthly, price_yearly,
+  duration_days, features, is_active, is_default, is_public, is_custom_price, created_at, updated_at`;
 
 const auditShape = (p) =>
   p
     ? {
         name: p.name,
+        slug: p.slug,
         max_outlets: p.max_outlets,
         max_cashiers: p.max_cashiers,
         price: p.price,
+        price_monthly: p.price_monthly,
+        price_yearly: p.price_yearly,
+        is_public: p.is_public,
+        is_custom_price: p.is_custom_price,
         duration_days: p.duration_days,
         is_active: p.is_active,
         is_default: p.is_default,
@@ -55,18 +61,24 @@ export const createPlan = async (data, actor, ip) => {
 
       const { rows } = await client.query(
         `INSERT INTO subscription_plans
-           (name, max_outlets, max_cashiers, price, duration_days, features, is_active, is_default)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           (name, slug, max_outlets, max_cashiers, price, price_monthly, price_yearly,
+            duration_days, features, is_active, is_default, is_public, is_custom_price)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING ${PLAN_COLUMNS}`,
         [
           data.name,
+          data.slug ?? null,
           data.maxOutlets,
           data.maxCashiers,
-          data.price,
+          data.priceMonthly ?? data.price,
+          data.priceMonthly ?? data.price,
+          data.priceYearly ?? null,
           data.durationDays,
           data.features ?? {},
           data.isActive,
           data.isDefault,
+          data.isPublic,
+          data.isCustomPrice,
         ]
       );
       const plan = rows[0];
@@ -127,9 +139,31 @@ export const updatePlan = async (id, patch, actor, ip) => {
         fields.push(`max_cashiers = $${i++}`);
         values.push(patch.maxCashiers);
       }
-      if (patch.price !== undefined) {
+      // `price` lama = harga bulanan. Bila salah satu diubah, keduanya
+      // disinkronkan agar klien lama dan baru melihat nominal yang sama.
+      const monthlyPrice =
+        patch.priceMonthly !== undefined ? patch.priceMonthly : patch.price;
+      if (monthlyPrice !== undefined) {
         fields.push(`price = $${i++}`);
-        values.push(patch.price);
+        values.push(monthlyPrice);
+        fields.push(`price_monthly = $${i++}`);
+        values.push(monthlyPrice);
+      }
+      if (patch.priceYearly !== undefined) {
+        fields.push(`price_yearly = $${i++}`);
+        values.push(patch.priceYearly);
+      }
+      if (patch.slug !== undefined) {
+        fields.push(`slug = $${i++}`);
+        values.push(patch.slug);
+      }
+      if (patch.isPublic !== undefined) {
+        fields.push(`is_public = $${i++}`);
+        values.push(patch.isPublic);
+      }
+      if (patch.isCustomPrice !== undefined) {
+        fields.push(`is_custom_price = $${i++}`);
+        values.push(patch.isCustomPrice);
       }
       if (patch.durationDays !== undefined) {
         fields.push(`duration_days = $${i++}`);

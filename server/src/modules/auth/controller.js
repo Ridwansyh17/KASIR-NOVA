@@ -22,7 +22,7 @@ export const login = async (req, res, next) => {
 
 export const registerOwner = async (req, res, next) => {
   try {
-    const { fullName, businessName, email, password, phone, planId } = req.body;
+    const { fullName, businessName, email, password, phone, planId, billingPeriod } = req.body;
     const result = await authService.registerOwner({
       fullName,
       businessName,
@@ -30,6 +30,7 @@ export const registerOwner = async (req, res, next) => {
       password,
       phone,
       planId,
+      billingPeriod,
       ip: req.ip,
     });
     res.status(201).json(result);

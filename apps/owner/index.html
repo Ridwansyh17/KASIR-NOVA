@@ -102,6 +102,14 @@
           </select>
         </label>
         <label class="field">
+          <span>Periode langganan</span>
+          <select id="register-period" required>
+            <option value="monthly">Bulanan</option>
+            <option value="yearly">Tahunan (2 bulan gratis)</option>
+          </select>
+        </label>
+        <p id="register-plan-info" class="muted small"></p>
+        <label class="field">
           <span>Password (minimal 8 karakter)</span>
           <input
             id="register-password"
@@ -1273,6 +1281,13 @@
           <label class="field">
             <span>Paket</span>
             <select id="pay-plan"></select>
+          </label>
+          <label class="field">
+            <span>Periode</span>
+            <select id="pay-period">
+              <option value="monthly">Bulanan</option>
+              <option value="yearly">Tahunan (2 bulan gratis)</option>
+            </select>
           </label>
           <p id="pay-plan-info" class="muted small"></p>
 

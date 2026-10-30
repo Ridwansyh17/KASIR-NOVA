@@ -77,10 +77,12 @@ Body opsional (paling sedikit satu field): `{ "name"?, "address"?, "phone"?,
 ```json
 200
 { "subscription": { "id": "uuid", "business_id": "uuid", "status": "active",
-    "started_at": "…", "expires_at": "…", "auto_renew": false },
-  "plan": { "id": "uuid", "name": "Gratis", "max_outlets": 1,
-    "max_cashiers": 1, "price": 0, "duration_days": 30, "features": {},
-    "is_default": true } }
+    "started_at": "…", "expires_at": "…", "auto_renew": false,
+    "billing_period": "monthly", "price_amount": 4900000 },
+  "plan": { "id": "uuid", "name": "NOVA STARTER", "slug": "nova-starter",
+    "max_outlets": 1, "max_cashiers": 2, "price_monthly": 4900000,
+    "price_yearly": 49000000, "duration_days": 30, "features": {},
+    "is_default": false } }
 ```
 Mengembalikan langganan **terbaru** (termasuk status non-aktif). `404` bila
 bisnis belum pernah punya langganan.
@@ -96,15 +98,17 @@ Prefix tetap `/api/owner/businesses/:businessId/subscription`:
 |---|---|---|
 | `GET` | `/plans` | `{ gateway, plans }` — paket yang dapat dibeli + kanal aktif |
 | `GET` | `/invoices?status=&page=&limit=` | riwayat tagihan bisnis |
-| `POST` | `/invoices` | body `{ planId, paymentMethod }` → tagihan VA/QRIS |
+| `POST` | `/invoices` | body `{ planId, billingPeriod?, paymentMethod }` → tagihan VA/QRIS |
 | `GET` | `/invoices/:invoiceId` | detail tagihan |
 | `POST` | `/invoices/:invoiceId/sync` | cek status ke gateway (manual) |
 
 Endpoint **publik** (tanpa sesi, verifikasi tanda tangan HMAC-SHA256):
 `POST /api/payments/duitku/callback` dan `GET /api/payments/duitku/return`.
-Harga tagihan **selalu** dari `subscription_plans.price` (sen) di server —
-klien tidak pernah mengirim nominal. Tanpa konfigurasi gateway, endpoint
-pembayaran menjawab **503** dan aplikasi tetap berjalan normal.
+Harga tagihan **selalu** dihitung server dalam sen: `price_yearly` untuk
+periode `yearly`, `price_monthly` untuk `monthly`, atau snapshot
+`subscriptions.price_amount` bila paket+periode sama sudah disepakati. Klien
+tidak pernah mengirim nominal. Tanpa konfigurasi gateway, endpoint pembayaran
+menjawab **503** dan aplikasi tetap berjalan normal.
 
 ---
 
@@ -120,10 +124,13 @@ Prefix: `/api/platform/plans`
 
 Body:
 ```json
-{ "name": "Pro", "maxOutlets": 2, "maxCashiers": 3, "price": 150000,
-  "durationDays": 30, "features": {}, "isDefault": false, "isActive": true }
+{ "name": "NOVA PRO", "slug": "nova-pro", "maxOutlets": 5, "maxCashiers": 15,
+  "priceMonthly": 14900000, "priceYearly": 149000000,
+  "durationDays": 30, "features": {}, "isDefault": false, "isActive": true,
+  "isPublic": true, "isCustomPrice": false }
 ```
-`201` → `{ "plan": { … } }`. `409` bila nama duplikat atau sudah ada paket
+`price` legacy tetap diterima dan disinkronkan sebagai `price_monthly`.
+`201` → `{ "plan": { … } }`. `409` bila nama/slug duplikat atau sudah ada paket
 default lain.
 
 ### 3. Detail paket
@@ -168,12 +175,14 @@ A.6.
 ### 4. Pasang paket (ganti langganan)
 `POST /api/platform/businesses/:businessId/subscription`
 
-Body: `{ "planId": "uuid" }`
+Body: `{ "planId": "uuid", "billingPeriod": "monthly" }`
+(`billingPeriod` opsional: `monthly`/`yearly`).
 
 `200` → `{ "subscription": { … }, "plan": { … } }`. Langganan aktif lama
 diubah menjadi `expired` (riwayat tetap), langganan aktif baru dibuat mulai
-hari ini, `expires_at = now() + duration_days`. `404` bila bisnis/paket tidak
-ada atau paket nonaktif.
+hari ini, `expires_at = now() + duration_days`, serta menyimpan
+`billing_period` + `price_amount` snapshot. `404` bila bisnis/paket tidak ada
+atau paket nonaktif.
 
 ### 5. Ubah status langganan
 `PATCH /api/platform/businesses/:businessId/subscription/status`
