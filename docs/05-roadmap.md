@@ -1611,7 +1611,10 @@ paket pilihan + **trial 30 hari** dibuat saat persetujuan.
 - `npm run test --workspace server` → **368/368 lulus** (8 tes alur approval).
 - `npm run verify:ui` → **SEMUA OK**.
 
-**Status.** Kode selesai & teruji lokal; **belum di-commit/dideploy**.
+**Status.** Kode selesai & teruji lokal; **sudah di-commit** dan **Firebase
+Hosting sudah dideploy** (30 Okt 2026). Backend Vercel + migrasi `0016` di
+database produksi **belum** diterapkan, sehingga endpoint approval belum aktif
+di produksi sampai deploy backend dilakukan.
 
 ---
 
