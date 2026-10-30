@@ -397,44 +397,83 @@ const loadApprovals = async () => {
   setApprovalBadge(body.pending);
 };
 
-$('approvals-body').addEventListener('click', async (event) => {
+// Konfirmasi memakai modal di dalam panel, bukan `confirm()`/`prompt()` bawaan
+// browser: sebagian WebView/mode kios menekan dialog native tanpa memberi tahu
+// pengguna, sehingga tombol Setujui terlihat "tidak berfungsi".
+let approvalTarget = null;
+
+const closeApprovalModal = () => {
+  approvalTarget = null;
+  hide($('approval-modal'));
+};
+
+const openApprovalModal = (action, item) => {
+  approvalTarget = { action, item };
+  const approving = action === 'approve';
+  $('approval-modal-title').textContent = approving
+    ? 'Setujui Pendaftaran'
+    : 'Tolak Pendaftaran';
+  $('approval-modal-text').textContent = approving
+    ? `Setujui ${item.owner?.full_name ?? 'Owner'} / ${item.business_name}? ` +
+      `Paket: ${item.plan?.name ?? '-'}. Masa gratis 30 hari dimulai sekarang.`
+    : `Tolak pendaftaran ${item.business_name}? Bisnis dan langganan tidak dibuat.`;
+  $('approval-modal-error').classList.add('hidden');
+  $('approval-reason').value = '';
+  $('approval-reason-wrap').classList.toggle('hidden', approving);
+  $('approval-confirm').textContent = approving ? 'Setujui' : 'Tolak';
+  $('approval-confirm').classList.toggle('danger', !approving);
+  $('approval-confirm').classList.toggle('primary', approving);
+  show($('approval-modal'));
+  if (!approving) $('approval-reason').focus();
+};
+
+const submitApproval = async () => {
+  if (!approvalTarget) return;
+  const { action, item } = approvalTarget;
+  const button = $('approval-confirm');
+  const errorEl = $('approval-modal-error');
+  hide(errorEl);
+  button.disabled = true;
+  try {
+    const result =
+      action === 'approve'
+        ? await guard(() => api.approveApproval(item.id))
+        : await guard(() => api.rejectApproval(item.id, $('approval-reason').value.trim()));
+    closeApprovalModal();
+    alertBox(
+      'alert-approvals',
+      result?.message ??
+        (action === 'approve' ? 'Pendaftaran disetujui.' : 'Pendaftaran ditolak.'),
+      'ok'
+    );
+    await loadApprovals();
+    await loadOwners();
+  } catch (err) {
+    errorEl.textContent = describeError(err);
+    show(errorEl);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+$('approvals-body').addEventListener('click', (event) => {
   const btn = event.target.closest('button[data-approval-action]');
   if (!btn) return;
-  const { approvalAction, id } = btn.dataset;
-  const item = state.approvals.find((row) => row.id === id);
-  if (!item) return;
-
-  if (approvalAction === 'approve') {
-    const label = `${item.owner?.full_name ?? 'Owner'} / ${item.business_name}`;
-    if (
-      !confirm(
-        `Setujui pendaftaran ${label}?\nPaket: ${item.plan?.name ?? '-'}\nMasa gratis 30 hari dimulai sekarang.`
-      )
-    )
-      return;
-    try {
-      const result = await guard(() => api.approveApproval(id));
-      alertBox('alert-approvals', result?.message ?? 'Pendaftaran disetujui.', 'ok');
-      await loadApprovals();
-      await loadOwners();
-    } catch (err) {
-      alertBox('alert-approvals', describeError(err), 'error');
-    }
+  const item = state.approvals.find((row) => row.id === btn.dataset.id);
+  if (!item) {
+    alertBox('alert-approvals', 'Data pendaftaran tidak ditemukan. Muat ulang daftar.', 'error');
     return;
   }
+  openApprovalModal(btn.dataset.approvalAction, item);
+});
 
-  if (approvalAction === 'reject') {
-    const reason = prompt(`Alasan menolak pendaftaran ${item.business_name}:`);
-    if (!reason) return;
-    try {
-      const result = await guard(() => api.rejectApproval(id, reason.trim()));
-      alertBox('alert-approvals', result?.message ?? 'Pendaftaran ditolak.', 'ok');
-      await loadApprovals();
-      await loadOwners();
-    } catch (err) {
-      alertBox('alert-approvals', describeError(err), 'error');
-    }
-  }
+$('approval-cancel').addEventListener('click', closeApprovalModal);
+$('approval-confirm').addEventListener('click', submitApproval);
+$('approval-modal').addEventListener('click', (event) => {
+  if (event.target === $('approval-modal')) closeApprovalModal();
+});
+$('approval-reason').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submitApproval();
 });
 
 let approvalTimer = null;

@@ -561,6 +561,23 @@
       </div>
     </div>
 
+    <!-- ================= MODAL APPROVAL CENTER ================= -->
+    <div id="approval-modal" class="modal hidden">
+      <div class="modal-card card">
+        <h3 id="approval-modal-title">Setujui Pendaftaran</h3>
+        <p id="approval-modal-text" class="muted"></p>
+        <label id="approval-reason-wrap" class="field hidden">
+          <span>Alasan penolakan (minimal 5 karakter)</span>
+          <textarea id="approval-reason" rows="3" maxlength="500"></textarea>
+        </label>
+        <p id="approval-modal-error" class="error hidden"></p>
+        <div class="modal-actions">
+          <button type="button" id="approval-cancel" class="btn">Batal</button>
+          <button type="button" id="approval-confirm" class="btn primary">Setujui</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= MODAL GANTI SANDI ================= -->
     <div id="password-modal" class="modal hidden">
       <div class="modal-card card">
