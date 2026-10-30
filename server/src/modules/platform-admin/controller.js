@@ -37,20 +37,6 @@ export const createOwner = async (req, res, next) => {
   }
 };
 
-export const verifyOwner = async (req, res, next) => {
-  try {
-    const result = await service.verifyOwner(req.params.id, req.user, req.ip);
-    res.json({
-      ...result,
-      message: result.business
-        ? 'Owner terverifikasi. Bisnis dan langganan Gratis berhasil dibuat.'
-        : 'Owner berhasil diverifikasi.',
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 export const updateOwner = async (req, res, next) => {
   try {
     const owner = await service.updateOwner(req.params.id, req.body, req.user, req.ip);

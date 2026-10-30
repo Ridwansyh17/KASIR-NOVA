@@ -64,47 +64,29 @@ const businessName = z
   .min(2, 'Nama bisnis minimal 2 karakter')
   .max(120, 'Nama bisnis maksimal 120 karakter');
 
-// Pendaftaran Owner mandiri (publik). Akun dibuat BELUM terverifikasi; bisnis
-// pertama baru dibuat setelah email terverifikasi Firebase (lihat service).
+// Pendaftaran Owner mandiri (publik). Tidak ada pembayaran/verifikasi email;
+// akun menunggu persetujuan Admin. Paket wajib dipilih.
 export const registerOwnerSchema = z.object({
   fullName,
   businessName,
   email,
   password,
   phone: whatsappPhone,
+  planId: z.string().uuid('Paket pilihan tidak valid'),
 });
 
-export const resendVerificationSchema = z.object({ email });
-
-export const verifyEmailQuerySchema = z.object({
-  token: z
-    .string()
-    .regex(/^[a-f0-9]{64}$/, 'Tautan verifikasi tidak valid'),
-  // `format=json` untuk pengujian/otomasi; tanpa ini tautan email diarahkan
-  // kembali ke panel Owner.
-  format: z.enum(['json']).optional(),
-});
-
-// State halaman verifikasi Firebase (JWT bertanda tangan; bukan access token).
-const firebaseVerificationState = z
+const registrationState = z
   .string()
   .trim()
-  .min(20, 'State verifikasi tidak valid')
-  .max(4096, 'State verifikasi terlalu panjang');
+  .min(20, 'State pendaftaran tidak valid')
+  .max(4096, 'State pendaftaran terlalu panjang');
 
-export const firebaseVerificationStatusSchema = z.object({
-  state: firebaseVerificationState,
+export const requestApprovalSchema = z.object({
+  registrationState,
 });
 
-export const verifyFirebaseOwnerSchema = z.object({
-  state: firebaseVerificationState,
-  // Opsional: bila frontend Firebase mengirim ID token, backend memverifikasinya
-  // dengan Admin SDK. Tanpa ini backend tetap memeriksa getUser().emailVerified.
-  idToken: z.string().trim().max(10000).optional(),
-});
-
-export const resendFirebaseVerificationSchema = z.object({
-  state: firebaseVerificationState,
+export const registrationStatusSchema = z.object({
+  state: registrationState,
 });
 
 // Refresh token = 48 byte acak dalam hex (96 karakter).

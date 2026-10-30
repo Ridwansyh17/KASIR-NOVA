@@ -47,15 +47,32 @@ refresh_tokens (sesi, per peran)
 | password_hash | TEXT | scrypt |
 | full_name, phone | TEXT | |
 | status | TEXT | `active`/`suspended` |
-| email_verified_at | TIMESTAMPTZ | NULL = menunggu verifikasi email; default `now()` untuk owner lama/buatan Admin (tanpa alur verifikasi) |
-| email_verification_token_hash | TEXT | Alur email legacy; SHA-256 token, NULL pada pendaftaran Firebase |
-| email_verification_expires_at | TIMESTAMPTZ | Alur email lama; kedaluwarsa tautan (default 24 jam) |
-| pending_business_name | TEXT | nama bisnis dari form daftar; dipakai saat email terverifikasi (atau verifikasi manual akun lama) lalu dikosongkan |
+| email_verified_at | TIMESTAMPTZ | Penanda aktivasi; diisi saat Admin menyetujui pendaftaran atau saat akun dibuat Admin |
+| email_verification_token_hash | TEXT | **Legacy** alur email lama; tidak dipakai pendaftaran sekarang |
+| email_verification_expires_at | TIMESTAMPTZ | **Legacy** alur email lama |
+| pending_business_name | TEXT | Nama bisnis dari form daftar; dipakai saat approval lalu dikosongkan |
 | created_by | UUID | FK `platform_admins.id` (audit); NULL untuk pendaftaran mandiri |
-| firebase_uid | TEXT | UID Firebase Authentication; unik (partial index), NULL untuk akun lama/buatan Admin |
-| email_verification_method | TEXT | `manual` (default, akun lama/Admin) atau `firebase` (pendaftaran mandiri) |
-| firebase_verification_sent_at | TIMESTAMPTZ | Waktu email verifikasi Firebase terakhir diminta (dasar cooldown kirim ulang) |
+| firebase_uid | TEXT | **Legacy** kolom Firebase; dipertahankan untuk histori, tidak dipakai |
+| email_verification_method | TEXT | `manual` (default); nilai `firebase` hanya pada data lama |
+| firebase_verification_sent_at | TIMESTAMPTZ | **Legacy** kolom Firebase; tidak dipakai |
 | created_at | TIMESTAMPTZ | |
+
+### `owner_registrations` (migrasi `0016`, 29 Okt 2026)
+| Kolom | Tipe | Keterangan |
+| --- | --- | --- |
+| id | UUID PK | |
+| owner_id | UUID FK → owners | **UNIQUE** — satu pendaftaran per Owner |
+| registration_number | TEXT UNIQUE | `REG-YYYYMMDD-XXXXXXXX` (acak, tidak mudah ditebak) |
+| business_name | TEXT | Nama bisnis saat mendaftar |
+| plan_id | UUID FK → subscription_plans | Paket pilihan; divalidasi paket aktif |
+| status | TEXT | `draft` → `pending` → `approved`/`rejected` |
+| request_count | INTEGER | Jumlah permintaan approval (idempoten) |
+| requested_at | TIMESTAMPTZ | Waktu permintaan approval pertama |
+| approved_at, approved_by | TIMESTAMPTZ, UUID FK → platform_admins | Jejak persetujuan |
+| rejected_at, rejected_by, rejection_reason | TIMESTAMPTZ, UUID, TEXT | Jejak penolakan + alasan untuk Owner |
+| business_id | UUID FK → businesses | Bisnis yang dibuat saat disetujui |
+| trial_started_at, trial_ends_at | TIMESTAMPTZ | Trial **30 hari** dimulai saat persetujuan |
+| created_at, updated_at | TIMESTAMPTZ | |
 
 ### `businesses`
 | id | UUID PK | |

@@ -229,39 +229,26 @@ export const login = async (email, password) => {
   return body.user;
 };
 
-/** Pendaftaran Owner mandiri (publik): akun dibuat, email verifikasi dikirim. */
+/** Paket aktif yang dapat dipilih saat pendaftaran (tanpa tagihan pendaftaran). */
+export const registrationPlans = () => request('/api/auth/registration-plans');
+
+/** Pendaftaran Owner mandiri (publik): akun + draft menunggu approval Admin. */
 export const registerOwner = (payload) =>
   request('/api/auth/register-owner', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 
-/** Kirim ulang tautan verifikasi (respons selalu generik). */
-export const resendVerification = (email) =>
-  request('/api/auth/resend-verification', {
+/** Simpan permintaan approval (idempoten) dan dapatkan tautan WhatsApp Admin. */
+export const requestApproval = (registrationState) =>
+  request('/api/auth/request-approval', {
     method: 'POST',
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ registrationState }),
   });
 
-/** Status pendaftaran Firebase berdasarkan state halaman verifikasi. */
-export const firebaseVerificationStatus = (state) =>
-  request(
-    `/api/auth/firebase/verification-status?state=${encodeURIComponent(state)}`
-  );
-
-/** Minta backend memeriksa status terbaru ke Firebase Admin SDK. */
-export const verifyFirebaseOwner = (state, idToken) =>
-  request('/api/auth/firebase/verify-owner', {
-    method: 'POST',
-    body: JSON.stringify({ state, ...(idToken ? { idToken } : {}) }),
-  });
-
-/** Kirim ulang email verifikasi Firebase (dibatasi cooldown server). */
-export const resendFirebaseVerification = (state) =>
-  request('/api/auth/firebase/resend-verification', {
-    method: 'POST',
-    body: JSON.stringify({ state }),
-  });
+/** Status pendaftaran berdasarkan state bertanda tangan. */
+export const registrationStatus = (state) =>
+  request(`/api/auth/registration-status?state=${encodeURIComponent(state)}`);
 
 export const logout = async () => {
   const refreshToken = tokenStore.refresh;

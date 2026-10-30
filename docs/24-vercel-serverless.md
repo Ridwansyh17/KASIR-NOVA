@@ -65,59 +65,20 @@ menjawab **503** dan aplikasi tetap berjalan normal. Rincian:
 > (atau tunnel) agar callback sungguhan dapat diterima. `VERCEL_PROJECT_PRODUCTION_URL`
 > otomatis dipakai bila `PAYMENT_API_BASE_URL` tidak diisi.
 
-### Variabel verifikasi email Owner — Firebase Authentication
+### Variabel pendaftaran Owner — Approval Center
 
-Pendaftaran Owner baru memakai **Firebase Email Verification Link** (paket
-Spark, tanpa SMTP/domain berbayar). Password Owner tetap di-hash di PostgreSQL;
-Firebase hanya menyimpan email/UID dan status `emailVerified`.
-
-**Wajib di backend (Vercel → Settings → Environment Variables, Production):**
+Pendaftaran Owner **tidak lagi memakai Firebase/email verifikasi** dan tidak
+memungut biaya. Owner mendaftar, meminta approval lewat WhatsApp, lalu Admin
+menyetujui di Approval Center. Masa trial 30 hari dimulai saat persetujuan.
 
 | Key | Nilai |
 |---|---|
-| `FIREBASE_PROJECT_ID` | ID project, mis. `kasir-nova` |
-| `FIREBASE_CLIENT_EMAIL` | email service account `firebase-adminsdk-…@….iam.gserviceaccount.com` |
-| `FIREBASE_PRIVATE_KEY` | private key service account (newline boleh `\n`) |
-| `FIREBASE_WEB_API_KEY` | Web API Key project (bukan rahasia, dipakai backend meminta email) |
-
-Alternatif: isi **satu** variabel `FIREBASE_SERVICE_ACCOUNT_JSON` (isi JSON
-service account) sebagai pengganti tiga variabel kredensial di atas. Jangan
-pernah commit service account/private key.
-
-**Opsional:**
-
-| Key | Nilai |
-|---|---|
-| `FIREBASE_VERIFICATION_CONTINUE_URL` | default `APP_OWNER_PANEL_URL/verify-email`, mis. `https://kasir-nova.web.app/owner/verify-email` |
-| `FIREBASE_RESEND_COOLDOWN_SECONDS` | default `60` (minimum `30`) |
+| `SUPPORT_WHATSAPP` | nomor Admin tujuan pesan approval (default `6281359704766`) |
 | `APP_OWNER_PANEL_URL` | `https://kasir-nova.web.app/owner` |
-| `SUPPORT_WHATSAPP` | nomor Admin untuk akun pending **lama** (default `6281359704766`) |
 
-**Konfigurasi manual Firebase Console** (wajib sebelum rilis):
-
-1. **Authentication → Sign-in method**: aktifkan **Email/Password**. Login
-   frontend tetap memakai password KASIR NOVA; metode ini diperlukan agar
-   Firebase dapat membuat user dan memverifikasi email.
-2. **Authentication → Settings → Authorized domains**: pastikan
-   `kasir-nova.web.app` dan `localhost` ada.
-3. **Authentication → Templates → Email address verification**: sesuaikan
-   subjek/isi bahasa Indonesia, mis. “Verifikasi Alamat Email KASIR NOVA”.
-   Pengirim memakai domain bawaan Firebase; **tidak perlu** domain/SMTP sendiri.
-4. **Project settings → Service accounts → Generate new private key**: simpan
-   JSON hanya di env Vercel; jangan ke repo.
-5. **Project settings → General → Web API Key**: salin ke
-   `FIREBASE_WEB_API_KEY`.
-
-Contoh continue URL:
-```text
-FIREBASE_VERIFICATION_CONTINUE_URL=https://kasir-nova.web.app/owner/verify-email
-```
-
-> Tanpa kredensial Firebase lengkap, `POST /api/auth/register-owner` menjawab
-> **503** `firebase_not_configured`; login Admin/Kasir dan Owner lama tetap
-> berjalan. Verifikasi email baru diuji otomatis dengan adapter palsu; pengiriman
-> email sungguhan baru dapat diuji setelah kredensial diisi.
-
+Tidak ada kredensial Firebase/SMTP yang diperlukan untuk pendaftaran. Pastikan
+migrasi `0016_owner_approval_center.sql` sudah dijalankan di database produksi
+(`npm run db:migrate`) sebelum merilis panel.
 
 ---
 

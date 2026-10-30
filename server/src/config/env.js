@@ -115,25 +115,7 @@ export const env = {
       },
     };
   })(),
-  // --------------------------------------------------- Email & URL publik app
-  // Alur email lama (Resend/SMTP) dipertahankan untuk kompatibilitas.
-  // Pendaftaran Owner baru memakai Firebase Authentication (lihat env.firebase);
-  // bila `MAIL_PROVIDER=disabled`, development menulis tautan ke log.
-  mail: (() => {
-    const smtpPort = Number(process.env.SMTP_PORT ?? 587);
-    return {
-      provider: String(process.env.MAIL_PROVIDER ?? 'disabled').trim().toLowerCase(),
-      from: String(process.env.MAIL_FROM ?? 'KASIR NOVA <no-reply@kasir-nova.local>').trim(),
-      resendApiKey: String(process.env.RESEND_API_KEY ?? '').trim(),
-      smtp: {
-        host: String(process.env.SMTP_HOST ?? '').trim(),
-        port: Number.isFinite(smtpPort) ? smtpPort : 587,
-        secure: process.env.SMTP_SECURE === 'true' || smtpPort === 465,
-        user: String(process.env.SMTP_USER ?? '').trim(),
-        pass: String(process.env.SMTP_PASS ?? '').trim(),
-      },
-    };
-  })(),
+  // --------------------------------------------------- URL publik app
   app: (() => {
     const port = Number(process.env.PORT ?? 4000);
     const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
@@ -156,55 +138,10 @@ export const env = {
     return {
       publicUrl,
       ownerPanelUrl,
-      // Nomor Admin Platform untuk verifikasi manual akun Owner lama (WhatsApp).
+      // Nomor Admin Platform untuk permintaan approval pendaftaran Owner.
       supportWhatsapp: String(process.env.SUPPORT_WHATSAPP ?? '6281359704766').replace(
         /\D/g,
         ''
-      ),
-      emailVerificationTtlHours: Math.max(
-        1,
-        Math.floor(Number(process.env.EMAIL_VERIFICATION_TTL_HOURS ?? 24) || 24)
-      ),
-    };
-  })(),
-  // ------------------------------------------- Firebase Authentication (email)
-  // Kredensial hanya dari environment. Jangan pernah commit service account.
-  // Bisa memakai SATU JSON penuh (`FIREBASE_SERVICE_ACCOUNT_JSON`) ATAU tiga
-  // variabel terpisah. `FIREBASE_WEB_API_KEY` diperlukan untuk memicu Firebase
-  // mengirim email verifikasi (bukan untuk login frontend).
-  firebase: (() => {
-    const privateKey = String(process.env.FIREBASE_PRIVATE_KEY ?? '')
-      .replace(/\\n/g, '\n')
-      .trim();
-    const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-    const publicUrl = String(
-      process.env.APP_PUBLIC_URL ??
-        process.env.PAYMENT_API_BASE_URL ??
-        process.env.RENDER_EXTERNAL_URL ??
-        (vercelUrl ? `https://${vercelUrl}` : `http://localhost:${process.env.PORT ?? 4000}`)
-    )
-      .trim()
-      .replace(/\/+$/, '');
-    const ownerPanelUrl = String(
-      process.env.APP_OWNER_PANEL_URL ??
-        process.env.PAYMENT_OWNER_PANEL_URL ??
-        process.env.OWNER_PANEL_URL ??
-        `${publicUrl}/owner`
-    )
-      .trim()
-      .replace(/\/+$/, '');
-    return {
-      projectId: String(process.env.FIREBASE_PROJECT_ID ?? '').trim(),
-      clientEmail: String(process.env.FIREBASE_CLIENT_EMAIL ?? '').trim(),
-      privateKey,
-      serviceAccountJson: String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON ?? '').trim(),
-      webApiKey: String(process.env.FIREBASE_WEB_API_KEY ?? '').trim(),
-      verificationContinueUrl: String(
-        process.env.FIREBASE_VERIFICATION_CONTINUE_URL ?? `${ownerPanelUrl}/verify-email`
-      ).trim(),
-      resendCooldownSeconds: Math.max(
-        30,
-        Math.floor(Number(process.env.FIREBASE_RESEND_COOLDOWN_SECONDS ?? 60) || 60)
       ),
     };
   })(),

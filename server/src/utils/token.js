@@ -54,25 +54,25 @@ export const durationToMs = (duration) => {
 /** Umur refresh token (milidetik) sesuai konfigurasi env. */
 export const refreshTokenExpiryMs = () => durationToMs(env.jwt.refreshExpiresIn);
 
-const EMAIL_VERIFY_PURPOSE = 'firebase_email_verification';
+const REGISTRATION_PURPOSE = 'owner_registration_state';
 
 /**
- * Tanda tangan state halaman verifikasi email (bukan access token).
- * State membawa id Owner, ditandatangani, dan kedaluwarsa; tidak memberi sesi
- * dashboard. Aktifasi tetap menunggu `emailVerified` dari Firebase Admin SDK.
+ * Tanda tangan state pendaftaran Owner (bukan access token). State membawa id
+ * Owner, ditandatangani, dan kedaluwarsa; TIDAK memberi sesi dashboard. Dipakai
+ * untuk melanjutkan permintaan approval tanpa login (akun masih pending).
  */
-export const signEmailVerificationState = (ownerId) =>
+export const signRegistrationState = (ownerId) =>
   jwt.sign(
-    { sub: ownerId, purpose: EMAIL_VERIFY_PURPOSE },
+    { sub: ownerId, purpose: REGISTRATION_PURPOSE },
     env.jwt.accessSecret,
     { expiresIn: '30d' }
   );
 
-/** Verifikasi state halaman email; lempar error bila tidak valid/kedaluwarsa. */
-export const verifyEmailVerificationState = (state) => {
+/** Verifikasi state pendaftaran; lempar error bila tidak valid/kedaluwarsa. */
+export const verifyRegistrationState = (state) => {
   const decoded = jwt.verify(state, env.jwt.accessSecret);
-  if (decoded.purpose !== EMAIL_VERIFY_PURPOSE || !decoded.sub) {
-    const err = new Error('State verifikasi email tidak valid');
+  if (decoded.purpose !== REGISTRATION_PURPOSE || !decoded.sub) {
+    const err = new Error('State pendaftaran tidak valid');
     err.name = 'JsonWebTokenError';
     throw err;
   }
@@ -86,6 +86,6 @@ export default {
   hashRefreshToken,
   durationToMs,
   refreshTokenExpiryMs,
-  signEmailVerificationState,
-  verifyEmailVerificationState,
+  signRegistrationState,
+  verifyRegistrationState,
 };

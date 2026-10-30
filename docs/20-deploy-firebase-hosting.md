@@ -46,7 +46,7 @@ https://kasir-nova.web.app  (Firebase Hosting — statis)
 
 | Berkas | Isi |
 |---|---|
-| `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite subpath SPA + `/owner/verify-email`, header keamanan + cache (tanpa `/api/**` saat ini) |
+| `firebase.json` | `site: kasir-nova`, public `dist/hosting`, rewrite subpath SPA, header keamanan + cache (tanpa `/api/**` saat ini) |
 | `scripts/build-hosting.mjs` | salin 3 app ke `dist/hosting`, tulis beranda + 404, dan suntik `NOVA_API_BASE` (**default URL backend produksi**; `--same-origin` untuk base kosong) |
 | `scripts/hosting-landing.html` | sumber beranda root (`/`) — panel login Kasir/Owner/Admin, CTA **Daftar Gratis** (`/owner/?daftar=1`), harga paket (bulanan/tahunan → WhatsApp), fitur unggulan, dan kontak |
 | `scripts/hosting-404.html` | sumber halaman 404 (disajikan Firebase untuk path tak dikenal, status 404) |
@@ -80,11 +80,9 @@ firebase deploy --only hosting
 > Dijaga otomatis oleh `scripts/verify-ui.mjs` (menolak base kosong) dan langkah
 > **26b** `scripts/e2e-online.mjs` di produksi.
 
-Halaman verifikasi email Owner disajikan dari
-`/owner/verify-email` → `/owner/verify-email.html` (rewrite **sebelum**
-`/owner/**`). Halaman ini memakai `./src/verify-email.js` dan `./config.js`;
-jangan hapus rewrite tersebut atau tautan Firebase akan jatuh ke dashboard
-Owner.
+Pendaftaran Owner kini memakai persetujuan Admin (bukan halaman verifikasi
+email), sehingga tidak ada rewrite khusus `/owner/verify-email`. Semua path
+`/owner/**` dilayani panel Owner utama.
 
 ## 3b. Beranda root & halaman 404
 

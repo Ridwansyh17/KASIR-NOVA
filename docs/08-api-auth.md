@@ -30,13 +30,23 @@
 
 ---
 
-## POST `/api/auth/register-owner` *(Pendaftaran Owner mandiri — Firebase)*
+## GET `/api/auth/registration-plans` *(publik)*
 
-Publik. Membuat akun Owner **pending** dan meminta Firebase Authentication
-mengirim **tautan verifikasi email**. Password tetap dikelola KASIR NOVA
-(scrypt); Firebase hanya menyimpan identitas email/UID dan status
-`emailVerified`. **Tidak** mengembalikan token sesi; bisnis + langganan Gratis
-baru dibuat setelah email terverifikasi.
+Daftar paket aktif yang dapat dipilih saat pendaftaran. Harga langganan tidak
+ditampilkan karena pendaftaran **tidak memungut biaya**.
+
+```json
+{ "items": [ { "id": "uuid", "name": "Paket Bulanan", "max_outlets": 2, "max_cashiers": 3, "duration_days": 30, "features": {} } ] }
+```
+
+---
+
+## POST `/api/auth/register-owner` *(Pendaftaran Owner mandiri)*
+
+Publik. Membuat akun Owner + pendaftaran status `draft` dalam satu transaksi.
+**Tidak** mengembalikan token sesi, **tidak** mengirim email, dan **tidak**
+membuat tagihan/bisnis. Bisnis + langganan paket pilihan + trial 30 hari baru
+dibuat saat Admin menyetujui.
 
 **Request**
 ```json
@@ -45,144 +55,79 @@ baru dibuat setelah email terverifikasi.
   "businessName": "Toko Budi",
   "email": "pemilik@toko.id",
   "phone": "0812xxxxxxx",
-  "password": "rahasia-min-8"
+  "password": "rahasia-min-8",
+  "planId": "<uuid paket aktif>"
 }
 ```
 
-`phone` **wajib** dan dinormalisasi ke format `62…`.
+`phone` **wajib** dan dinormalisasi ke format `62…`. `planId` wajib dan harus
+paket aktif.
 
 **201 Created**
 ```json
 {
   "owner": { "id": "uuid", "email": "pemilik@toko.id", "fullName": "Budi Santoso" },
-  "email": "pemilik@toko.id",
-  "emailSent": true,
-  "verificationMethod": "email",
-  "verificationState": "<JWT state halaman verifikasi>",
-  "message": "Pendaftaran berhasil. Kami telah mengirim tautan verifikasi ke email Anda."
+  "registration": {
+    "id": "uuid",
+    "status": "draft",
+    "registration_number": "REG-20261029-AB12CD34",
+    "business_name": "Toko Budi",
+    "plan": { "id": "uuid", "name": "Paket Bulanan" }
+  },
+  "registrationState": "<JWT state pendaftaran>",
+  "message": "Pendaftaran berhasil. Silakan minta persetujuan Admin."
 }
 ```
 
-`verificationState` **bukan** access token dan tidak memberi sesi dashboard. Ia
-hanya dipakai halaman `/owner/verify-email` untuk membaca status pendaftaran.
-Frontend menyimpannya di `localStorage` dan URL; state ditandatangani server,
-berlaku 30 hari, dan dapat dipakai ulang secara idempoten.
+`registrationState` **bukan** access token dan tidak memberi sesi dashboard. Ia
+dipakai untuk melanjutkan permintaan approval/status tanpa login (akun masih
+pending), ditandatangani server, berlaku 30 hari.
 
 | Status | Arti |
 |---|---|
-| 201 | Akun pending dibuat; email Firebase diminta (lihat `emailSent`) |
-| 409 | Email sudah terdaftar (termasuk bila sudah ada di Firebase) |
-| 422 | Validasi gagal (termasuk nomor WhatsApp kosong/tidak valid) |
+| 201 | Akun + pendaftaran draft dibuat |
+| 409 | Email sudah terdaftar |
+| 422 | Validasi gagal (termasuk paket/WhatsApp tidak valid) |
 | 429 | Lebih dari **5 pendaftaran / jam / IP** |
-| 503 | Firebase belum dikonfigurasi di server (`firebase_not_configured`) |
-
-> Bila `emailSent=false`, akun tetap tersimpan agar form tidak membuat akun
-> ganda. Pengguna diarahkan ke halaman verifikasi dan dapat menekan **Kirim
-> Ulang Email**.
 
 ---
 
-## GET `/api/auth/firebase/verification-status?state=…`
+## POST `/api/auth/request-approval` *(publik, idempoten)*
 
-Publik, tetapi `state` harus JWT bertanda tangan dari server. Mengembalikan
-email, status verifikasi, dan sisa cooldown kirim ulang. Dibatasi **60
-permintaan / 15 menit / IP**.
+Menyimpan permintaan approval (status `draft` → `pending`) dan mengembalikan
+tautan WhatsApp Admin. Permintaan berulang tidak membuat baris pendaftaran baru.
 
+**Request**
+```json
+{ "registrationState": "<JWT state>" }
+```
+
+**200 OK**
 ```json
 {
-  "email": "pemilik@toko.id",
-  "verified": false,
-  "verificationMethod": "firebase",
-  "canResend": true,
-  "retryAfterSeconds": 0
+  "registration": { "id": "uuid", "status": "pending", "registration_number": "REG-…", "request_count": 1 },
+  "alreadyRequested": false,
+  "whatsappUrl": "https://wa.me/62…?text=…",
+  "message": "Permintaan approval berhasil disimpan…"
 }
 ```
 
-`400 invalid_verification_state` bila state palsu/kedaluwarsa • `404` bila
-pendaftaran sudah dihapus.
+Template WhatsApp memuat nama Owner, nama bisnis, nomor registrasi, dan paket
+pilihan. Nomor Admin berasal dari `SUPPORT_WHATSAPP`.
+
+| Status | Arti |
+|---|---|
+| 200 | Tersimpan (atau sudah pernah diminta) |
+| 400 | State tidak valid/kedaluwarsa |
+| 404 | Pendaftaran tidak ditemukan |
+| 409 | Pendaftaran sudah disetujui/ditolak |
 
 ---
 
-## POST `/api/auth/firebase/verify-owner`
+## GET `/api/auth/registration-status?state=…` *(publik)*
 
-Tombol **“Saya Sudah Verifikasi”**. Server memeriksa status terbaru langsung ke
-Firebase Admin SDK; status dari browser tidak pernah dipercaya.
-
-**Request**
-```json
-{ "state": "<JWT state>", "idToken": "<opsional>" }
-```
-
-Bila `idToken` dikirim, server memverifikasinya dengan Admin SDK dan mewajibkan
-`uid` serta email cocok dengan pendaftaran. Tanpa `idToken`, server tetap
-memanggil `getUser(uid)` dan memeriksa `emailVerified`.
-
-- `200 { "verified": false, "message": "Email belum diverifikasi…" }` bila tautan
-  belum diklik.
-- `200 { "verified": true, ... }` setelah Firebase menyatakan `emailVerified`;
-  server **atomik** mengisi `email_verified_at`, membuat **bisnis pertama**,
-  langganan **Gratis 30 hari**, dan audit `owner.email_verified`.
-- `400` state tidak valid • `403 firebase_identity_mismatch` • `409
-  firebase_email_mismatch` / `not_firebase_registration`.
-
----
-
-## POST `/api/auth/firebase/resend-verification`
-
-Mengirim ulang tautan verifikasi Firebase. Dibatasi **3 permintaan / 15 menit
-/ IP** + cooldown per akun (`FIREBASE_RESEND_COOLDOWN_SECONDS`, default 60,
-minimum 30).
-
-**Request**
-```json
-{ "state": "<JWT state>" }
-```
-
-**200**
-```json
-{
-  "sent": true,
-  "verified": false,
-  "message": "Email verifikasi baru telah dikirim. Periksa kotak masuk dan folder spam."
-}
-```
-
-`429` menyertakan `details.retryAfterSeconds`. Bila Firebase sudah menyatakan
-email terverifikasi, server menyelesaikan aktivasi dan mengembalikan
-`verified: true` tanpa mengirim email baru.
-
----
-
-## GET `/api/auth/verify-email?token=…` *(Alur email legacy — tidak dipakai pendaftaran baru)*
-
-Dipertahankan untuk akun pending lama yang dibuat sebelum Firebase. Hanya
-menerima Owner dengan `email_verification_method = 'manual'`. Token 64 karakter
-hex, disimpan sebagai SHA-256, berlaku **24 jam**, dan sekali pakai.
-
-- `302` → `/owner/?verified=1` setelah verifikasi berhasil.
-- `302` → `/owner/?verify=invalid` bila token salah/kedaluwarsa/sudah dipakai.
-- `&format=json` → `200 { verified, email, businessId, message }` atau `400`.
-- Verifikasi atomik membuat bisnis pertama + langganan Gratis dan audit.
-
----
-
-## POST `/api/auth/resend-verification` *(Alur email legacy)*
-
-Hanya untuk Owner `email_verification_method = 'manual'` yang belum
-terverifikasi. Akun Firebase akan diabaikan (respons tetap generik).
-
-**Request**
-```json
-{ "email": "pemilik@toko.id" }
-```
-
-**202 Accepted** — selalu generik:
-
-```json
-{ "message": "Jika email terdaftar dan belum diverifikasi, tautan verifikasi baru telah dikirim." }
-```
-
-Dibatasi **3 permintaan / 15 menit / IP**. Token lama langsung tidak berlaku.
+Mengembalikan `{ registration }` berdasarkan state bertanda tangan. Dipakai
+halaman **Menunggu Persetujuan Admin** untuk menyegarkan status.
 
 ---
 
@@ -209,7 +154,7 @@ terlampaui).
 |---|---|
 | 200 | Berhasil |
 | 401 | Email atau password salah (pesan seragam, anti-enumerasi) |
-| 403 | Akun dinonaktifkan, Owner **menunggu verifikasi email** (`details.code = "email_not_verified"`, `details.verificationState`), atau akun pending **lama** (`account_not_verified` + `details.whatsappUrl`) |
+| 403 | Akun dinonaktifkan, Owner **menunggu approval** (`details.code = "pending_approval"`, `details.registrationState`), atau pendaftaran **ditolak** (`registration_rejected` + `details.reason`) |
 | 404 | Peran tidak dikenal/tidak didukung (mis. salah ketik `role`) |
 | 422 | Validasi gagal (mis. password < 8 karakter, peran tak dikenal) |
 | 429 | Terlalu banyak percobaan |

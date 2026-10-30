@@ -43,13 +43,12 @@ Edit `server\.env` bila perlu (DATABASE_URL sudah sesuai untuk dev).
 > server tetap berjalan dan endpoint pembayaran menjawab 503. Kredensial
 > **tidak boleh** di-commit. Rincian: `docs/38-pembayaran-langganan-gateway.md`.
 >
-> **Verifikasi pendaftaran Owner memakai Firebase Authentication (email).**
-> Isi `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
-> `FIREBASE_PRIVATE_KEY` (atau `FIREBASE_SERVICE_ACCOUNT_JSON`) dan
-> `FIREBASE_WEB_API_KEY`, lalu aktifkan Email/Password + template verifikasi di
-> Firebase Console. Tanpa konfigurasi ini pendaftaran menjawab **503**;
-> login Admin/Kasir dan Owner lama tetap berjalan. `SUPPORT_WHATSAPP` hanya
-> untuk akun pending lama. Rincian: `docs/24-vercel-serverless.md`.
+> **Pendaftaran Owner memakai Approval Center (tanpa biaya/email).** Calon
+> Owner mendaftar, memilih paket, lalu menekan **MINTA APPROVE ADMIN**; Admin
+> menyetujui/menolak di tab **Approval Center**. Bisnis + paket pilihan + trial
+> 30 hari dibuat saat persetujuan. Isi `SUPPORT_WHATSAPP` (nomor Admin tujuan
+> pesan approval). Tidak ada kredensial Firebase/SMTP yang diperlukan. Rincian:
+> `docs/39` & `docs/24-vercel-serverless.md`.
 
 ### 3. Install dependency & migrasi
 
@@ -335,14 +334,14 @@ roadmap fase.
   Lingkup **hanya langganan** — pembayaran penjualan kasir tetap manual.
   Rincian & cara uji sandbox: `docs/38-pembayaran-langganan-gateway.md`.
   Alur pelanggan baru dari akun sampai langganan aktif: `docs/39-cara-pelanggan-baru-mendaftar-langganan.md`.
-- **Pendaftaran Owner mandiri + verifikasi email Firebase (23 Okt 2026)**:
-  calon Owner mendaftar dari panel Owner (`/owner/?daftar=1`) atau CTA **Daftar
-  Gratis** di beranda. Firebase mengirim tautan verifikasi; password tetap
-  di-hash scrypt di server. Setelah email terverifikasi, server dalam satu
-  transaksi membuat **bisnis pertama + langganan Gratis 30 hari**. Login
-  sebelum verifikasi ditolak **403** (`email_not_verified`) dan diarahkan ke
-  `/owner/verify-email`; endpoint daftar dibatasi 5/jam/IP. Migrasi
-  `0013`–`0015`; rincian `docs/39` & `docs/08`.
+- **Pendaftaran Owner + Approval Center (29 Okt 2026)**: calon Owner mendaftar
+  dari panel Owner (`/owner/?daftar=1`) atau CTA **Daftar Gratis** di beranda,
+  memilih paket, lalu meminta approval lewat WhatsApp. Tidak ada biaya
+  pendaftaran maupun verifikasi email. Admin menyetujui/menolak di **Approval
+  Center**; saat disetujui server dalam satu transaksi membuat **bisnis pertama
+  + paket pilihan 30 hari**. Login sebelum approval ditolak **403**
+  (`pending_approval`); pendaftaran ditolak mengembalikan alasannya. Endpoint
+  daftar dibatasi 5/jam/IP. Migrasi `0016`; rincian `docs/39` & `docs/08`.
 - **Navigasi samping + ganti sandi sendiri + tombol lihat sandi (20 Okt 2026,
   live)**: ketiga panel web memakai **sidebar** (desktop 252 px; ≤ 900 px
   off-canvas dengan hamburger/overlay — `shared/sidebar.css`,

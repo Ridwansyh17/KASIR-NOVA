@@ -12,7 +12,6 @@ import { query, withTransaction } from '../../config/db.js';
 import { hashPassword } from '../../utils/hash.js';
 import { NotFoundError, ConflictError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
-import { createBusinessInTransaction } from '../owner/service.js';
 
 const OWNER_COLUMNS = `id, email, full_name, phone, status, created_by, created_at, updated_at, deleted_at,
   email_verified_at, pending_business_name, email_verification_method,
@@ -56,7 +55,10 @@ export const listOwners = async ({ search = null, status = null, page = 1, limit
         AND ($2::account_status IS NULL OR status = $2::account_status)`;
 
   const { rows } = await query(
-    `SELECT ${OWNER_COLUMNS} FROM owners ${filters}
+    `SELECT ${OWNER_COLUMNS},
+            (SELECT r.status FROM owner_registrations r WHERE r.owner_id = owners.id)
+              AS registration_status
+       FROM owners ${filters}
       ORDER BY created_at DESC
       LIMIT $3 OFFSET $4`,
     [search, status, limit, offset]
@@ -73,7 +75,10 @@ export const listOwners = async ({ search = null, status = null, page = 1, limit
 /** Detail satu owner. */
 export const getOwner = async (id) => {
   const { rows } = await query(
-    `SELECT ${OWNER_COLUMNS} FROM owners WHERE id = $1 AND deleted_at IS NULL`,
+    `SELECT ${OWNER_COLUMNS},
+            (SELECT r.status FROM owner_registrations r WHERE r.owner_id = owners.id)
+              AS registration_status
+       FROM owners WHERE id = $1 AND deleted_at IS NULL`,
     [id]
   );
   if (!rows[0]) throw new NotFoundError('Owner tidak ditemukan');
@@ -110,70 +115,6 @@ export const createOwner = async ({ email, password, fullName, phone, actor, ip 
   } catch (err) {
     throw asConflict(err);
   }
-};
-
-/**
- * Verifikasi manual akun Owner pending lama (alur WhatsApp) oleh Admin Platform.
- * Atomik: tandai terverifikasi + buat bisnis pertama + langganan Gratis.
- */
-export const verifyOwner = async (id, actor, ip) => {
-  return withTransaction(async (client) => {
-    const { rows: currentRows } = await client.query(
-      `SELECT ${OWNER_COLUMNS} FROM owners
-        WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
-      [id]
-    );
-    const owner = currentRows[0];
-    if (!owner) throw new NotFoundError('Owner tidak ditemukan');
-    if (owner.email_verified_at) {
-      throw new ConflictError('Owner sudah terverifikasi');
-    }
-    if (owner.firebase_linked) {
-      throw new ConflictError(
-        'Owner ini wajib menyelesaikan verifikasi email Firebase. Verifikasi manual tidak diizinkan.'
-      );
-    }
-
-    let business = null;
-    if (owner.pending_business_name) {
-      business = await createBusinessInTransaction(client, {
-        ownerId: owner.id,
-        name: owner.pending_business_name,
-        actor,
-        ip,
-      });
-    }
-
-    const { rows } = await client.query(
-      `UPDATE owners
-          SET email_verified_at = now(),
-              email_verification_token_hash = NULL,
-              email_verification_expires_at = NULL,
-              pending_business_name = NULL
-        WHERE id = $1
-        RETURNING ${OWNER_COLUMNS}`,
-      [id]
-    );
-
-    await writeAudit({
-      client,
-      actorRole: actor.role,
-      actorId: actor.id,
-      businessId: business?.id ?? null,
-      action: 'owner.whatsapp_verified',
-      entityType: 'owner',
-      entityId: owner.id,
-      before: { email_verified_at: null, pending_business_name: owner.pending_business_name },
-      after: {
-        email_verified_at: rows[0].email_verified_at,
-        verified_via: 'whatsapp',
-        business_id: business?.id ?? null,
-      },
-      ip,
-    });
-
-    return { owner: rows[0], business };
-  });
 };
 
 /** Ubah data owner (email / full_name / phone). */
@@ -348,7 +289,6 @@ export default {
   listOwners,
   getOwner,
   createOwner,
-  verifyOwner,
   updateOwner,
   setOwnerStatus,
   resetOwnerPassword,

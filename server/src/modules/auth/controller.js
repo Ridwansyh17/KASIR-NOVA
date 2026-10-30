@@ -3,7 +3,6 @@
  * Semua error dilempar ke middleware error terpusat (next(err)).
  */
 import * as authService from './service.js';
-import env from '../../config/env.js';
 
 export const login = async (req, res, next) => {
   try {
@@ -23,13 +22,14 @@ export const login = async (req, res, next) => {
 
 export const registerOwner = async (req, res, next) => {
   try {
-    const { fullName, businessName, email, password, phone } = req.body;
+    const { fullName, businessName, email, password, phone, planId } = req.body;
     const result = await authService.registerOwner({
       fullName,
       businessName,
       email,
       password,
       phone,
+      planId,
       ip: req.ip,
     });
     res.status(201).json(result);
@@ -38,69 +38,33 @@ export const registerOwner = async (req, res, next) => {
   }
 };
 
-/**
- * Tautan verifikasi dari email membuka endpoint ini. Peramban diarahkan kembali
- * ke panel Owner dengan status; `?format=json` dipakai pengujian/otomasi.
- */
-export const verifyEmail = async (req, res, next) => {
-  const wantsJson = req.query.format === 'json';
+export const registrationPlans = async (_req, res, next) => {
   try {
-    const result = await authService.verifyOwnerEmail({
-      token: req.query.token,
-      ip: req.ip,
-    });
-    if (wantsJson) return res.status(200).json(result);
-    return res.redirect(302, `${env.app.ownerPanelUrl}/?verified=1`);
-  } catch (err) {
-    if (wantsJson) return next(err);
-    const code = err?.statusCode === 400 ? 'invalid' : 'error';
-    return res.redirect(302, `${env.app.ownerPanelUrl}/?verify=${code}`);
-  }
-};
-
-export const resendVerification = async (req, res, next) => {
-  try {
-    const result = await authService.resendOwnerVerification({
-      email: req.body.email,
-      ip: req.ip,
-    });
-    res.status(202).json(result);
+    const items = await authService.listRegistrationPlans();
+    res.status(200).json({ items });
   } catch (err) {
     next(err);
   }
 };
 
-export const firebaseVerificationStatus = async (req, res, next) => {
+export const requestApproval = async (req, res, next) => {
   try {
-    const result = await authService.getOwnerFirebaseVerificationStatus({
+    const result = await authService.requestOwnerApproval({
+      state: req.body.registrationState,
+      ip: req.ip,
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const registrationStatus = async (req, res, next) => {
+  try {
+    const result = await authService.getOwnerRegistrationStatus({
       state: req.query.state,
     });
     res.status(200).json(result);
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const verifyFirebaseOwner = async (req, res, next) => {
-  try {
-    const result = await authService.verifyOwnerFirebase({
-      state: req.body.state,
-      idToken: req.body.idToken,
-      ip: req.ip,
-    });
-    res.status(200).json(result);
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const resendFirebaseVerification = async (req, res, next) => {
-  try {
-    const result = await authService.resendOwnerFirebaseVerification({
-      state: req.body.state,
-      ip: req.ip,
-    });
-    res.status(202).json(result);
   } catch (err) {
     next(err);
   }

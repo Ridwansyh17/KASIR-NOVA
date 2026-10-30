@@ -16,7 +16,6 @@
 | GET | `/owners` | Daftar owner (cari, filter status, paginasi) |
 | POST | `/owners` | Buat owner baru |
 | GET | `/owners/:id` | Detail owner |
-| POST | `/owners/:id/verify` | Verifikasi manual akun pending **lama** (WhatsApp) + buat bisnis/trial |
 | PATCH | `/owners/:id` | Ubah nama/email/telepon owner |
 | PATCH | `/owners/:id/status` | Suspend / aktivasi owner |
 | POST | `/owners/:id/password` | Reset password owner |
@@ -24,7 +23,11 @@
 
 Field owner yang dikembalikan (tanpa `password_hash`):
 `id, email, full_name, phone, status, created_by, created_at, updated_at, deleted_at,
-email_verified_at, pending_business_name, email_verification_method, firebase_linked`
+email_verified_at, pending_business_name, email_verification_method, firebase_linked,
+registration_status`
+
+`registration_status` berasal dari `owner_registrations` (`draft`, `pending`,
+`approved`, `rejected`; `null` untuk Owner tanpa pendaftaran mandiri).
 
 ---
 
@@ -59,35 +62,69 @@ default 1), `limit` (1–100, default 20).
 | 409 | Email sudah terdaftar |
 | 422 | Validasi gagal |
 
-## POST `/owners/:id/verify`
+## Approval Center
 
-Verifikasi manual akun Owner pending **lama** (alur WhatsApp). Akun yang
-terhubung Firebase **ditolak 409** karena wajib menyelesaikan verifikasi email
-sendiri. Dalam satu transaksi: mengisi
-`email_verified_at`, mengosongkan `pending_business_name`, membuat **bisnis
-pertama** + langganan default **Gratis 30 hari**, dan menulis audit
-`owner.whatsapp_verified` + `business.create`.
+Semua endpoint memerlukan token `platform_admin`.
 
-**200 OK**
+| Metode | Path | Fungsi |
+|---|---|---|
+| GET | `/approvals` | Daftar pending/riwayat + jumlah pending |
+| POST | `/approvals/:id/approve` | Setujui → bisnis + paket pilihan + trial 30 hari |
+| POST | `/approvals/:id/reject` | Tolak dengan alasan wajib |
+
+### GET `/approvals`
+
+Query: `status` (`pending` default, `history`, `all`, atau status tertentu),
+`search` (nama/email Owner, nama bisnis, nomor registrasi), `page`, `limit`
+(1–100, default 20).
+
 ```json
 {
-  "owner": { "id": "uuid", "email_verified_at": "…", "pending_business_name": null },
-  "business": { "id": "uuid", "name": "Toko Budi", "status": "active" },
-  "message": "Owner terverifikasi. Bisnis dan langganan Gratis berhasil dibuat."
+  "items": [
+    {
+      "id": "uuid", "status": "pending",
+      "registration_number": "REG-20261029-AB12CD34",
+      "business_name": "Toko Budi",
+      "owner": { "full_name": "Budi", "email": "budi@toko.id", "phone": "62812…" },
+      "plan": { "id": "uuid", "name": "Paket Bulanan", "max_outlets": 1 },
+      "requested_at": "2026-…", "trial_started_at": null, "trial_ends_at": null
+    }
+  ],
+  "total": 1, "pending": 1, "page": 1, "limit": 20, "status": "pending"
 }
 ```
 
-`404` owner tidak ditemukan • `409` owner sudah terverifikasi atau terhubung
-Firebase (`firebase_linked = true`).
+### POST `/approvals/:id/approve`
 
-### Catatan Firebase
+Menyetujui pendaftaran berstatus `pending`. Dalam satu transaksi: membuat bisnis,
+memasang **paket pilihan selama 30 hari** mulai `now()` server, mengisi
+`owners.email_verified_at`, menyimpan jejak approval/trial, dan menulis audit
+`owner.registration_approved`.
 
-- Owner hasil pendaftaran mandiri memiliki `email_verification_method =
-  'firebase'` dan `firebase_linked = true`.
-- Perubahan `email` untuk Owner Firebase ditolak **409** dari panel Admin.
-- Badge panel Admin membedakan **terverifikasi**, **menunggu email** (Firebase),
-  dan **menunggu** (akun lama). Tombol verifikasi/WA hanya muncul untuk akun
-  lama yang belum terverifikasi.
+- `200` → `{ registration, business, alreadyApproved: false, message }`
+- `200 alreadyApproved: true` bila dipanggil ulang (idempoten).
+- `409` bila pendaftaran masih draft atau sudah ditolak.
+- `404` bila tidak ditemukan.
+
+### POST `/approvals/:id/reject`
+
+**Request** `{ "reason": "minimal 5 karakter" }`
+
+- `200` → `{ registration, alreadyRejected: false, message }`
+- `200 alreadyRejected: true` bila dipanggil ulang.
+- `409` bila sudah disetujui • `422` alasan tidak valid.
+
+Penolakan tidak membuat bisnis/langganan. Alasan disimpan dan ditampilkan saat
+Owner mencoba login (`details.code = "registration_rejected"`).
+
+### Catatan pendaftaran
+
+- Tidak ada lagi endpoint verifikasi manual `/owners/:id/verify`; aktivasi
+  pendaftaran mandiri hanya lewat Approval Center.
+- Owner buatan Admin langsung aktif (`email_verified_at` terisi) dan tidak
+  memerlukan approval.
+- Badge daftar Owner memakai `registration_status`; akun lama tanpa baris
+  pendaftaran ditandai sebagai Owner lama/terverifikasi.
 
 ## PATCH `/owners/:id`
 
@@ -133,6 +170,8 @@ Setiap mutasi menulis satu baris `audit_logs` **di dalam transaksi yang sama**
 | `owner.status_change` | suspend/aktivasi |
 | `owner.reset_password` | password direset |
 | `owner.delete` | soft delete |
+| `owner.registration_approved` | pendaftaran disetujui Admin |
+| `owner.registration_rejected` | pendaftaran ditolak Admin |
 
 `before`/`after` menyimpan snapshot (tanpa `password_hash`).
 

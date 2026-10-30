@@ -252,7 +252,20 @@ export const api = {
   createOwner: (data) =>
     request('/api/platform/owners', { method: 'POST', body: JSON.stringify(data) }),
 
-  verifyOwner: (id) => request(`/api/platform/owners/${id}/verify`, { method: 'POST' }),
+  listApprovals({ status = 'pending', search = '', page = 1, limit = 20 } = {}) {
+    const q = new URLSearchParams({ status, page: String(page), limit: String(limit) });
+    if (search) q.set('search', search);
+    return request(`/api/platform/approvals?${q.toString()}`);
+  },
+
+  approveApproval: (id) =>
+    request(`/api/platform/approvals/${id}/approve`, { method: 'POST' }),
+
+  rejectApproval: (id, reason) =>
+    request(`/api/platform/approvals/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 
   updateOwner: (id, data) =>
     request(`/api/platform/owners/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

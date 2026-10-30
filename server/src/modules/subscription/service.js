@@ -40,6 +40,31 @@ export const createDefaultSubscription = async (client, businessId) => {
 };
 
 /**
+ * Buat langganan trial dari paket yang dipilih saat pendaftaran.
+ * Dipakai Approval Center: masa gratis 30 hari dihitung dari waktu persetujuan
+ * Admin (now() server), bukan waktu mendaftar.
+ */
+export const createTrialSubscription = async (
+  client,
+  { businessId, planId, trialDays = 30 }
+) => {
+  const { rows: planRows } = await client.query(
+    `SELECT id, name, duration_days FROM subscription_plans WHERE id = $1`,
+    [planId]
+  );
+  const plan = planRows[0];
+  if (!plan) throw new NotFoundError('Paket pilihan tidak ditemukan');
+
+  const { rows } = await client.query(
+    `INSERT INTO subscriptions (business_id, plan_id, status, started_at, expires_at, auto_renew)
+     VALUES ($1, $2, 'active', now(), now() + make_interval(days => $3), false)
+     RETURNING ${SUBSCRIPTION_COLUMNS}`,
+    [businessId, plan.id, trialDays]
+  );
+  return { subscription: rows[0], plan };
+};
+
+/**
  * Gerbang kuota outlet. WAJIB dipanggil di dalam transaksi yang sudah mengunci
  * baris `businesses` (FOR UPDATE) agar dua pembuatan outlet bersamaan tidak
  * melampaui batas. Memakai langganan TERBARU (bukan hanya yang aktif) agar
@@ -252,6 +277,7 @@ export const setSubscriptionStatus = async (businessId, status, actor, ip) => {
 
 export default {
   createDefaultSubscription,
+  createTrialSubscription,
   enforceOutletQuota,
   enforceCashierQuota,
   enforceSubscriptionActive,

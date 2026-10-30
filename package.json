@@ -16,7 +16,6 @@
     "test:image": "node --test scripts/test-product-image.mjs",
     "test:qr": "node --test scripts/test-qr-code.mjs",
     "test:landing": "node scripts/test-landing.mjs",
-    "test:verify-email": "node --test scripts/test-verify-email-page.mjs",
     "sandbox:duitku": "node scripts/sandbox-duitku-e2e.mjs",
     "sync:shared": "node scripts/sync-shared.mjs",
     "db:migrate": "npm run db:migrate --workspace server",

@@ -59,6 +59,9 @@
 
         <nav id="main-tabs" class="side-nav" aria-label="Menu utama">
           <button class="tab active" data-tab="owners">Owner</button>
+          <button class="tab" data-tab="approvals">
+            Approval Center <span id="approval-badge" class="badge warn hidden"></span>
+          </button>
           <button class="tab" data-tab="plans">Paket</button>
           <button class="tab" data-tab="businesses">Bisnis &amp; Langganan</button>
           <button class="tab" data-tab="audit">Audit Log</button>
@@ -124,7 +127,7 @@
                   <th>Email</th>
                   <th>Telepon</th>
                   <th>Status</th>
-                  <th>Verifikasi</th>
+                  <th>Pendaftaran</th>
                   <th>Dibuat</th>
                   <th class="right">Aksi</th>
                 </tr>
@@ -138,6 +141,42 @@
             <button id="prev-btn" class="btn">‹ Sebelumnya</button>
             <span id="page-info" class="muted"></span>
             <button id="next-btn" class="btn">Berikutnya ›</button>
+          </div>
+        </section>
+
+        <!-- ================= TAB APPROVAL CENTER ================= -->
+        <section id="view-approvals" class="tab-view hidden">
+          <div class="toolbar">
+            <h2>Approval Center</h2>
+            <div class="toolbar-actions">
+              <input id="approval-search" type="search" placeholder="Cari nama / bisnis / nomor registrasi…" />
+              <select id="approval-status">
+                <option value="pending">Menunggu persetujuan</option>
+                <option value="history">Riwayat</option>
+                <option value="all">Semua</option>
+              </select>
+              <button id="refresh-approvals-btn" class="btn">Muat ulang</button>
+            </div>
+          </div>
+
+          <div id="alert-approvals" class="alert hidden"></div>
+
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Owner</th>
+                  <th>Bisnis</th>
+                  <th>Nomor Registrasi</th>
+                  <th>Paket</th>
+                  <th>Diminta</th>
+                  <th>Status</th>
+                  <th class="right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="approvals-body"></tbody>
+            </table>
+            <p id="approvals-empty" class="empty hidden">Tidak ada pendaftaran pada filter ini.</p>
           </div>
         </section>
 

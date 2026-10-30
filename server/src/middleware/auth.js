@@ -32,10 +32,10 @@ export const requireAuth = async (req, _res, next) => {
     if (user.status !== 'active') {
       throw new UnauthorizedError('Akun Anda dinonaktifkan');
     }
-    // Pertahanan berlapis: sesi Owner yang belum terverifikasi tidak boleh
-    // mengakses endpoint Owner walau token sempat terbit.
+    // Pertahanan berlapis: sesi Owner yang pendaftarannya belum disetujui Admin
+    // tidak boleh mengakses endpoint Owner walau token sempat terbit.
     if (payload.role === 'owner' && !user.email_verified_at) {
-      throw new ForbiddenError('Akun menunggu verifikasi email.');
+      throw new ForbiddenError('Pendaftaran Owner menunggu persetujuan Admin.');
     }
 
     req.user = {

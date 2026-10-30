@@ -13,6 +13,8 @@ import {
   tokenStore,
   ApiError,
   registerOwner,
+  registrationPlans,
+  requestApproval,
 } from './api.js';
 import './pw-toggle.js';
 import { renderPrintReport, PRINT_STATUS_LABELS } from './report-print.js';
@@ -31,6 +33,8 @@ const state = {
   // V0.3: bukti/foto yang sedang dipilih pada modal (undefined = tidak diubah)
   formPhoto: undefined,
   formPhotoCurrent: '', // foto produk tersimpan saat modal dibuka (blok gambar otomatis)
+  registrationPlans: [],
+  registrationState: null,
 };
 
 const show = (el) => el.classList.remove('hidden');
@@ -188,17 +192,48 @@ const guard = async (fn) => {
 // ---------------------------------------------------------------- Login ----
 const showLoginForm = (email) => {
   hide($('register-form'));
+  hide($('approval-panel'));
   show($('login-form'));
   if (email) $('login-email').value = email;
+};
+
+const renderRegistrationPlans = () => {
+  const select = $('register-plan');
+  select.innerHTML = '';
+  if (!state.registrationPlans.length) {
+    select.append(new Option('Belum ada paket aktif', ''));
+    return;
+  }
+  select.append(new Option('Pilih paket…', ''));
+  for (const plan of state.registrationPlans) {
+    select.append(
+      new Option(
+        `${plan.name} — maks ${plan.max_outlets} outlet / ${plan.max_cashiers} kasir`,
+        plan.id
+      )
+    );
+  }
+};
+
+const loadRegistrationPlans = async () => {
+  if (state.registrationPlans.length) return;
+  try {
+    const result = await registrationPlans();
+    state.registrationPlans = result.items ?? [];
+  } catch {
+    state.registrationPlans = [];
+  }
+  renderRegistrationPlans();
 };
 
 const showRegisterForm = () => {
   $('register-form').reset();
   hide($('register-error'));
   hide($('register-success'));
-  hide($('whatsapp-wrap'));
+  hide($('approval-panel'));
   hide($('login-form'));
   show($('register-form'));
+  loadRegistrationPlans();
 };
 
 const showLoginNotice = (message, linkHref, linkText = 'Chat Admin via WhatsApp') => {
@@ -223,30 +258,81 @@ const showLoginError = (message) => {
 };
 
 /**
- * Buka halaman verifikasi email Firebase. State disimpan lokal agar halaman
- * tetap bisa dipakai bila pengguna membuka ulang tab (state juga ada di URL).
+ * Tampilkan halaman "Pendaftaran Berhasil — Menunggu Persetujuan Admin".
+ * Tidak ada biaya pendaftaran maupun instruksi pembayaran di sini.
  */
-const openEmailVerification = (state, email, emailSent = true) => {
-  try {
-    localStorage.setItem('nova_owner_verify_state', state);
-    if (email) localStorage.setItem('nova_owner_verify_email', email);
-  } catch {
-    /* storage tidak tersedia — URL tetap membawa state */
+const showApprovalPending = (registration, registrationState) => {
+  state.registrationState = registrationState;
+  hide($('login-form'));
+  hide($('register-form'));
+  hide($('login-error'));
+  hide($('login-notice'));
+  show($('approval-panel'));
+
+  const details = $('approval-details');
+  const rows = [
+    ['Nama Owner', registration?.owner?.full_name],
+    ['Nama Bisnis', registration?.business_name],
+    ['Nomor Registrasi', registration?.registration_number],
+    ['Paket Pilihan', registration?.plan?.name],
+  ].filter(([, value]) => value);
+  details.innerHTML = rows
+    .map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .join('');
+
+  hide($('approval-error'));
+  const status = $('approval-status');
+  if (registration?.requested_at) {
+    status.textContent =
+      'Permintaan persetujuan sudah tercatat. Admin akan memproses pendaftaran Anda.';
+    show(status);
+  } else {
+    hide(status);
   }
-  const target = window.location.pathname.startsWith('/owner')
-    ? '/owner/verify-email'
-    : './verify-email';
-  window.location.href = `${target}?state=${encodeURIComponent(state)}${emailSent ? '' : '&sent=0'}`;
+  $('request-approval-btn').textContent = registration?.requested_at
+    ? 'BUKA WHATSAPP ADMIN'
+    : 'MINTA APPROVE ADMIN';
 };
 
-const markWhatsappPending = (url) => {
-  const wrap = $('whatsapp-wrap');
-  if (!url) {
-    hide(wrap);
+const requestAdminApproval = async () => {
+  if (!state.registrationState) {
+    showLoginForm();
     return;
   }
-  $('whatsapp-verify-link').href = url;
-  show(wrap);
+  const button = $('request-approval-btn');
+  hide($('approval-error'));
+  hide($('approval-status'));
+  button.disabled = true;
+  // Buka tab kosong selagi masih dalam gestur klik agar tidak diblokir pop-up.
+  const waWindow = window.open('', '_blank');
+  try {
+    const result = await requestApproval(state.registrationState);
+    if (result.registration) {
+      showApprovalPending(result.registration, state.registrationState);
+    }
+    const status = $('approval-status');
+    status.textContent =
+      result.message ?? 'Permintaan persetujuan tersimpan. Lanjutkan ke WhatsApp Admin.';
+    show(status);
+
+    if (result.whatsappUrl) {
+      if (waWindow && !waWindow.closed) {
+        waWindow.opener = null;
+        waWindow.location.href = result.whatsappUrl;
+      } else {
+        window.open(result.whatsappUrl, '_blank', 'noopener');
+      }
+    } else if (waWindow) {
+      waWindow.close();
+    }
+  } catch (err) {
+    if (waWindow && !waWindow.closed) waWindow.close();
+    const el = $('approval-error');
+    el.textContent = describeError(err);
+    show(el);
+  } finally {
+    button.disabled = false;
+  }
 };
 
 $('login-form').addEventListener('submit', async (event) => {
@@ -259,24 +345,26 @@ $('login-form').addEventListener('submit', async (event) => {
   try {
     await login(email, $('login-password').value);
     $('login-password').value = '';
+    state.registrationState = null;
     await fetchCurrentUser();
     hide($('login-view'));
     show($('app-view'));
     await loadBusinesses();
   } catch (err) {
-    showLoginError(describeError(err));
-    if (
-      err instanceof ApiError &&
-      err.status === 403 &&
-      ['account_not_verified', 'email_not_verified'].includes(err.details?.code)
-    ) {
-      $('login-email').value = email;
-      if (err.details?.verificationMethod === 'email' && err.details?.verificationState) {
-        openEmailVerification(err.details.verificationState, err.details.email ?? email);
+    if (err instanceof ApiError && err.status === 403) {
+      const details = err.details ?? {};
+      if (details.code === 'pending_approval' && details.registrationState) {
+        $('login-email').value = email;
+        showApprovalPending(details.registration, details.registrationState);
         return;
       }
-      markWhatsappPending(err.details?.whatsappUrl);
+      if (details.code === 'registration_rejected') {
+        const reason = details.reason ? `: ${details.reason}` : '.';
+        showLoginError(`Pendaftaran Anda ditolak Admin${reason}`);
+        return;
+      }
     }
+    showLoginError(describeError(err));
   } finally {
     button.disabled = false;
   }
@@ -296,6 +384,9 @@ $('show-login-btn').addEventListener('click', () => {
   showLoginForm();
 });
 
+$('approval-login-btn').addEventListener('click', () => showLoginForm());
+$('request-approval-btn').addEventListener('click', requestAdminApproval);
+
 $('register-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   hide($('register-error'));
@@ -314,6 +405,7 @@ $('register-form').addEventListener('submit', async (event) => {
     businessName: $('register-business').value.trim(),
     email: $('register-email').value.trim(),
     phone: $('register-phone').value.trim(),
+    planId: $('register-plan').value,
     password,
   };
 
@@ -321,16 +413,7 @@ $('register-form').addEventListener('submit', async (event) => {
   button.disabled = true;
   try {
     const result = await registerOwner(payload);
-    if (result.verificationState) {
-      openEmailVerification(
-        result.verificationState,
-        result.email ?? payload.email,
-        result.emailSent !== false
-      );
-      return;
-    }
-    showLoginForm(payload.email);
-    showLoginNotice(result.message);
+    showApprovalPending(result.registration, result.registrationState);
   } catch (err) {
     const el = $('register-error');
     el.textContent = describeError(err);

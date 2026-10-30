@@ -1581,6 +1581,40 @@ produksi sebelum alur email diuji dengan kredensial asli.
 
 ---
 
+## 29 Okt 2026 — Approval Center menggantikan verifikasi email & bayar pendaftaran
+
+**Keputusan pemilik.** Pendaftaran Owner mandiri **tanpa biaya** dan **tanpa
+verifikasi email/Firebase**. Alur baru: daftar (draft) → **MINTA APPROVE
+ADMIN** (WhatsApp) → Admin menyetujui/menolak di **Approval Center** → bisnis +
+paket pilihan + **trial 30 hari** dibuat saat persetujuan.
+
+**Implementasi.**
+- Migrasi `0016_owner_approval_center.sql`: tabel `owner_registrations`
+  (satu baris per Owner, nomor registrasi, status, jejak approval/trial).
+- Modul `server/src/modules/owner-approval/`: daftar pending/riwayat, setujui
+  (idempoten), tolak dengan alasan wajib, template WhatsApp.
+- `POST /api/auth/register-owner` kini membuat akun + pendaftaran `draft`
+  tanpa sesi/langganan; endpoint publik `GET /api/auth/registration-plans`,
+  `POST /api/auth/request-approval`, `GET /api/auth/registration-status`.
+- Login Owner pending → **403** `pending_approval`; ditolak →
+  `registration_rejected` + alasan.
+- Approval atomik: bisnis, paket pilihan 30 hari dari waktu approval,
+  `email_verified_at`, audit `owner.registration_approved`.
+- Panel Owner: pilih paket, halaman menunggu approval, tombol **MINTA APPROVE
+  ADMIN**. Panel Admin: tab **Approval Center** + badge pending.
+- Dihapus: verifikasi email Firebase, mailer/Firebase SDK, halaman
+  `/owner/verify-email`, endpoint verifikasi manual `/owners/:id/verify`,
+  dependensi `firebase-admin` & `nodemailer`, env terkait.
+
+**Pengujian (lokal, DB berjalan).**
+- `npm run db:migrate` → 16 migrasi.
+- `npm run test --workspace server` → **368/368 lulus** (8 tes alur approval).
+- `npm run verify:ui` → **SEMUA OK**.
+
+**Status.** Kode selesai & teruji lokal; **belum di-commit/dideploy**.
+
+---
+
 ## Modul Ditangguhkan (di luar roadmap di atas)
 
 - **Gateway pembayaran digital**: abstraksi penyedia sudah dipakai untuk

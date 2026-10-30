@@ -4,11 +4,13 @@
  *   GET    /api/platform/owners              daftar owner (cari/filter/paginasi)
  *   POST   /api/platform/owners              buat owner baru
  *   GET    /api/platform/owners/:id          detail owner
- *   POST   /api/platform/owners/:id/verify   verifikasi manual akun pending lama (WhatsApp)
  *   PATCH  /api/platform/owners/:id          ubah data owner
  *   PATCH  /api/platform/owners/:id/status   suspend/aktivasi
  *   POST   /api/platform/owners/:id/password reset password
  *   DELETE /api/platform/owners/:id          soft delete
+ *   GET    /api/platform/approvals           Approval Center pendaftaran Owner
+ *   POST   /api/platform/approvals/:id/approve  setujui + trial 30 hari
+ *   POST   /api/platform/approvals/:id/reject   tolak dengan alasan
  *   GET    /api/platform/plans               daftar paket langganan
  *   POST   /api/platform/plans               buat paket langganan
  *   GET/PATCH /api/platform/plans/:id        detail/ubah paket langganan
@@ -31,6 +33,7 @@ import {
   idParamSchema,
 } from './schema.js';
 import plansRouter from '../plans/routes.js';
+import approvalRouter from '../owner-approval/routes.js';
 import businessRouter from './business-routes.js';
 import { createAuditRouter } from '../audit/routes.js';
 import { adminSessionRouter } from '../session/routes.js';
@@ -42,6 +45,7 @@ const router = Router();
 // Gerbang tunggal: hanya Admin Platform.
 router.use(requireAuth, requireRole('platform_admin'));
 
+router.use('/approvals', approvalRouter);
 router.use('/plans', plansRouter);
 router.use('/businesses', businessRouter);
 router.use('/audit-logs', createAuditRouter());
@@ -57,11 +61,6 @@ router.get(
 router.get('/owners', ...validate({ query: listOwnersQuerySchema }), controller.listOwners);
 router.post('/owners', ...validate({ body: createOwnerSchema }), controller.createOwner);
 router.get('/owners/:id', ...validate({ params: idParamSchema }), controller.getOwner);
-router.post(
-  '/owners/:id/verify',
-  ...validate({ params: idParamSchema }),
-  controller.verifyOwner
-);
 router.patch(
   '/owners/:id',
   ...validate({ params: idParamSchema, body: updateOwnerSchema }),

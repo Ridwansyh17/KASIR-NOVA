@@ -7,7 +7,7 @@
 import { query, withTransaction } from '../../config/db.js';
 import { NotFoundError } from '../../middleware/error.js';
 import { writeAudit } from '../audit/service.js';
-import { createDefaultSubscription } from '../subscription/service.js';
+import { createDefaultSubscription, createTrialSubscription } from '../subscription/service.js';
 
 const BUSINESS_COLUMNS = `id, owner_id, name, business_type, currency, timezone, status, created_at, updated_at`;
 
@@ -30,7 +30,7 @@ export const listBusinesses = async (ownerId) => {
  */
 export const createBusinessInTransaction = async (
   client,
-  { ownerId, name, businessType, currency, timezone, actor, ip }
+  { ownerId, name, businessType, currency, timezone, actor, ip, initialSubscription = null }
 ) => {
   const { rows } = await client.query(
     `INSERT INTO businesses (owner_id, name, business_type, currency, timezone, status)
@@ -40,9 +40,19 @@ export const createBusinessInTransaction = async (
   );
   const business = rows[0];
 
-  // Keputusan pemilik (OPSI A): bisnis baru otomatis diberi langganan
-  // plan default, dalam transaksi yang sama dengan pembuatan bisnis.
-  await createDefaultSubscription(client, business.id);
+  // Pendaftaran mandiri yang disetujui Admin memakai paket pilihan + trial
+  // 30 hari. Alur lain (panel Owner / Admin) tetap memakai paket default.
+  if (initialSubscription?.planId) {
+    await createTrialSubscription(client, {
+      businessId: business.id,
+      planId: initialSubscription.planId,
+      trialDays: initialSubscription.trialDays ?? 30,
+    });
+  } else {
+    // Keputusan pemilik (OPSI A): bisnis baru otomatis diberi langganan
+    // plan default, dalam transaksi yang sama dengan pembuatan bisnis.
+    await createDefaultSubscription(client, business.id);
+  }
 
   await writeAudit({
     client,

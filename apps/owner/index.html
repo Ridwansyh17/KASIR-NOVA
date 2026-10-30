@@ -59,7 +59,8 @@
         <div class="brand-login">
           <h1 class="brand-title">Daftar Owner</h1>
           <p class="muted">
-            Buat akun, lalu verifikasi email Anda sebelum mulai berjualan.
+            Daftar gratis tanpa biaya pendaftaran. Setelah mendaftar, minta
+            persetujuan Admin untuk mengaktifkan bisnis dan masa gratis 30 hari.
           </p>
         </div>
 
@@ -95,6 +96,12 @@
           />
         </label>
         <label class="field">
+          <span>Paket langganan</span>
+          <select id="register-plan" required>
+            <option value="">Memuat paket…</option>
+          </select>
+        </label>
+        <label class="field">
           <span>Password (minimal 8 karakter)</span>
           <input
             id="register-password"
@@ -115,18 +122,40 @@
           />
         </label>
 
-        <button type="submit" class="btn primary block">Daftar &amp; Kirim Verifikasi</button>
+        <button type="submit" class="btn primary block">Daftar Gratis</button>
         <p id="register-error" class="error hidden"></p>
         <p id="register-success" class="alert ok hidden"></p>
         <p class="auth-switch">
-          Setelah mendaftar, Anda akan diarahkan ke halaman verifikasi email.
-          Buka tautan dari Firebase di kotak masuk Anda.
+          Tidak ada biaya pendaftaran. Masa gratis 30 hari dimulai setelah Admin
+          menyetujui pendaftaran Anda.
         </p>
         <p class="auth-switch">
           Sudah punya akun?
           <button type="button" id="show-login-btn" class="link-btn">Masuk</button>
         </p>
       </form>
+
+      <section id="approval-panel" class="card auth-card auth-card-wide hidden">
+        <div class="brand-login">
+          <h1 class="brand-title">Pendaftaran Berhasil</h1>
+          <p class="alert ok">Menunggu Persetujuan Admin</p>
+        </div>
+        <p class="muted">
+          Akun dan data bisnis Anda sudah tersimpan. Tekan tombol di bawah untuk
+          meminta persetujuan Admin melalui WhatsApp. Masa gratis 30 hari baru
+          dimulai setelah Admin menyetujui.
+        </p>
+        <dl class="muted small" id="approval-details"></dl>
+        <button type="button" id="request-approval-btn" class="btn primary block">
+          MINTA APPROVE ADMIN
+        </button>
+        <p id="approval-status" class="alert ok hidden"></p>
+        <p id="approval-error" class="error hidden"></p>
+        <p class="auth-switch">
+          Sudah disetujui Admin?
+          <button type="button" id="approval-login-btn" class="link-btn">Masuk</button>
+        </p>
+      </section>
     </section>
 
     <!-- ================= APP ================= -->

@@ -28,7 +28,7 @@ export const loginLimiter = rateLimit({
 
 /**
  * Limiter pendaftaran Owner mandiri: 5 akun / jam / IP.
- * Mencegah pembuatan akun massal; bukan pengganti verifikasi email.
+ * Mencegah pembuatan akun massal.
  */
 export const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -44,34 +44,18 @@ export const registerLimiter = rateLimit({
 });
 
 /**
- * Limiter kirim ulang verifikasi email (legacy + Firebase): 3 / 15 menit / IP.
- * Server juga memberlakukan cooldown per akun untuk mencegah spam.
+ * Limiter permintaan approval & cek status pendaftaran (publik): longgar agar
+ * tombol "Minta Approve Admin" dan polling status tetap nyaman, tetapi cukup
+ * membatasi penyalahgunaan state/endpoint.
  */
-export const resendVerificationLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: {
-      message:
-        'Terlalu banyak permintaan kirim ulang. Coba lagi dalam 15 menit.',
-    },
-  },
-});
-
-/**
- * Limiter cek status verifikasi email: cukup longgar agar tombol "Saya sudah
- * verifikasi" bisa dicoba beberapa kali, tetapi tetap membatasi enumerasi.
- */
-export const verificationStatusLimiter = rateLimit({
+export const approvalRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     error: {
-      message: 'Terlalu banyak pemeriksaan status. Coba lagi beberapa saat lagi.',
+      message: 'Terlalu banyak permintaan pendaftaran. Coba lagi beberapa saat lagi.',
     },
   },
 });
@@ -152,6 +136,7 @@ export default {
   loginLimiter,
   pinLimiter,
   passwordLimiter,
+  approvalRequestLimiter,
   webhookLimiter,
   invoiceSyncLimiter,
 };

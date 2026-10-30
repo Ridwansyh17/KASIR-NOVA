@@ -16,6 +16,8 @@ const $ = (id) => document.getElementById(id);
 const state = {
   // owners
   page: 1, limit: 10, total: 0, search: '', status: '', owners: [],
+  // approval center
+  approvalStatus: 'pending', approvalSearch: '', approvals: [], approvalsPending: 0,
   // plans
   plans: [],
   // businesses
@@ -106,6 +108,7 @@ document.querySelectorAll('.tab').forEach((tab) => {
     setSidebarOpen(false);
     document.querySelectorAll('.tab-view').forEach((v) => hide(v));
     show($(`view-${tab.dataset.tab}`));
+    if (tab.dataset.tab === 'approvals') loadApprovals();
     if (tab.dataset.tab === 'plans') loadPlans();
     if (tab.dataset.tab === 'businesses') loadBusinesses();
     if (tab.dataset.tab === 'audit') loadAuditLogs();
@@ -127,6 +130,7 @@ $('login-form').addEventListener('submit', async (event) => {
     hide($('login-view'));
     show($('app-view'));
     await loadOwners();
+    await loadApprovals();
   } catch (err) {
     const el = $('login-error');
     el.textContent = describeError(err);
@@ -218,26 +222,25 @@ const renderOwners = (items) => {
       o.status === 'active'
         ? '<span class="badge ok">aktif</span>'
         : '<span class="badge off">nonaktif</span>';
-    const verified = Boolean(o.email_verified_at);
-    const emailPending = !verified && Boolean(o.firebase_linked);
-    const verifyBadge = verified
-      ? '<span class="badge ok">terverifikasi</span>'
-      : emailPending
-        ? '<span class="badge warn">menunggu email</span>'
-        : '<span class="badge warn">menunggu</span>';
+    const registrationLabels = {
+      draft: '<span class="badge warn">draft</span>',
+      pending: '<span class="badge warn">menunggu approval</span>',
+      approved: '<span class="badge ok">disetujui</span>',
+      rejected: '<span class="badge off">ditolak</span>',
+    };
+    const verifyBadge = o.registration_status
+      ? registrationLabels[o.registration_status] ?? escapeHtml(o.registration_status)
+      : o.email_verified_at
+        ? '<span class="badge ok">owner lama</span>'
+        : '<span class="badge warn">belum aktif</span>';
     const toggleLabel = o.status === 'active' ? 'Nonaktifkan' : 'Aktifkan';
     const pending = o.pending_business_name
       ? `<div class="muted small">Bisnis: ${escapeHtml(o.pending_business_name)}</div>`
       : '';
     const wa = waNumber(o.phone);
-    const waLink =
-      wa && !o.firebase_linked
-        ? `<a class="btn small" href="https://wa.me/${wa}" target="_blank" rel="noopener">WA</a>`
-        : '';
-    const verifyBtn =
-      verified || o.firebase_linked
-        ? ''
-        : `<button class="btn small primary" data-action="verify" data-id="${o.id}">Verifikasi</button>`;
+    const waLink = wa
+      ? `<a class="btn small" href="https://wa.me/${wa}" target="_blank" rel="noopener">WA</a>`
+      : '';
 
     tr.innerHTML = `
       <td>${escapeHtml(o.full_name)}${pending}</td>
@@ -247,7 +250,6 @@ const renderOwners = (items) => {
       <td>${verifyBadge}</td>
       <td class="muted">${escapeHtml(fmtDate(o.created_at))}</td>
       <td class="right actions">
-        ${verifyBtn}
         ${waLink}
         <button class="btn small" data-action="edit" data-id="${o.id}">Ubah</button>
         <button class="btn small" data-action="toggle" data-id="${o.id}">${toggleLabel}</button>
@@ -292,22 +294,6 @@ $('owners-body').addEventListener('click', async (event) => {
 
   if (action === 'edit') return openEditModal(owner);
 
-  if (action === 'verify') {
-    const business = owner.pending_business_name
-      ? ` Bisnis "${owner.pending_business_name}" akan dibuat.`
-      : '';
-    if (!confirm(`Verifikasi ${owner.email}?${business} Masa coba Gratis 30 hari akan dimulai.`))
-      return;
-    try {
-      const result = await guard(() => api.verifyOwner(id));
-      alertBox('alert-owners', result?.message ?? 'Owner berhasil diverifikasi.', 'ok');
-      await loadOwners();
-    } catch (err) {
-      alertBox('alert-owners', describeError(err), 'error');
-    }
-    return;
-  }
-
   if (action === 'toggle') {
     const next = owner.status === 'active' ? 'suspended' : 'active';
     if (!confirm(`Ubah status ${owner.email} menjadi "${next}"?`)) return;
@@ -344,6 +330,124 @@ $('owners-body').addEventListener('click', async (event) => {
     }
   }
 });
+
+// ========================================================== APPROVAL CENTER ===
+const setApprovalBadge = (count) => {
+  state.approvalsPending = Number(count) || 0;
+  const badge = $('approval-badge');
+  if (!badge) return;
+  badge.textContent = state.approvalsPending;
+  badge.classList.toggle('hidden', state.approvalsPending === 0);
+};
+
+const renderApprovals = (items) => {
+  const tbody = $('approvals-body');
+  tbody.innerHTML = '';
+  hide($('approvals-empty'));
+
+  if (!items.length) {
+    show($('approvals-empty'));
+    return;
+  }
+
+  for (const item of items) {
+    const tr = document.createElement('tr');
+    const statusBadge =
+      item.status === 'approved'
+        ? '<span class="badge ok">disetujui</span>'
+        : item.status === 'rejected'
+          ? '<span class="badge off">ditolak</span>'
+          : item.status === 'pending'
+            ? '<span class="badge warn">menunggu</span>'
+            : '<span class="badge">draft</span>';
+    const owner = item.owner ?? {};
+    const plan = item.plan ?? {};
+    const actions =
+      item.status === 'pending'
+        ? `<button class="btn small primary" data-approval-action="approve" data-id="${item.id}">Setujui</button>
+           <button class="btn small danger" data-approval-action="reject" data-id="${item.id}">Tolak</button>`
+        : item.status === 'rejected'
+          ? `<div class="muted small">${escapeHtml(item.rejection_reason ?? '')}</div>`
+          : `<div class="muted small">${escapeHtml(fmtDate(item.approved_at))}</div>`;
+
+    tr.innerHTML = `
+      <td>${escapeHtml(owner.full_name ?? '—')}
+        <div class="muted small">${escapeHtml(owner.email ?? '')}</div></td>
+      <td>${escapeHtml(item.business_name)}</td>
+      <td>${escapeHtml(item.registration_number)}</td>
+      <td>${escapeHtml(plan.name ?? '—')}</td>
+      <td class="muted">${escapeHtml(fmtDate(item.requested_at))}</td>
+      <td>${statusBadge}</td>
+      <td class="right actions">${actions}</td>`;
+    tbody.appendChild(tr);
+  }
+};
+
+const loadApprovals = async () => {
+  const body = await guard(() =>
+    api.listApprovals({
+      status: state.approvalStatus,
+      search: state.approvalSearch,
+      limit: 100,
+    })
+  );
+  if (!body) return;
+  state.approvals = body.items;
+  renderApprovals(body.items);
+  setApprovalBadge(body.pending);
+};
+
+$('approvals-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-approval-action]');
+  if (!btn) return;
+  const { approvalAction, id } = btn.dataset;
+  const item = state.approvals.find((row) => row.id === id);
+  if (!item) return;
+
+  if (approvalAction === 'approve') {
+    const label = `${item.owner?.full_name ?? 'Owner'} / ${item.business_name}`;
+    if (
+      !confirm(
+        `Setujui pendaftaran ${label}?\nPaket: ${item.plan?.name ?? '-'}\nMasa gratis 30 hari dimulai sekarang.`
+      )
+    )
+      return;
+    try {
+      const result = await guard(() => api.approveApproval(id));
+      alertBox('alert-approvals', result?.message ?? 'Pendaftaran disetujui.', 'ok');
+      await loadApprovals();
+      await loadOwners();
+    } catch (err) {
+      alertBox('alert-approvals', describeError(err), 'error');
+    }
+    return;
+  }
+
+  if (approvalAction === 'reject') {
+    const reason = prompt(`Alasan menolak pendaftaran ${item.business_name}:`);
+    if (!reason) return;
+    try {
+      const result = await guard(() => api.rejectApproval(id, reason.trim()));
+      alertBox('alert-approvals', result?.message ?? 'Pendaftaran ditolak.', 'ok');
+      await loadApprovals();
+      await loadOwners();
+    } catch (err) {
+      alertBox('alert-approvals', describeError(err), 'error');
+    }
+  }
+});
+
+let approvalTimer = null;
+$('approval-search').addEventListener('input', (event) => {
+  state.approvalSearch = event.target.value.trim();
+  clearTimeout(approvalTimer);
+  approvalTimer = setTimeout(loadApprovals, 300);
+});
+$('approval-status').addEventListener('change', (event) => {
+  state.approvalStatus = event.target.value;
+  loadApprovals();
+});
+$('refresh-approvals-btn').addEventListener('click', () => loadApprovals());
 
 let searchTimer = null;
 $('search').addEventListener('input', (event) => {
@@ -1140,6 +1244,7 @@ const boot = async () => {
     hide($('login-view'));
     show($('app-view'));
     await loadOwners();
+    await loadApprovals();
   } catch (err) {
     // Sesi tidak dapat diverifikasi (mis. jaringan). Token TIDAK dihapus.
     show($('login-view'));

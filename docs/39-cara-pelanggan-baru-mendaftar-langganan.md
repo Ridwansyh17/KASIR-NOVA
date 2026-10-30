@@ -1,6 +1,6 @@
 # KASIR NOVA — Cara Pelanggan Baru Mendaftar & Berlangganan
 
-> Alur operasional (17 Okt 2026). Menjelaskan langkah **pelanggan baru** (pemilik
+> Alur operasional (29 Okt 2026). Menjelaskan langkah **pelanggan baru** (pemilik
 > bisnis) mulai dari punya akun sampai punya **langganan aktif**, lengkap dengan
 > endpoint yang dipakai panel.
 >
@@ -12,51 +12,60 @@
 
 ## 1. Yang perlu diketahui lebih dulu
 
-Sejak **23 Oktober 2026** pendaftaran Owner mandiri diverifikasi melalui
-**tautan email Firebase Authentication** (Firebase Email Verification Link).
-Calon pelanggan membuat akun sendiri dari panel Owner atau tautan **Daftar
-Gratis** di beranda publik, lalu mengklik tautan verifikasi yang dikirim
-Firebase. Tidak diperlukan WhatsApp untuk alur normal, SMTP, atau domain email
-berbayar.
+Sejak **29 Oktober 2026** pendaftaran Owner mandiri **tidak memungut biaya** dan
+**tidak memakai verifikasi email**. Calon pelanggan mengisi form, memilih paket,
+lalu menekan **MINTA APPROVE ADMIN** yang menyimpan permintaan dan membuka chat
+WhatsApp Admin. Admin menyetujui atau menolak dari **Approval Center**; masa
+gratis **30 hari dimulai saat Admin menyetujui**.
 
 | Pihak | Peran |
 | --- | --- |
-| **Calon Owner** | Mendaftar di `/owner/?daftar=1`, membuka email, lalu mengklik tautan verifikasi Firebase |
-| **Firebase Authentication** | Membuat identitas email/UID dan mengirim tautan verifikasi; **tidak** menyimpan password Owner |
-| **Sistem KASIR NOVA** | Menyimpan password (scrypt), memeriksa `emailVerified` via Admin SDK, lalu membuat **bisnis + langganan Gratis 30 hari** secara atomik |
-| **Owner** | Menyiapkan outlet/kasir/produk, lalu **berlangganan sendiri** (self-service) |
-| **Admin Platform** | Cadangan/bantuan akun & langganan; memverifikasi manual hanya akun pending **lama** (WhatsApp) |
+| **Calon Owner** | Mendaftar di `/owner/?daftar=1`, memilih paket, meminta approval via WhatsApp |
+| **Admin Platform** | Menyetujui/menolak pendaftaran di **Approval Center** panel Admin |
+| **Sistem KASIR NOVA** | Menyimpan password (scrypt), membuat bisnis + langganan paket pilihan + trial 30 hari secara atomik saat disetujui |
+| **Owner** | Menyiapkan outlet/kasir/produk, lalu memperpanjang langganan (self-service atau WhatsApp + approval Admin) |
 
 > Pendaftaran **tidak langsung memberi sesi**. Akun baru berstatus pending;
-> login sebelum verifikasi dijawab **403** dengan
-> `details.code = "email_not_verified"` dan `details.verificationState`.
-> Akun pending lama (alur WhatsApp) tetap memakai
-> `details.code = "account_not_verified"` + `details.whatsappUrl`.
+> login sebelum disetujui dijawab **403** dengan
+> `details.code = "pending_approval"` + `details.registrationState`.
+> Pendaftaran yang ditolak dijawab **403** dengan
+> `details.code = "registration_rejected"` + `details.reason`.
 
 Akun Admin Platform tetap hanya lahir dari **seeding internal**
-(`server/src/db/seed.js`), bukan lewat pendaftaran publik.
+(`server/src/db/seed.js`), bukan lewat pendaftaran publik. Owner tidak dapat
+mengaktifkan akunnya sendiri.
 
 ---
 
-## 2. Ringkasan alur (6 langkah)
+## 2. Ringkasan alur
 
 | # | Siapa | Aksi | Hasil |
 | --- | --- | --- | --- |
-| 1 | Calon Owner | Buka **Daftar Gratis** (`/owner/?daftar=1`) dan isi form | Akun pending + email verifikasi Firebase diminta |
-| 2 | Calon Owner | Buka email lalu klik tautan verifikasi | Firebase menandai email terverifikasi dan kembali ke halaman verifikasi KASIR NOVA |
-| 3 | Calon Owner | Klik **Saya Sudah Verifikasi** (atau langsung login) | Server memeriksa Firebase; **bisnis pertama + Gratis 30 hari** dibuat atomik |
+| 1 | Calon Owner | Buka **Daftar Gratis** (`/owner/?daftar=1`), isi form + pilih paket | Akun + pendaftaran status `draft`; belum ada bisnis/langganan |
+| 2 | Calon Owner | Tekan **MINTA APPROVE ADMIN** | Status `pending`, pesan WhatsApp Admin terbuka |
+| 3 | Admin Platform | Buka **Approval Center** → **Setujui** | Bisnis + paket pilihan + trial **30 hari** dibuat; Owner aktif |
 | 4 | Owner | Login di panel Owner (`/owner`) | Sesi Owner |
 | 5 | Owner | Buat outlet, kasir, kategori, produk | Berjalan selama langganan aktif |
-| 6 | Owner | **Bayar / Perpanjang** → pilih paket + kanal → bayar | Langganan baru **aktif** (callback otomatis atau tombol **Cek status**) |
+| 6 | Owner | **Bayar / Perpanjang** atau minta approval perpanjangan via WhatsApp | Langganan baru **aktif** |
 
-Ringkas: **daftar sendiri → verifikasi email Firebase → bisnis + Gratis
-otomatis → upgrade/perpanjang self-service**.
+Tidak ada tagihan, bukti pembayaran, atau status "menunggu pembayaran" pada
+alur pendaftaran.
 
 ---
 
-## 3. Langkah 1–3 — Daftar, verifikasi email, bisnis otomatis
+## 3. Langkah 1–3 — Daftar, minta approval, aktivasi Admin
 
-### 3.1 Form pendaftaran
+### 3.1 Paket pendaftaran (publik)
+
+```http
+GET /api/auth/registration-plans
+```
+
+Mengembalikan paket aktif (`id`, `name`, `max_outlets`, `max_cashiers`,
+`duration_days`, `features`). Harga langganan tidak ditampilkan pada alur
+pendaftaran karena tidak ada biaya pendaftaran.
+
+### 3.2 Form pendaftaran
 
 Panel Owner → tautan **Daftar gratis**, atau langsung:
 `https://kasir-nova.web.app/owner/?daftar=1`.
@@ -70,96 +79,90 @@ Content-Type: application/json
   "businessName": "Toko Budi",
   "email": "pemilik@toko.id",
   "phone": "0812xxxxxxx",
-  "password": "rahasia-min-8"
+  "password": "rahasia-min-8",
+  "planId": "<uuid paket>"
 }
 ```
 
 | Field | Aturan |
 | --- | --- |
 | `fullName` | wajib, 2–120 karakter |
-| `businessName` | wajib, 2–120 karakter; disimpan sementara |
+| `businessName` | wajib, 2–120 karakter |
 | `email` | wajib, format email, ≤ 320 karakter, **dinormalisasi huruf kecil**; duplikat → **409** |
 | `phone` | **wajib**, nomor WhatsApp; dinormalisasi ke format `62…` |
 | `password` | wajib, **minimal 8** karakter, ≤ 200; di-hash scrypt di server |
+| `planId` | wajib, UUID paket aktif; tidak valid → **422** |
 
-- `201` → `{ owner, email, emailSent, verificationMethod: "email",
-  verificationState, message }` — **tanpa** `accessToken`/`refreshToken`.
-- `409` → email sudah terdaftar (di PostgreSQL atau Firebase).
-- `422` → validasi gagal (termasuk nomor WhatsApp kosong/tidak valid).
+- `201` → `{ owner, registration, registrationState, message }` —
+  **tanpa** `accessToken`/`refreshToken`.
+  - `registration.status = "draft"`
+  - `registration.registration_number` = nomor tetap `REG-YYYYMMDD-XXXXXXXX`
+- `409` → email sudah terdaftar.
+- `422` → validasi gagal (termasuk paket/WhatsApp tidak valid).
 - `429` → dibatasi **5 pendaftaran / jam / IP**.
-- `503` → Firebase belum dikonfigurasi di server.
 
-Panel langsung membuka `/owner/verify-email?state=…`. Halaman menampilkan email
-terdaftar, tombol **Buka Gmail**, **Saya Sudah Verifikasi**, dan **Kirim Ulang
-Email**. Bila pengiriman email gagal, akun tetap tersimpan dan halaman
-menampilkan peringatan + tombol kirim ulang (tanpa membuat akun ganda).
+Satu Owner hanya punya **satu baris** `owner_registrations`
+(`UNIQUE owner_id`), sehingga permintaan approval berulang tidak membuat data
+ganda.
 
-### 3.2 Verifikasi email Firebase
+### 3.3 Minta approval Admin (idempoten)
 
-Firebase mengirim tautan ke email pendaftar. Setelah diklik, Firebase menandai
-`emailVerified = true` dan mengarahkan kembali ke
-`/owner/verify-email?state=…` (continue URL).
-
-Halaman memanggil:
+Panel menampilkan halaman **Pendaftaran Berhasil — Menunggu Persetujuan Admin**
+dengan tombol **MINTA APPROVE ADMIN**. Tombol memanggil:
 
 ```http
-GET /api/auth/firebase/verification-status?state=<state>
-```
-
-Tombol **Saya Sudah Verifikasi** memanggil:
-
-```http
-POST /api/auth/firebase/verify-owner
+POST /api/auth/request-approval
 Content-Type: application/json
 
-{ "state": "<state>" }
+{ "registrationState": "<state>" }
 ```
 
-Server **tidak mempercayai klaim browser**: ia memanggil Firebase Admin SDK
-`getUser(uid)` (dan memverifikasi `idToken` bila dikirim), lalu memastikan email
-cocok. Bila `emailVerified = true`, dalam **satu transaksi** server:
+Respons `200`:
 
-1. Mengisi `owners.email_verified_at = now()` dan mengosongkan
-   `pending_business_name`.
-2. Membuat **bisnis pertama** dari `pending_business_name`.
-3. Membuat **langganan default Gratis 30 hari** (`is_default=true`,
-   `auto_renew=false`).
-4. Menulis audit `owner.email_verified` + `business.create`.
-
-Proses idempoten: klik/percobaan berulang tidak membuat bisnis kedua. Owner juga
-bisa langsung login setelah verifikasi; server memeriksa Firebase saat login
-dan menyelesaikan aktivasi otomatis.
-
-### 3.3 Kirim ulang email
-
-```http
-POST /api/auth/firebase/resend-verification
-Content-Type: application/json
-
-{ "state": "<state>" }
+```json
+{
+  "registration": { "status": "pending", "registration_number": "REG-20261029-AB12CD34" },
+  "alreadyRequested": false,
+  "whatsappUrl": "https://wa.me/62…?text=…",
+  "message": "Permintaan approval berhasil disimpan…"
+}
 ```
 
-Dibatasi **3 permintaan / 15 menit / IP** + cooldown per akun
-(`FIREBASE_RESEND_COOLDOWN_SECONDS`, default 60 detik). Respons `429`
-menyertakan `details.retryAfterSeconds`; halaman menampilkan hitung mundur.
+- Permintaan berulang **tidak** membuat pendaftaran baru; `alreadyRequested`
+  menjadi `true` dan `request_count` bertambah.
+- `whatsappUrl` memakai template tetap: nama Owner, nama bisnis, nomor
+  registrasi, dan paket pilihan; nomor Admin berasal dari `SUPPORT_WHATSAPP`.
+- Status dapat dicek dengan
+  `GET /api/auth/registration-status?state=<state>`.
 
-### 3.4 Bantuan Admin & akun pending lama
+### 3.4 Approval Center (Admin Platform)
+
+Endpoint (semua wajib `platform_admin`):
+
+| Aksi | Endpoint |
+| --- | --- |
+| Daftar pending/riwayat | `GET /api/platform/approvals?status=pending\|history\|all&search=&page=&limit=` |
+| Setujui | `POST /api/platform/approvals/:id/approve` |
+| Tolak + alasan wajib | `POST /api/platform/approvals/:id/reject` body `{ "reason": "…" }` |
+
+Saat **disetujui**, dalam satu transaksi server:
+
+1. Membuat bisnis pertama dari `business_name`.
+2. Memasang **paket pilihan** dengan masa aktif **30 hari** mulai `now()` server.
+3. Mengisi `owners.email_verified_at = now()` (penanda aktivasi yang juga
+   dipakai akun lama, demi kompatibilitas).
+4. Menyimpan `approved_at`, `approved_by`, `business_id`, `trial_started_at`,
+   `trial_ends_at` dan menulis audit `owner.registration_approved`.
+
+Persetujuan berulang bersifat idempoten (`alreadyApproved: true`). Penolakan
+tidak membuat bisnis/langganan dan menyimpan `rejection_reason` untuk ditampilkan
+saat Owner mencoba login.
+
+### 3.5 Akun Owner buatan Admin
 
 Admin tetap dapat membuat akun Owner lewat panel Admin/API. Akun yang dibuat
-Admin langsung dianggap terverifikasi (kolom `email_verified_at` terisi
-`now()`, metode `manual`), sehingga bisa login tanpa email verifikasi.
-
-Akun pending **lama** (dibuat sebelum Firebase) tetap dapat diverifikasi manual
-via WhatsApp. Endpoint ini **menolak** akun yang terhubung Firebase:
-
-```http
-POST /api/platform/owners/:id/verify
-Authorization: Bearer <access token admin>
-```
-
-Bila akun pending lama memiliki `pending_business_name`, server dalam satu
-transaksi membuat bisnis pertama + langganan Gratis dan audit
-`owner.whatsapp_verified`.
+Admin langsung terverifikasi (`email_verified_at` terisi) dan tidak memerlukan
+approval. Tidak ada lagi endpoint verifikasi manual akun pending lama.
 
 ```http
 POST /api/platform/owners
@@ -172,18 +175,13 @@ Authorization: Bearer <access token admin>
 | --- | --- |
 | Lihat/cari Owner | `GET /api/platform/owners?search=&status=&page=&limit=` |
 | Ubah data Owner | `PATCH /api/platform/owners/:id` |
-| Verifikasi akun pending lama (WhatsApp) | `POST /api/platform/owners/:id/verify` |
 | Aktifkan/nonaktifkan akun | `PATCH /api/platform/owners/:id/status` (`active` \| `suspended`) |
 | Reset kata sandi | `POST /api/platform/owners/:id/password` |
 | Hapus (soft delete) | `DELETE /api/platform/owners/:id` |
 
-> Email Owner yang terhubung Firebase tidak dapat diubah dari panel Admin;
-> verifikasi manual juga ditolak. Reset kata sandi mandiri oleh Owner **belum
-> tersedia**; masih lewat Admin.
-
 ---
 
-## 4. Langkah 2 — Owner login di panel Owner
+## 4. Owner login di panel Owner
 
 Panel Owner: `/owner` (lokal: `http://localhost:4000/owner`, produksi:
 `https://kasir-nova.web.app/owner`).
@@ -198,24 +196,23 @@ Owner), `platform_admin` (panel Admin), atau `cashier` (panel Kasir memakai PIN
 lewat `POST /api/auth/cashier-pin`). Sesi memakai access token + refresh token
 yang dirotasi; pencabutan berlaku di server.
 
-Owner pendaftaran mandiri yang **belum** memverifikasi email ditolak **403**:
+Owner yang pendaftarannya **belum disetujui** ditolak **403**:
 
 ```json
-{ "error": { "message": "Akun menunggu verifikasi email…", "details": { "code": "email_not_verified", "verificationMethod": "email", "verificationState": "…" } } }
+{ "error": { "message": "Pendaftaran Anda sedang menunggu persetujuan Admin.", "details": { "code": "pending_approval", "registrationState": "…", "registration": { … } } } }
 ```
 
-Panel Owner otomatis membuka halaman verifikasi email. Sebelum menolak, server
-memeriksa Firebase; bila pemilik sudah mengklik tautan, aktivasi diselesaikan
-dan login dilanjutkan.
+Panel Owner membuka kembali halaman **Menunggu Persetujuan Admin**; tombol
+WhatsApp tetap dapat dipakai (permintaan approval idempoten).
 
-Akun pending lama tetap mendapat `account_not_verified` +
-`details.whatsappUrl`, dan panel menampilkan tautan **Hubungi Admin via
-WhatsApp**.
+Pendaftaran yang **ditolak** ditolak **403** dengan
+`details.code = "registration_rejected"` dan `details.reason`; panel
+menampilkan alasannya.
 
-## 5. Langkah 4 — Bisnis & langganan Gratis otomatis
+## 5. Langkah 4 — Bisnis tambahan & langganan default
 
-Bisnis **pertama** sudah dibuat otomatis saat email terverifikasi (§3.2), lengkap
-dengan langganan **Gratis 30 hari**. Owner dapat menambah bisnis lain lewat
+Bisnis **pertama** sudah dibuat otomatis saat Admin menyetujui pendaftaran
+(§3.4), lengkap dengan langganan **paket pilihan selama 30 hari**. Owner dapat menambah bisnis lain lewat
 panel Owner → kartu **Bisnis Saya** → **+ Bisnis Baru**, atau API:
 
 ```http
@@ -227,7 +224,8 @@ Authorization: Bearer <access token owner>
 
 `201` → `{ "business": { … } }`.
 
-Dalam **transaksi database yang sama**, server membuat langganan default
+Bisnis pertama hasil approval memakai **paket yang dipilih saat mendaftar**
+(selama 30 hari). Untuk **bisnis tambahan**, server membuat langganan default
 (`createDefaultSubscription`) memakai paket `is_default = true`, yaitu paket
 **"Gratis"** yang di-seed migrasi `0004`:
 
@@ -235,8 +233,8 @@ Dalam **transaksi database yang sama**, server membuat langganan default
 | --- | --- | --- | --- | --- |
 | Gratis (default) | 1 | 1 | Rp 0 | 30 hari |
 
-Jadi pelanggan baru **langsung bisa berjualan** dengan 1 outlet dan 1 kasir
-selama 30 hari tanpa membayar. Satu Owner boleh punya banyak bisnis; setiap
+Jadi bisnis tambahan tetap bisa dipakai dengan 1 outlet dan 1 kasir selama 30
+hari tanpa membayar; bisnis pertama mengikuti paket pilihan saat approval. Satu Owner boleh punya banyak bisnis; setiap
 bisnis punya langganan sendiri (status **tidak menular** antar bisnis).
 
 ---
@@ -370,23 +368,22 @@ Jalur ini **bukan** alur normal pelanggan; gunakan hanya untuk bantuan/uji coba.
 
 ---
 
-## 10. Status & yang belum tersedia (per 23 Okt 2026)
+## 10. Status & yang belum tersedia (per 29 Okt 2026)
 
-- **Pendaftaran mandiri + verifikasi email Firebase** — **tersedia** (kode &
-  tes otomatis dengan adapter Firebase palsu). Pengiriman email sungguhan baru
-  aktif setelah `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
-  `FIREBASE_PRIVATE_KEY` (atau `FIREBASE_SERVICE_ACCOUNT_JSON`) dan
-  `FIREBASE_WEB_API_KEY` diisi + Firebase Console dikonfigurasi. Tanpa itu,
-  pendaftaran menjawab **503** `firebase_not_configured`. Alur email lama
-  (Resend/SMTP) hanya untuk akun pending legacy.
+- **Pendaftaran mandiri + Approval Center + trial 30 hari** — **tersedia** dan
+  diuji otomatis (`server/tests/self-registration.test.js`): draft, permintaan
+  approval idempoten, persetujuan/penolakan, gate login, dan trial dari waktu
+  approval.
+- **Pembayaran pendaftaran** — **tidak ada** (dihapus dari alur). Pembayaran
+  hanya untuk perpanjangan langganan (`docs/38`).
+- **Verifikasi email/Firebase** — **tidak dipakai lagi**; kode, halaman, dan
+  dependensi Firebase/mailer telah dihapus. Kolom lama dibiarkan untuk histori.
 - **Reset kata sandi mandiri** oleh Owner — belum ada; masih lewat Admin.
-- **Penagihan otomatis/**`auto_renew` — masih `false` (modul ditangguhkan).
+- **Penagihan otomatis/`auto_renew`** — masih `false` (modul ditangguhkan).
 - **Callback produksi** — backend sudah dideploy ulang dan kredensial Duitku
   sandbox sudah diisi di Vercel (23 Okt 2026); callback tanpa tanda tangan sah
   menjawab **401** (gateway aktif). Mode produksi (uang nyata) tetap terkunci
   `PAYMENT_ALLOW_PRODUCTION=false`.
-- Uji sandbox sudah jalan untuk pembuatan tagihan + cek status; **aktivasi
-  setelah pembayaran penuh** masih menunggu pengujian pemilik (`docs/38` §10).
 
 ---
 
@@ -410,16 +407,12 @@ menampilkan alasannya dan **tidak** membuat tagihan.
 
 | Berkas | Perannya |
 | --- | --- |
-| `server/src/db/migrations/0013_owner_self_registration.sql` | Kolom verifikasi + `pending_business_name`; `0014` membuat `email_verified_at` NULL-able |
-| `server/src/db/migrations/0015_owner_firebase_verification.sql` | `firebase_uid`, metode verifikasi, cooldown, index unik |
-| `server/src/modules/auth/{service,controller,routes,schema}.js` | Daftar Owner (pending), state verifikasi, gate login |
-| `server/src/utils/firebase.js` | Adapter Firebase Admin/REST + verifikasi ID token + kirim email |
-| `server/src/modules/platform-admin/{service,controller,routes}.js` | Verifikasi akun pending lama + larangan verifikasi manual Firebase |
-| `server/src/utils/mailer.js` | Alur email legacy (Resend/SMTP/development log) |
-| `server/src/db/migrations/0004_outlets_subscriptions.sql` | Tabel `subscription_plans`/`subscriptions` + seed paket default "Gratis" |
-| `server/src/modules/subscription/service.js` | `createDefaultSubscription`, gerbang kuota & langganan aktif |
-| `server/src/modules/owner/service.js` | `createBusinessInTransaction` (bisnis + langganan default dalam satu transaksi) |
-| `server/src/modules/subscription-invoice/service.js` | Tagihan, pakai ulang pending, aktivasi setelah pembayaran |
-| `server/src/modules/platform-admin/{routes,service}.js` | Akun Owner, pasang/ubah langganan manual |
-| `apps/owner/index.html`, `apps/owner/verify-email.html`, `apps/owner/src/{app,api,verify-email}.js` | Form **Daftar**, halaman verifikasi email, **+ Bisnis Baru** & **Bayar / Perpanjang** (Owner) |
-| `apps/admin/index.html` | Form **+ Owner Baru** (jalur bantuan Admin) |
+| `server/src/db/migrations/0016_owner_approval_center.sql` | Tabel `owner_registrations` (satu baris per Owner), status, nomor registrasi, jejak approval/trial |
+| `server/src/modules/auth/{service,controller,routes,schema}.js` | Daftar Owner (draft), paket publik, permintaan approval, gate login pending/rejected |
+| `server/src/modules/owner-approval/{service,controller,routes,schema}.js` | Approval Center: daftar pending/riwayat, setujui, tolak, template WhatsApp |
+| `server/src/modules/platform-admin/{service,controller,routes}.js` | Akun Owner, pasang/ubah langganan manual, status pendaftaran pada daftar Owner |
+| `server/src/modules/subscription/service.js` | `createDefaultSubscription`, `createTrialSubscription`, gerbang kuota & langganan aktif |
+| `server/src/modules/owner/service.js` | `createBusinessInTransaction` (bisnis + paket pilihan/trial dalam satu transaksi) |
+| `server/src/modules/subscription-invoice/service.js` | Tagihan perpanjangan, pakai ulang pending, aktivasi setelah pembayaran |
+| `apps/owner/index.html`, `apps/owner/src/{app,api}.js` | Form **Daftar** + pilih paket, halaman menunggu approval, tombol **MINTA APPROVE ADMIN**, **+ Bisnis Baru** & **Bayar / Perpanjang** |
+| `apps/admin/index.html`, `apps/admin/src/{app,api}.js` | Tab **Approval Center**, badge pending, aksi setujui/tolak, daftar Owner |
