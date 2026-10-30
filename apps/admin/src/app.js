@@ -813,22 +813,70 @@ $('biz-next-btn').addEventListener('click', () => {
 
 let currentSubBusinessId = null;
 
+const fmtRupiahSmall = (value) => {
+  const num = Number(value);
+  if (Number.isNaN(num)) return '—';
+  return new Intl.NumberFormat('id-ID').format(num);
+};
+
+const loadSubInvoices = async () => {
+  const tbody = $('sub-invoice-body');
+  const empty = $('sub-invoice-empty');
+  const msg = $('sub-invoice-msg');
+  if (!currentSubBusinessId) return;
+  tbody.innerHTML = '';
+  hide(empty);
+  msg.textContent = 'Memuat...';
+  try {
+    const body = await guard(() => api.listBusinessInvoices(currentSubBusinessId, { limit: 50 }));
+    if (!body) {
+      msg.textContent = 'Gagal memuat tagihan.';
+      return;
+    }
+    const items = body.items ?? body.invoices ?? [];
+    if (!items.length) {
+      show(empty);
+      msg.textContent = '';
+      return;
+    }
+    for (const inv of items) {
+      const tr = document.createElement('tr');
+      const canCancel = inv.status === 'pending';
+      tr.innerHTML = `
+        <td class="mono small">${escapeHtml(inv.order_id || inv.id)}</td>
+        <td>${escapeHtml(inv.plan_name || '—')}</td>
+        <td>${inv.billing_period === 'yearly' ? 'Tahunan' : 'Bulanan'}</td>
+        <td class="right mono">Rp ${fmtRupiahSmall(inv.amount_rupiah ?? inv.amount)}</td>
+        <td>${escapeHtml(inv.payment_method || '—')}</td>
+        <td>${escapeHtml(inv.status)}</td>
+        <td class="small">${fmtDate(inv.expires_at)}</td>
+        <td>${canCancel ? `<button class="btn small danger" data-inv-cancel="${escapeHtml(inv.id)}">Batalkan</button>` : '—'}</td>`;
+      tbody.appendChild(tr);
+    }
+    msg.textContent = '';
+  } catch (err) {
+    msg.textContent = describeError(err);
+  }
+};
+
 const openSubModal = async (businessId) => {
   currentSubBusinessId = businessId;
   hide($('sub-form-error'));
+  hide($('sub-invoice-empty'));
+  $('sub-invoice-body').innerHTML = '';
+  $('sub-invoice-msg').textContent = '';
   show($('sub-modal'));
 
   // Isi pilihan paket (semua paket aktif).
   const plansBody = await guard(() => api.listPlans());
   const select = $('sub-plan-select');
   select.innerHTML = '';
-  const store = state.businesses.find((b) => b.id === businessId);
-  const currentPlanName = store?.plan_name ?? '';
   for (const p of (plansBody?.items ?? [])) {
     const opt = document.createElement('option');
     opt.value = p.id;
-    const price = p.is_custom_price ? 'konsultasi' : fmtIDR(p.price_monthly ?? p.price);
-    opt.textContent = `${p.name} — ${price}/bulan (${p.max_outlets} outlet, ${p.max_cashiers} kasir)${p.is_default ? ' — default' : ''}`;
+    const priceMonthly = p.is_custom_price ? 'konsultasi' : fmtIDR(p.price_monthly ?? p.price);
+    const priceYearly = p.is_custom_price ? 'konsultasi' : fmtIDR(p.price_yearly);
+    opt.textContent = `${p.name} — ${priceMonthly}/bulan / ${priceYearly}/tahun (${p.max_outlets} outlet, ${p.max_cashiers} kasir)${p.is_default ? ' — default' : ''}`;
     select.appendChild(opt);
   }
   if (plansBody?.items?.length) select.selectedIndex = 0;
@@ -836,7 +884,7 @@ const openSubModal = async (businessId) => {
   // Info langganan saat ini.
   try {
     const viewBody = await guard(() => api.getBusinessSubscription(businessId));
-    $('sub-current').textContent = `Saat ini: ${viewBody?.plan?.name ?? '—'} — status ${viewBody?.subscription?.status ?? '—'} · sampai ${fmtDate(viewBody?.subscription?.expires_at)}`;
+    $('sub-current').textContent = `Saat ini: ${viewBody?.plan?.name ?? '—'} — status ${viewBody?.subscription?.status ?? '—'} · periode ${viewBody?.subscription?.billing_period === 'yearly' ? 'Tahunan' : 'Bulanan'} · sampai ${fmtDate(viewBody?.subscription?.expires_at)}`;
     $('sub-status-select').value = viewBody?.subscription?.status ?? 'active';
     $('sub-period-select').value = viewBody?.subscription?.billing_period === 'yearly' ? 'yearly' : 'monthly';
   } catch (err) {
@@ -846,6 +894,8 @@ const openSubModal = async (businessId) => {
       $('sub-current').textContent = describeError(err);
     }
   }
+
+  await loadSubInvoices();
 };
 
 $('biz-body').addEventListener('click', async (event) => {
@@ -859,8 +909,9 @@ $('sub-assign').addEventListener('click', async () => {
   const billingPeriod = $('sub-period-select').value;
   try {
     await guard(() => api.assignSubscription(currentSubBusinessId, planId, billingPeriod));
-    alertBox('alert-biz', 'Paket langganan berhasil dipasang.', 'ok');
-    hide($('sub-modal'));
+    alertBox('alert-biz', 'Paket langganan berhasil dipasang/ganti.', 'ok');
+    hide($('sub-form-error'));
+    await openSubModal(currentSubBusinessId);
     await loadBusinesses();
   } catch (err) {
     const el = $('sub-form-error');
@@ -874,12 +925,32 @@ $('sub-set-status').addEventListener('click', async () => {
   try {
     await guard(() => api.setSubscriptionStatus(currentSubBusinessId, status));
     alertBox('alert-biz', `Status langganan diubah menjadi ${status}.`, 'ok');
-    hide($('sub-modal'));
+    hide($('sub-form-error'));
+    await openSubModal(currentSubBusinessId);
     await loadBusinesses();
   } catch (err) {
     const el = $('sub-form-error');
     el.textContent = describeError(err);
     show(el);
+  }
+});
+
+$('sub-load-invoices').addEventListener('click', async () => {
+  await loadSubInvoices();
+});
+
+$('sub-invoice-body').addEventListener('click', async (event) => {
+  const btn = event.target.closest('button[data-inv-cancel]');
+  if (!btn) return;
+  const invoiceId = btn.dataset.invCancel;
+  if (!currentSubBusinessId || !invoiceId) return;
+  if (!confirm('Batalkan tagihan pending ini?')) return;
+  try {
+    await guard(() => api.cancelBusinessInvoice(currentSubBusinessId, invoiceId));
+    alertBox('alert-biz', 'Tagihan pending dibatalkan.', 'ok');
+    await loadSubInvoices();
+  } catch (err) {
+    $('sub-invoice-msg').textContent = describeError(err);
   }
 });
 

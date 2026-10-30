@@ -8,11 +8,13 @@ import * as controller from './business-controller.js';
 import * as txController from '../transaction/controller.js';
 import { requireBusinessAccess } from '../../middleware/tenant.js';
 import { validate } from '../../middleware/validate.js';
+import Joi from 'joi';
 import {
   businessParamSchema,
   assignSubscriptionSchema,
   subscriptionStatusSchema,
   listBusinessesQuerySchema,
+  invoiceParamSchema,
 } from './business-schema.js';
 import {
   transactionListQuerySchema,
@@ -21,6 +23,12 @@ import {
 import { reportRoutes } from '../report/routes.js';
 
 const router = Router({ mergeParams: true });
+
+const invoiceListQuerySchema = Joi.object({
+  status: Joi.string().valid('pending','paid','failed','canceled','expired').allow(null,''),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+});
 
 router.get('/', ...validate({ query: listBusinessesQuerySchema }), controller.listBusinesses);
 
@@ -50,6 +58,22 @@ router.patch(
   ...validate({ params: businessParamSchema, body: subscriptionStatusSchema }),
   requireBusinessAccess(),
   controller.setSubscriptionStatus
+);
+
+// Daftar tagihan langganan bisnis (untuk panel Admin)
+router.get(
+  '/:businessId/invoices',
+  ...validate({ params: businessParamSchema, query: invoiceListQuerySchema }),
+  requireBusinessAccess(),
+  controller.listInvoices
+);
+
+// Batal tagihan pending (untuk pengujian gateway)
+router.post(
+  '/:businessId/invoices/:invoiceId/cancel',
+  ...validate({ params: invoiceParamSchema }),
+  requireBusinessAccess(),
+  controller.cancelInvoice
 );
 
 // Transaksi lintas platform (baca saja, sesuai matriks hak akses).

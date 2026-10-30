@@ -736,3 +736,46 @@ export default {
   handleDuitkuCallback,
   syncInvoiceStatus,
 };
+
+
+/**
+ * Admin Platform membatalkan tagihan langganan yang masih pending (untuk keperluan
+ * pengujian gateway / koreksi). Tagihan yang sudah dibayar/tidak pending ditolak.
+ */
+export const cancelInvoiceByAdmin = async ({ invoiceId, actor, ip }) => {
+  const { rows } = await query(
+    `SELECT ${JOINED_COLUMNS}
+       FROM subscription_invoices i
+       JOIN subscription_plans p ON p.id = i.plan_id
+      WHERE i.id = $1`,
+    [invoiceId]
+  );
+  const invoice = rows[0];
+  if (!invoice) throw new NotFoundError('Tagihan tidak ditemukan');
+  if (invoice.status !== 'pending') {
+    throw new AppError('Hanya tagihan berstatus pending yang dapat dibatalkan', 422);
+  }
+
+  const { rows: updated } = await query(
+    `UPDATE subscription_invoices
+        SET status = 'canceled', updated_at = now()
+      WHERE id = $1 AND status = 'pending'
+      RETURNING ${INVOICE_COLUMNS}`,
+    [invoiceId]
+  );
+  if (!updated[0]) throw new AppError('Gagal membatalkan tagihan (sudah berubah status)', 409);
+
+  await writeAudit({
+    actorRole: actor?.role ?? 'platform_admin',
+    actorId: actor?.id ?? null,
+    businessId: invoice.business_id,
+    action: 'subscription.invoice_canceled_by_admin',
+    entityType: 'subscription_invoice',
+    entityId: invoiceId,
+    before: { status: invoice.status, order_id: invoice.order_id },
+    after: { status: 'canceled' },
+    ip,
+  });
+
+  return { invoice: invoiceDto({ ...invoice, ...updated[0] }) };
+};

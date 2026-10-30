@@ -313,6 +313,20 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
+  listBusinessInvoices: (businessId, params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request(`/api/platform/businesses/${businessId}/invoices${suffix}`);
+  },
+
+  cancelBusinessInvoice: (businessId, invoiceId) =>
+    request(`/api/platform/businesses/${businessId}/invoices/${invoiceId}/cancel`, {
+      method: 'POST',
+    }),
+
   // Laporan penjualan (baca saja, sesuai matriks hak akses).
   reports: {
     grouped: (businessId, params = {}) => {

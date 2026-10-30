@@ -337,6 +337,9 @@ export const api = {
   subscription: (businessId) =>
     request(`/api/owner/businesses/${businessId}/subscription`),
 
+  cancelSubscription: (businessId) =>
+    request(`/api/owner/businesses/${businessId}/subscription/cancel`, { method: 'POST' }),
+
   // Pembayaran langganan (payment gateway, uji sandbox Duitku).
   subscriptionPlans: (businessId) =>
     request(`/api/owner/businesses/${businessId}/subscription/plans`),

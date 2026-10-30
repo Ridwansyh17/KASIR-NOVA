@@ -75,6 +75,13 @@ router.get(
   controller.getSubscription
 );
 
+router.post(
+  '/businesses/:businessId/subscription/cancel',
+  ...validate({ params: businessParamSchema }),
+  requireBusinessAccess(),
+  controller.cancelSubscription
+);
+
 // Tagihan langganan (payment gateway): paket, buat tagihan VA/QRIS, riwayat,
 // cek status manual. Owner self-service (uji sandbox Duitku).
 router.use('/businesses/:businessId/subscription', subscriptionInvoiceRoutes);

@@ -1021,6 +1021,25 @@ $('sub-pay-btn').addEventListener('click', () => {
 $('sub-invoice-refresh').addEventListener('click', () => {
   loadSubscriptionInvoices().catch((err) => alertBox(describeError(err), 'error'));
 });
+
+$('sub-cancel-trial-btn').addEventListener('click', async () => {
+  const b = state.activeBusiness;
+  if (!b) return;
+  const msg = $('sub-action-msg');
+  if (!confirm('Batalkan langganan aktif saat ini (termasuk trial)? Setelah dibatalkan, Anda bisa membuat tagihan paket berbayar bulanan/tahunan dan membayarnya lewat gateway. Lanjutkan?')) return;
+  try {
+    msg.className = 'muted small';
+    msg.textContent = 'Membatalkan langganan aktif...';
+    await guard(() => api.cancelSubscription(b.id));
+    alertBox('Langganan aktif dibatalkan. Silakan pilih paket & buat tagihan pembayaran.', 'ok');
+    msg.textContent = '';
+    await refreshSubscriptionView(b.id);
+    await loadSubscriptionInvoices();
+  } catch (err) {
+    msg.className = 'error small';
+    msg.textContent = describeError(err);
+  }
+});
 $('pay-plan').addEventListener('change', renderPayPlanInfo);
 $('pay-period').addEventListener('change', renderPayPlanInfo);
 $('pay-cancel').addEventListener('click', closePayModal);

@@ -66,3 +66,26 @@ export default {
   assignSubscription,
   setSubscriptionStatus,
 };
+export const cancelInvoice = async (req, res, next) => {
+  try {
+    const { cancelInvoiceByAdmin } = await import('../subscription-invoice/service.js');
+    const result = await cancelInvoiceByAdmin({
+      invoiceId: req.params.invoiceId,
+      actor: req.user,
+      ip: req.ip,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const listInvoices = async (req, res, next) => {
+  try {
+    const { listInvoices: list } = await import('../subscription-invoice/service.js');
+    const result = await list(req.params.businessId, req.query);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};

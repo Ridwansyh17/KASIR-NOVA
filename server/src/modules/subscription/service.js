@@ -324,3 +324,52 @@ export default {
   assignSubscription,
   setSubscriptionStatus,
 };
+/**
+ * Owner membatalkan/menghentikan langganan aktif saat ini (terutama untuk
+ * mengganti trial dengan paket berbayar via tagihan). Hanya berlaku untuk
+ * langganan status 'active'. Mencatat audit.
+ */
+export const cancelActiveSubscriptionByOwner = async (clientOrBusinessId, maybeActor = null, maybeIp = null) => {
+  const isClient = clientOrBusinessId && typeof clientOrBusinessId.query === 'function';
+  const businessId = isClient ? maybeActor : clientOrBusinessId;
+  const actor = isClient ? maybeIp : maybeActor;
+  const ip = isClient ? null : maybeIp;
+
+  const run = async (client) => {
+    const { rows: subRows } = await client.query(
+      `SELECT id, plan_id, status FROM subscriptions
+        WHERE business_id = $1 AND status = 'active'
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1 FOR UPDATE`,
+      [businessId]
+    );
+    const sub = subRows[0];
+    if (!sub) throw new NotFoundError('Tidak ada langganan aktif untuk dibatalkan');
+
+    const { rows } = await client.query(
+      `UPDATE subscriptions SET status = 'canceled', updated_at = now()
+        WHERE id = $1 AND status = 'active'
+        RETURNING id, business_id, plan_id, status, billing_period, price_amount,
+                  started_at, expires_at, auto_renew`,
+      [sub.id]
+    );
+
+    await writeAudit({
+      client,
+      actorRole: actor?.role ?? 'owner',
+      actorId: actor?.id ?? null,
+      businessId,
+      action: 'subscription.canceled_by_owner',
+      entityType: 'subscription',
+      entityId: sub.id,
+      before: { plan_id: sub.plan_id, status: 'active' },
+      after: { status: 'canceled' },
+      ip,
+    });
+
+    return rows[0];
+  };
+
+  if (isClient) return run(clientOrBusinessId);
+  return withTransaction(run);
+};

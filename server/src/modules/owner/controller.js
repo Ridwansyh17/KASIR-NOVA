@@ -75,3 +75,13 @@ export const getSubscription = async (req, res, next) => {
     next(err);
   }
 };
+
+export const cancelSubscription = async (req, res, next) => {
+  try {
+    const { cancelActiveSubscriptionByOwner } = await import('../subscription/service.js');
+    const subscription = await cancelActiveSubscriptionByOwner(req.params.businessId, req.user, req.ip);
+    res.json({ subscription });
+  } catch (err) {
+    next(err);
+  }
+};
