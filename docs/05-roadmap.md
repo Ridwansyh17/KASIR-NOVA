@@ -1611,10 +1611,11 @@ paket pilihan + **trial 30 hari** dibuat saat persetujuan.
 - `npm run test --workspace server` → **368/368 lulus** (8 tes alur approval).
 - `npm run verify:ui` → **SEMUA OK**.
 
-**Status.** Kode selesai & teruji lokal; **sudah di-commit** dan **Firebase
-Hosting sudah dideploy** (30 Okt 2026). Backend Vercel + migrasi `0016` di
-database produksi **belum** diterapkan, sehingga endpoint approval belum aktif
-di produksi sampai deploy backend dilakukan.
+**Status.** Selesai & **live** (30 Okt 2026): kode di-commit, migrasi
+`0013`–`0016` diterapkan ke Neon produksi (backup `pg_dump` dibuat lebih dulu),
+backend Vercel dideploy ulang, dan Firebase Hosting dideploy. Smoke test
+produksi: `/api/health` 200, `/api/auth/registration-plans` 200,
+`/api/platform/approvals` tanpa token 401.
 
 ---
 
