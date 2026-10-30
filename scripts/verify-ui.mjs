@@ -55,7 +55,8 @@ for (const app of APPS) {
     refs.add(v.replace(/^\.\//, ''));
   }
   for (const r of refs) {
-    if (!existsSync(resolve(dir, r))) fail(`rujukan tidak ada di HTML: ${r}`);
+    const file = r.split('?')[0].split('#')[0];
+    if (!existsSync(resolve(dir, file))) fail(`rujukan tidak ada di HTML: ${r}`);
   }
   console.log(`  rujukan lokal dicek: ${refs.size}`);
 

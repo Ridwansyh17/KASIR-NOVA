@@ -57,7 +57,9 @@ export const listOwners = async ({ search = null, status = null, page = 1, limit
   const { rows } = await query(
     `SELECT ${OWNER_COLUMNS},
             (SELECT r.status FROM owner_registrations r WHERE r.owner_id = owners.id)
-              AS registration_status
+              AS registration_status,
+            (SELECT r.id FROM owner_registrations r WHERE r.owner_id = owners.id)
+              AS registration_id
        FROM owners ${filters}
       ORDER BY created_at DESC
       LIMIT $3 OFFSET $4`,
@@ -77,7 +79,9 @@ export const getOwner = async (id) => {
   const { rows } = await query(
     `SELECT ${OWNER_COLUMNS},
             (SELECT r.status FROM owner_registrations r WHERE r.owner_id = owners.id)
-              AS registration_status
+              AS registration_status,
+            (SELECT r.id FROM owner_registrations r WHERE r.owner_id = owners.id)
+              AS registration_id
        FROM owners WHERE id = $1 AND deleted_at IS NULL`,
     [id]
   );

@@ -241,6 +241,10 @@ const renderOwners = (items) => {
     const waLink = wa
       ? `<a class="btn small" href="https://wa.me/${wa}" target="_blank" rel="noopener">WA</a>`
       : '';
+    const approveBtn =
+      o.registration_status === 'pending' && o.registration_id
+        ? `<button class="btn small primary" data-action="approve-registration" data-id="${o.id}">Setujui</button>`
+        : '';
 
     tr.innerHTML = `
       <td>${escapeHtml(o.full_name)}${pending}</td>
@@ -250,6 +254,7 @@ const renderOwners = (items) => {
       <td>${verifyBadge}</td>
       <td class="muted">${escapeHtml(fmtDate(o.created_at))}</td>
       <td class="right actions">
+        ${approveBtn}
         ${waLink}
         <button class="btn small" data-action="edit" data-id="${o.id}">Ubah</button>
         <button class="btn small" data-action="toggle" data-id="${o.id}">${toggleLabel}</button>
@@ -293,6 +298,20 @@ $('owners-body').addEventListener('click', async (event) => {
   if (!owner) return;
 
   if (action === 'edit') return openEditModal(owner);
+
+  if (action === 'approve-registration') {
+    if (!owner.registration_id) {
+      alertBox('alert-owners', 'Data pendaftaran tidak ditemukan. Muat ulang daftar.', 'error');
+      return;
+    }
+    openApprovalModal('approve', {
+      id: owner.registration_id,
+      business_name: owner.pending_business_name ?? owner.full_name,
+      owner: { full_name: owner.full_name, email: owner.email },
+      plan: { name: '—' },
+    });
+    return;
+  }
 
   if (action === 'toggle') {
     const next = owner.status === 'active' ? 'suspended' : 'active';
@@ -413,9 +432,11 @@ const openApprovalModal = (action, item) => {
   $('approval-modal-title').textContent = approving
     ? 'Setujui Pendaftaran'
     : 'Tolak Pendaftaran';
+  const planName = item.plan?.name && item.plan.name !== '—' ? item.plan.name : null;
   $('approval-modal-text').textContent = approving
     ? `Setujui ${item.owner?.full_name ?? 'Owner'} / ${item.business_name}? ` +
-      `Paket: ${item.plan?.name ?? '-'}. Masa gratis 30 hari dimulai sekarang.`
+      (planName ? `Paket: ${planName}. ` : '') +
+      'Masa gratis 30 hari dimulai sekarang.'
     : `Tolak pendaftaran ${item.business_name}? Bisnis dan langganan tidak dibuat.`;
   $('approval-modal-error').classList.add('hidden');
   $('approval-reason').value = '';
