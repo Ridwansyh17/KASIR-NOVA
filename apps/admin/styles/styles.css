@@ -325,8 +325,28 @@ select:focus {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
-  overflow: hidden;
+  /* Tabel Approval Center lebih lebar dari layar tablet/desktop sempit.
+     `hidden` memotong kolom Aksi sehingga tombol Setujui/Tolak tidak terlihat. */
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: var(--shadow);
+}
+
+/* Kolom aksi selalu terlihat di tepi kanan saat tabel digeser horizontal. */
+.table th:last-child,
+.table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--card);
+}
+
+.table thead th:last-child {
+  background: var(--card-2);
+}
+
+.table tbody tr:hover td:last-child {
+  background: var(--card-2);
 }
 
 .table {
@@ -545,6 +565,11 @@ select:focus {
   .table td {
     border: none;
     padding: 6px 14px;
+  }
+  .table th:last-child,
+  .table td:last-child {
+    position: static;
+    background: transparent;
   }
   .actions {
     justify-content: flex-start;
