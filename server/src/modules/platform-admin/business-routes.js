@@ -4,11 +4,11 @@
  * gerbang requireAuth + requireRole('platform_admin')).
  */
 import { Router } from 'express';
+import { z } from 'zod';
 import * as controller from './business-controller.js';
 import * as txController from '../transaction/controller.js';
 import { requireBusinessAccess } from '../../middleware/tenant.js';
 import { validate } from '../../middleware/validate.js';
-import Joi from 'joi';
 import {
   businessParamSchema,
   assignSubscriptionSchema,
@@ -24,10 +24,10 @@ import { reportRoutes } from '../report/routes.js';
 
 const router = Router({ mergeParams: true });
 
-const invoiceListQuerySchema = Joi.object({
-  status: Joi.string().valid('pending','paid','failed','canceled','expired').allow(null,''),
-  page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(100).default(20),
+const invoiceListQuerySchema = z.object({
+  status: z.enum(['pending','paid','failed','canceled','expired']).optional().or(z.literal('')),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 router.get('/', ...validate({ query: listBusinessesQuerySchema }), controller.listBusinesses);

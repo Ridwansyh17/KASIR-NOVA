@@ -28,7 +28,7 @@ export const listBusinessesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
-export const invoiceParamSchema = Joi.object({
-  businessId: Joi.string().uuid().required(),
-  invoiceId: Joi.string().uuid().required(),
+export const invoiceParamSchema = z.object({
+  businessId: z.string().uuid(),
+  invoiceId: z.string().uuid(),
 });
